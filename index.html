@@ -305,8 +305,10 @@
   #ovl{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:10;display:none;align-items:flex-end;justify-content:center}
   #ovl.show{display:flex}
   #modal{background:var(--bg-1);border:1px solid var(--stroke);border-radius:20px 20px 0 0;width:100%;max-width:480px;
-    max-height:84vh;overflow-y:auto;padding:20px 18px calc(20px + env(safe-area-inset-bottom));
+    max-height:84vh;overflow-y:auto;overflow-x:hidden;padding:20px 18px calc(20px + env(safe-area-inset-bottom));
     box-shadow:0 16px 48px rgba(0,0,0,.55)}
+  #modal input,#modal select,#modal textarea{min-width:0;max-width:100%}
+  #modal input[type="date"]{display:block;width:100%;-webkit-min-logical-width:0}
   #modal h3{font-size:16px;font-weight:700;letter-spacing:-.01em;margin-bottom:12px}
   .pick{display:flex;align-items:center;width:100%;text-align:left;margin-top:6px;justify-content:space-between}
   .pick small{color:var(--text-3)}
@@ -2210,7 +2212,8 @@ function renderMore(){
   const wk = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
   const st = S.settings;
   $("#view").innerHTML =
-    '<h2>Profile</h2><div class="card">'
+    '<p class="cap" style="margin:4px 2px 0">Everything on this page saves by itself the moment you change it — no save button.</p>'
+    + '<h2>Profile</h2><div class="card">'
     + '<div class="set-item"><span class="lbl">Height (feeds calorie math)</span><input id="st-height" value="'+esc(st.height||"")+'"></div>'
     + '<div class="set-item"><span class="lbl">Age (feeds calorie math)</span><input id="st-age" type="number" inputmode="numeric" value="'+(st.age||30)+'"></div>'
     + '<div class="set-item"><span class="lbl">Body fat % (optional — sharpens BMR + unlocks lean-mass stats)</span><input id="st-bf" type="number" inputmode="decimal" value="'+esc(st.bodyFat)+'" placeholder="e.g. 14"></div>'
@@ -2730,7 +2733,9 @@ document.addEventListener("click", ev => {
   }
   else if (act === "export"){
     S.lastBackup = todayStr(); save();
-    const blob = new Blob([JSON.stringify(S, null, 1)], {type:"application/json"});
+    // never write the API key into a backup file — it gets emailed/shared between devices
+    const dump = Object.assign({}, S, {settings: Object.assign({}, S.settings, {apiKey:""})});
+    const blob = new Blob([JSON.stringify(dump, null, 1)], {type:"application/json"});
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = "liftlog-backup-" + todayStr() + ".json";
@@ -2747,6 +2752,7 @@ document.addEventListener("click", ev => {
 
 document.addEventListener("change", ev => {
   const t = ev.target;
+  if (/^st-/.test(t.id)) showToast("Saved ✓");
   if (t.id === "session-sel"){
     const dd = S.drafts[todayStr()];
     if (draftHasData(dd) && !confirm("Changing the session resets logged sets. Continue?")){
@@ -2777,8 +2783,10 @@ document.addEventListener("change", ev => {
       try {
         const data = JSON.parse(txt);
         if (!Array.isArray(data.workouts)) throw 0;
+        const keptKey = S.settings.apiKey;
         S = Object.assign({drafts:{},custom:{},templates:{},coach:[],milestone:0,uniO:{},body:{weights:{},kcals:{}},progSel:null,editing:null,trendTab:"body",range:30,recapSeen:""}, data);
         S.settings = Object.assign({}, DEF_SET, data.settings||{});
+        if (!S.settings.apiKey) S.settings.apiKey = keptKey; // backups don't carry the key
         S.body = Object.assign({weights:{},kcals:{},meas:{},sleep:{},energy:{}}, S.body||{});
         S.uniO = S.uniO || {};
         save(); alert("Restored " + S.workouts.length + " workouts."); render();
