@@ -127,8 +127,8 @@
   /* ===== home ===== */
   .today-name{font-size:22px;font-weight:700;letter-spacing:-.01em;margin:2px 0 4px}
   .preview{color:var(--text-2);font-size:13px;line-height:1.65;margin-bottom:14px}
-  .checkin-grid{display:flex;gap:10px;margin-top:12px}
-  .checkin-grid label{flex:1}
+  .checkin-grid{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+  .checkin-grid label{flex:1 1 calc(50% - 5px)}
   .checkin-grid .lbl{display:block;margin-bottom:6px}
   .checkin-grid input{text-align:center;font-size:17px;font-weight:600}
   .ok-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--good);margin-right:8px;vertical-align:1px}
@@ -476,7 +476,7 @@ let storeOK = true;
 try { const raw = localStorage.getItem(KEY); if (raw){
   const d = JSON.parse(raw);
   S = Object.assign(S, d);
-  S.body = Object.assign({weights:{},kcals:{}}, d.body||{});
+  S.body = Object.assign({weights:{},kcals:{},meas:{},sleep:{},energy:{}}, d.body||{});
   S.settings = Object.assign({}, DEF_SET, d.settings||{});
 }} catch(e){ storeOK = false; }
 S.templates = S.templates || {}; S.coach = S.coach || []; S.milestone = S.milestone || 0;
@@ -982,6 +982,26 @@ function renderHome(){
     }
   }
 
+  // backup nudge
+  const newest = S.workouts.reduce((a,w) => w.date > a ? w.date : a, "");
+  if (S.workouts.length >= 8 && newest > (S.lastBackup||"")
+      && (!S.lastBackup || addDays(S.lastBackup, 14) <= today)
+      && (!S.backupSnooze || addDays(S.backupSnooze, 7) <= today)){
+    html += '<div class="card banner rowline"><div class="grow hint">'
+      + (S.lastBackup ? 'It\'s been 2+ weeks since your last backup' : 'You\'ve never backed this data up')
+      + ' — 30 seconds now beats re-logging weeks later.</div>'
+      + '<button class="small" data-act="export">Back up</button>'
+      + '<button class="ghost" data-act="backup-later">Later</button></div>';
+  }
+
+  // deload advice
+  const da = deloadAdvice();
+  if (da && da.level === "advise"){
+    html += '<div class="card banner"><b class="wr">Deload advised</b>'
+      + '<div class="hint" style="margin-top:5px">'+da.signals.join(" · ")
+      + '. Take 4–5 days at ~60% of your usual weight and volume — fatigue resets, strength doesn\'t go anywhere.</div></div>';
+  }
+
   const done = S.workouts.find(w => w.date === today);
   if (done && !draftHasData(S.drafts[today])){
     const setsN = done.exercises.reduce((a,e) => a + e.sets.length, 0);
@@ -1008,17 +1028,46 @@ function renderHome(){
 
   // check-in
   const wToday = S.body.weights[today], kYest = S.body.kcals[addDays(today,-1)];
+  const sToday = S.body.sleep[today], eToday = S.body.energy[today];
   const tr = trendSeries();
   if (wToday === undefined || kYest === undefined){
     html += '<div class="card"><span class="lbl">Morning check-in</span>'
       + '<div class="checkin-grid">'
       + '<label><span class="lbl">Weight lb</span><input id="ci-w" type="number" inputmode="decimal" step="0.1" value="'+(wToday!==undefined?wToday:"")+'" placeholder="'+(tr.length?tr[tr.length-1].t.toFixed(1):"161.2")+'"></label>'
       + '<label><span class="lbl">Kcal yesterday</span><input id="ci-k" type="number" inputmode="numeric" value="'+(kYest!==undefined?kYest:"")+'" placeholder="'+S.settings.kcalTarget+'"></label>'
+      + '<label><span class="lbl">Sleep h</span><input id="ci-s" type="number" inputmode="decimal" step="0.5" value="'+(sToday!==undefined?sToday:"")+'" placeholder="7.5"></label>'
+      + '<label><span class="lbl">Energy 1–5</span><select id="ci-e">'
+      + ["","1","2","3","4","5"].map(v => '<option value="'+v+'"'+(String(eToday||"") === v ? " selected" : "")+'>'+(v || "–")+'</option>').join("")
+      + '</select></label>'
       + '</div><div class="btnrow"><button class="primary" data-act="ci-save">Save</button></div></div>';
   } else {
     html += '<div class="card rowline"><div class="grow hint"><span class="ok-dot"></span>Checked in — <b class="num" style="color:var(--text-1)">'+wToday+' lb</b>'
-      + (kYest ? ' · <span class="num">'+(+kYest).toLocaleString()+'</span> kcal yesterday' : '')+'</div>'
+      + (kYest ? ' · <span class="num">'+(+kYest).toLocaleString()+'</span> kcal yesterday' : '')
+      + (sToday ? ' · <span class="num">'+sToday+'h</span> sleep' : '')
+      + (eToday ? ' · energy <span class="num">'+eToday+'/5</span>' : '')+'</div>'
       + '<button class="small" data-act="ci-edit">Edit</button></div>';
+  }
+
+  // weekly measurements
+  if (measDue()){
+    const hasAny = Object.keys(S.body.meas).length > 0;
+    html += '<div class="card rowline"><div class="grow"><span class="lbl">Weekly measurements</span>'
+      + '<div class="hint" style="margin-top:4px">'+(hasAny
+        ? 'Due — the waist tells the fat-loss truth the scale hides.'
+        : 'Start a waist baseline — with legs regaining, it beats the scale.')+'</div></div>'
+      + '<button class="small primary" data-act="ms-open">Log</button></div>';
+  }
+
+  // muscle freshness
+  const fr = freshness().filter(f => f.days !== null);
+  if (fr.length){
+    const rec = fr.filter(f => f.days <= 1), fresh = fr.filter(f => f.days > 1);
+    html += '<div class="card"><span class="lbl">Muscle freshness</span>'
+      + '<div class="hint" style="margin-top:6px;line-height:1.7">'
+      + (fresh.length ? '<span class="up" style="font-weight:650">Fresh</span> · '+fresh.map(f => f.nm).join(" · ") : '')
+      + (rec.length ? (fresh.length ? '<br>' : '')+'<span class="wr" style="font-weight:650">Recovering</span> · '
+          + rec.map(f => f.nm+' <span class="cap num">('+(f.days === 0 ? "today" : "1d")+')</span>').join(" · ") : '')
+      + '</div></div>';
   }
 
   // stat grid: week ring + trend weight
@@ -1396,6 +1445,30 @@ function trendsBody(){
     + '<div class="cap" style="max-width:150px">from your last 3 weeks of intake vs trend change</div></div>';
   html += '<div class="card"><span class="lbl">Weight</span><div class="cap" style="margin:4px 0 8px">dots are scale days — the line is your real trend</div>'
     + '<div class="chartwrap">'+weightChart(ws, tr, goal)+'<div id="ctip"></div></div></div>';
+  // measurements
+  const wst = measEntries("waist");
+  html += '<div class="card"><div class="rowline"><span class="lbl grow">Measurements</span>'
+    + '<button class="small" data-act="ms-open">Log</button></div>';
+  if (wst.length){
+    const dW2 = wst[wst.length-1].v - wst[0].v;
+    html += '<div class="stat num" style="margin-top:8px">'+wst[wst.length-1].v.toFixed(1)+'<small>" waist</small>'
+      + (wst.length > 1 ? ' <small class="'+(dW2 < -0.05 ? "up" : dW2 > 0.05 ? "wr" : "fl")+'" style="font-size:13px">'
+        + (dW2 > 0 ? "+" : "")+dW2.toFixed(1)+'" since first log</small>' : '')+'</div>'
+      + measChart(wst);
+    for (const [k, label] of [["arm","Upper arm"],["thigh","Thigh"]]){
+      const es = measEntries(k); if (!es.length) continue;
+      const d2 = es[es.length-1].v - es[0].v;
+      html += '<div class="recap-li"><span>'+label+'</span><b class="num">'+es[es.length-1].v.toFixed(1)+'"'
+        + (es.length > 1 ? ' <span class="'+(d2 > 0.05 ? "up" : d2 < -0.05 ? "wr" : "fl")+'" style="font-size:12px">'+(d2 > 0 ? "+" : "")+d2.toFixed(1)+'"</span>' : '')+'</b></div>';
+    }
+    if (wst.length > 1){
+      const rate2 = weeklyRate(tr);
+      if (dW2 < -0.2 && rate2 !== null && Math.abs(rate2) < 0.25)
+        html += '<p class="cap" style="margin-top:10px">Waist falling while the scale holds — that\'s recomposition: fat out, muscle (and leg glycogen) in. Exactly what a returning lifter\'s cut should look like.</p>';
+      else html += '<p class="cap" style="margin-top:10px">Waist is the honest fat-loss signal while your legs regain water and glycogen.</p>';
+    }
+  } else html += '<p class="hint" style="margin-top:8px">Log a weekly waist (plus arm/thigh if you like) — during a leg-regain cut the tape beats the scale.</p>';
+  html += '</div>';
   const ks = kcalEntries();
   html += '<div class="card"><span class="lbl">Calories</span><div class="cap" style="margin:4px 0 8px">vs your '+S.settings.kcalTarget.toLocaleString()+' target</div>'
     + '<div class="chartwrap">'+(ks.length ? kcalChart(ks) : '<p class="hint" style="padding:8px 0">Log calories in the morning check-in and they chart here.</p>')+'</div></div>';
@@ -1554,6 +1627,108 @@ function trendsInsights(){
 
 /* ================= LAB analytics ================= */
 let labGroup = "";
+function measEntries(k){
+  return Object.entries(S.body.meas||{}).map(([d,m]) => ({d, v:+m[k]}))
+    .filter(e => e.v > 0).sort((a,b) => a.d.localeCompare(b.d));
+}
+function measDue(){
+  if (!S.workouts.length) return false;
+  const ds = Object.keys(S.body.meas||{}).sort();
+  return !ds.length || addDays(ds[ds.length-1], 7) <= todayStr();
+}
+function freshness(){
+  const majors = [["Chest",["chest"]],["Back",["lats","upper_back"]],["Delts",["shoulders"]],
+    ["Arms",["biceps","triceps"]],["Quads",["quads"]],["Hams",["hamstrings"]],
+    ["Calves",["calves"]],["Core",["core"]]];
+  const lastD = {};
+  for (const w of S.workouts){
+    const cred = {};
+    for (const e of w.exercises){
+      const n = workSets(e.sets).length; if (!n) continue;
+      for (const r of muscOf(e.id).p) cred[r] = (cred[r]||0) + n;
+      for (const r of muscOf(e.id).s) cred[r] = (cred[r]||0) + n*0.5;
+    }
+    for (const [nm, regs] of majors){
+      const c = regs.reduce((a,r) => a + (cred[r]||0), 0);
+      if (c >= 2 && (!lastD[nm] || w.date > lastD[nm])) lastD[nm] = w.date;
+    }
+  }
+  return majors.map(([nm]) => { const d = lastD[nm];
+    return {nm, days: d ? Math.round((new Date(todayStr()+"T12:00:00") - new Date(d+"T12:00:00"))/864e5) : null}; });
+}
+function deloadAdvice(){
+  if (S.workouts.length < 10) return null;
+  const wk = weeklyStats(), signals = [];
+  const recentIds = [...new Set(S.workouts.filter(w => w.date >= addDays(todayStr(),-13))
+    .flatMap(w => w.exercises.map(e => e.id)))];
+  const stalls = recentIds.filter(id => isStalled(id));
+  if (stalls.length >= 2)
+    signals.push(stalls.length+" lifts stalled 3+ sessions ("+stalls.slice(0,3).map(id => exInfo(id).n).join(", ")+")");
+  const sc = [...S.workouts].sort((a,b) => a.date.localeCompare(b.date))
+    .map(w => { const r = rateWorkout(w); return r ? r.score : null; }).filter(x => x !== null);
+  if (sc.length >= 12){
+    const a6 = sc.slice(-6).reduce((a,b) => a+b, 0)/6, p6 = sc.slice(-12,-6).reduce((a,b) => a+b, 0)/6;
+    if (a6 - p6 <= -5) signals.push("session scores sliding ("+Math.round(p6)+" → "+Math.round(a6)+")");
+  }
+  const full = wk.slice(0,-1).filter(w => w.sets > 0);
+  if (full.length >= 6){
+    const srt = full.slice(-8).map(w => w.sets).sort((a,b) => a-b);
+    const med = srt[Math.floor(srt.length/2)];
+    let heavy = 0;
+    for (let i = wk.length-2; i >= 0; i--){ if (wk[i].sets >= med*0.6 && wk[i].sets > 0) heavy++; else break; }
+    if (heavy >= 7) signals.push(heavy+" straight weeks without a light week");
+  }
+  if (wk.length >= 6){
+    const l2 = wk.slice(-2).reduce((a,w) => a + w.sets, 0)/2;
+    const p4 = wk.slice(-6,-2).reduce((a,w) => a + w.sets, 0)/4;
+    if (p4 > 0 && l2 > p4*1.35) signals.push("volume ramped "+Math.round((l2/p4-1)*100)+"% above your recent normal");
+  }
+  return {level: signals.length >= 2 ? "advise" : signals.length ? "watch" : "ok", signals};
+}
+function readiness(){
+  const pairs = [];
+  for (const w of S.workouts){
+    const rt = rateWorkout(w); if (!rt) continue;
+    pairs.push({score:rt.score, sleep:+((S.body.sleep||{})[w.date])||null, energy:+((S.body.energy||{})[w.date])||null});
+  }
+  const bucket = (arr, test) => { const g = arr.filter(test);
+    return g.length >= 3 ? {n:g.length, avg:g.reduce((a,p) => a + p.score, 0)/g.length} : null; };
+  const sl = pairs.filter(p => p.sleep), en = pairs.filter(p => p.energy);
+  return {nSleep:sl.length, nEnergy:en.length,
+    sHi:bucket(sl, p => p.sleep >= 7.5), sLo:bucket(sl, p => p.sleep < 7.5),
+    eHi:bucket(en, p => p.energy >= 4), eLo:bucket(en, p => p.energy <= 3)};
+}
+function measChart(es){
+  if (es.length < 2) return "";
+  const W=360,H=140,L=42,R=12,T=10,B=22;
+  const vals = es.map(e => e.v);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  if (hi - lo < 0.6){ lo -= 0.3; hi += 0.3; }
+  const pad = (hi-lo)*0.1; lo -= pad; hi += pad;
+  const X = i => L + (W-L-R)*(i/(es.length-1));
+  const Y = v => T + (H-T-B)*(1-(v-lo)/(hi-lo));
+  let g = "";
+  for (let t=0;t<3;t++){ const v = lo+(hi-lo)*t/2, y = Y(v);
+    g += '<line x1="'+L+'" y1="'+y+'" x2="'+(W-R)+'" y2="'+y+'" stroke="rgba(255,255,255,.07)"/>'
+      + '<text x="'+(L-6)+'" y="'+(y+4)+'" text-anchor="end" font-size="10" fill="rgba(255,255,255,.38)">'+v.toFixed(1)+'</text>'; }
+  const path = es.map((e,i) => (i?"L":"M")+X(i).toFixed(1)+" "+Y(e.v).toFixed(1)).join(" ");
+  const dots = es.map((e,i) =>
+    '<circle class="pt" cx="'+X(i).toFixed(1)+'" cy="'+Y(e.v).toFixed(1)+'" r="4" fill="#2CE08B" stroke="#14161A" stroke-width="2" data-d="'+e.d+'" data-v="'+e.v.toFixed(1)+'&quot;" data-l="waist"/>').join("");
+  const xl = [0, es.length-1].map(i =>
+    '<text x="'+X(i).toFixed(1)+'" y="'+(H-7)+'" text-anchor="middle" font-size="10" fill="rgba(255,255,255,.38)">'+fmtShort(es[i].d)+'</text>').join("");
+  return '<div class="chartwrap"><svg viewBox="0 0 '+W+' '+H+'">'+g
+    + '<path d="'+path+'" fill="none" stroke="#2CE08B" stroke-width="2" stroke-linejoin="round"/>'+dots+xl+'</svg></div>';
+}
+function openMeasModal(){
+  const last = k => { const es = measEntries(k); return es.length ? es[es.length-1].v : ""; };
+  openModal('<h3>Measurements</h3>'
+    + '<p class="cap">Morning, relaxed (not flexed), same spot each time — waist at the navel.</p>'
+    + '<div class="set-item"><span class="lbl">Waist · inches</span><input id="ms-waist" type="number" inputmode="decimal" step="0.1" placeholder="'+(last("waist") || "e.g. 32.5")+'"></div>'
+    + '<div class="set-item"><span class="lbl">Upper arm · in (optional)</span><input id="ms-arm" type="number" inputmode="decimal" step="0.1" placeholder="'+(last("arm") || "flexed is fine — just be consistent")+'"></div>'
+    + '<div class="set-item"><span class="lbl">Thigh · in (optional)</span><input id="ms-thigh" type="number" inputmode="decimal" step="0.1" placeholder="'+(last("thigh") || "")+'"></div>'
+    + '<div class="btnrow"><button class="primary" data-act="ms-save">Save</button>'
+    + '<button data-act="modal-close">Cancel</button></div>');
+}
 function allWeekStarts(){
   if (!S.workouts.length) return [];
   const first = weekStart(S.workouts.reduce((a,w) => w.date < a ? w.date : a, "9999"));
@@ -1702,6 +1877,41 @@ function trendsLab(){
   if (sc.length >= 3)
     html += '<div class="card"><span class="lbl">Session scores over time</span>'
       + '<div class="chartwrap" style="margin-top:8px">'+e1rmChart(sc)+'</div></div>';
+
+  const rdy = readiness();
+  if (rdy.nSleep >= 6 || rdy.nEnergy >= 6){
+    html += '<div class="card"><span class="lbl">Readiness · sleep & energy vs performance</span>';
+    if (rdy.sHi && rdy.sLo){
+      const gap = rdy.sHi.avg - rdy.sLo.avg;
+      html += '<div class="recap-li"><span>Score on 7.5h+ sleep · '+rdy.sHi.n+' days</span><b class="num">'+rdy.sHi.avg.toFixed(0)+'</b></div>'
+        + '<div class="recap-li"><span>Score under 7.5h · '+rdy.sLo.n+' days</span><b class="num">'+rdy.sLo.avg.toFixed(0)+'</b></div>'
+        + '<p class="cap" style="margin-top:8px">'+(Math.abs(gap) >= 4
+          ? 'You\'re worth <b style="color:var(--text-1)">'+Math.abs(gap).toFixed(0)+' points '+(gap > 0 ? 'more' : 'less')+'</b> on a full night\'s sleep — treat bedtime like a training variable.'
+          : 'No clear sleep effect yet — keep logging, patterns take a few weeks.')+'</p>';
+    } else if (rdy.nSleep) html += '<p class="hint" style="margin-top:8px">Logging sleep — need a few nights on both sides of 7.5 h before the comparison means anything.</p>';
+    if (rdy.eHi && rdy.eLo){
+      const gapE = rdy.eHi.avg - rdy.eLo.avg;
+      html += '<div class="recap-li" style="margin-top:10px"><span>Score feeling 4–5 · '+rdy.eHi.n+' days</span><b class="num">'+rdy.eHi.avg.toFixed(0)+'</b></div>'
+        + '<div class="recap-li"><span>Score feeling 1–3 · '+rdy.eLo.n+' days</span><b class="num">'+rdy.eLo.avg.toFixed(0)+'</b></div>'
+        + (Math.abs(gapE) >= 4 && gapE > 0
+          ? '<p class="cap" style="margin-top:8px">Low-energy days really do cost you — on a 1–3 morning, expect less and don\'t force PRs.</p>' : '');
+    }
+    html += '</div>';
+  }
+
+  const da2 = deloadAdvice();
+  if (da2){
+    const tone = da2.level === "advise" ? "wr" : da2.level === "watch" ? "wr" : "up";
+    const head = da2.level === "advise" ? "Deload advised"
+      : da2.level === "watch" ? "One fatigue signal — watching" : "Fatigue signals clear";
+    html += '<div class="card"><span class="lbl">Recovery status</span>'
+      + '<div style="margin-top:6px;font-weight:650" class="'+tone+'">'+head+'</div>'
+      + (da2.signals.length
+          ? da2.signals.map(s => '<p class="cap" style="margin-top:5px">• '+s+'</p>').join("")
+            + (da2.level === "advise" ? '<p class="hint" style="margin-top:8px">Take 4–5 days at ~60% of normal weight and volume. Strength doesn\'t detrain in a week — fatigue masks it, and a deload lifts the mask.</p>' : '')
+          : '<p class="cap" style="margin-top:5px">No stalls piling up, scores steady, volume in your normal band.</p>')
+      + '</div>';
+  }
 
   const rd = repDist(28), tot = rd.str + rd.hyp + rd.end;
   if (tot){
@@ -2151,6 +2361,36 @@ function claudeText(){
     L.push("WEEKLY SETS BY MUSCLE (last 7d, secondary = half credit):");
     L.push("  " + Object.entries(REGIONS).filter(([r]) => per[r]).map(([r,n]) => n+" "+(Math.round(per[r]*2)/2)).join(" · "));
   }
+  /* lab metrics */
+  const si = strengthIndex(null);
+  if (si.length >= 2){
+    L.push("");
+    L.push("LAB METRICS:");
+    const cur = si[si.length-1].val, d4 = cur - si[Math.max(0, si.length-5)].val;
+    L.push("  strength index (100 = first logged week): " + cur.toFixed(1) + " (" + (d4>0?"+":"") + d4.toFixed(1) + " last 4wk)");
+    const grpLine = [["chest","Chest"],["back","Back"],["shoulders","Delts"],["arms","Arms"],["quads","Quads"],["hamstrings","Hams"]]
+      .map(([k,l]) => { const s = strengthIndex(k); return s.length >= 2 ? l+" "+s[s.length-1].val.toFixed(0) : null; })
+      .filter(Boolean).join(" · ");
+    if (grpLine) L.push("  by muscle group: " + grpLine);
+    const rs = relStrength();
+    if (rs.length >= 2) L.push("  relative strength (bodyweight-adjusted): " + rs[rs.length-1].val.toFixed(1));
+    const scs = [...S.workouts].sort((a,b) => a.date.localeCompare(b.date))
+      .map(w => { const r = rateWorkout(w); return r ? r.score : null; }).filter(x => x !== null);
+    if (scs.length >= 3){
+      const a5 = scs.slice(-5), avg5 = a5.reduce((a,b) => a+b, 0)/a5.length;
+      L.push("  session scores (0-100): last 5 avg " + Math.round(avg5) + " [" + a5.join(", ") + "]");
+    }
+    const bal = balance(28);
+    if (bal.push + bal.pull) L.push("  balance last 28d: push:pull sets " + bal.push + ":" + bal.pull + " · ham:quad " + bal.ham + ":" + bal.quad);
+    const em = energyModel();
+    L.push("  maintenance: modeled ≈" + em.tdee.toLocaleString() + " kcal" + (impliedTDEE() ? " · measured ≈" + impliedTDEE().toLocaleString() + " (trust measured)" : ""));
+    const rdy = readiness();
+    if (rdy.sHi && rdy.sLo) L.push("  readiness: avg score " + rdy.sHi.avg.toFixed(0) + " on 7.5h+ sleep vs " + rdy.sLo.avg.toFixed(0) + " under");
+    const da = deloadAdvice();
+    if (da && da.signals.length) L.push("  fatigue (" + da.level + "): " + da.signals.join("; "));
+    const wst = measEntries("waist");
+    if (wst.length) L.push("  waist: " + wst[wst.length-1].v.toFixed(1) + "\"" + (wst.length > 1 ? " (" + ((wst[wst.length-1].v - wst[0].v) > 0 ? "+" : "") + (wst[wst.length-1].v - wst[0].v).toFixed(1) + "\" since " + fmtShort(wst[0].d) + ")" : ""));
+  }
   const st = streakWeeks();
   if (st) L.push("\nCONSISTENCY: " + st + " straight weeks at 5+ sessions.");
   const ids = [...new Set(S.workouts.flatMap(w => w.exercises.map(e => e.id)))];
@@ -2432,11 +2672,26 @@ document.addEventListener("click", ev => {
       save(); render(); return;
     }
     const w = +($("#ci-w").value || 0), k = +($("#ci-k").value || 0);
+    const sl = +($("#ci-s").value || 0), en = +($("#ci-e").value || 0);
     if (w > 0) S.body.weights[todayStr()] = w;
     if (k > 0) S.body.kcals[addDays(todayStr(),-1)] = k;
-    if (!(w > 0) && !(k > 0)) return;
+    if (sl > 0 && sl <= 16) S.body.sleep[todayStr()] = sl;
+    if (en >= 1 && en <= 5) S.body.energy[todayStr()] = en;
+    if (!(w > 0) && !(k > 0) && !(sl > 0) && !en) return;
     save(); render();
   }
+  else if (act === "ms-open"){ openMeasModal(); }
+  else if (act === "ms-save"){
+    const m = {};
+    for (const [f, id] of [["waist","#ms-waist"],["arm","#ms-arm"],["thigh","#ms-thigh"]]){
+      const v = +($(id).value || 0); if (v > 0) m[f] = v;
+    }
+    if (!Object.keys(m).length){ alert("Enter at least one measurement."); return; }
+    S.body.meas[todayStr()] = Object.assign({}, S.body.meas[todayStr()] || {}, m);
+    save(); closeModal(); render();
+    showToast("Logged — the waist chart lives in Trends → Body.");
+  }
+  else if (act === "backup-later"){ S.backupSnooze = todayStr(); save(); render(); }
   else if (act === "goto-trends"){ tab = "trends"; S.trendTab = "body"; render(); }
   else if (act === "goto-insights"){ tab = "trends"; S.trendTab = "ins"; render(); }
   else if (act === "goto-history"){ tab = "history"; render(); }
@@ -2458,11 +2713,13 @@ document.addEventListener("click", ev => {
       .catch(() => { prompt("Copy this:", txt); });
   }
   else if (act === "export"){
+    S.lastBackup = todayStr(); save();
     const blob = new Blob([JSON.stringify(S, null, 1)], {type:"application/json"});
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = "liftlog-backup-" + todayStr() + ".json";
     a.click(); URL.revokeObjectURL(a.href);
+    if (tab === "home") render();
   }
   else if (act === "import"){ $("#importfile").click(); }
   else if (act === "reset"){
@@ -2504,8 +2761,10 @@ document.addEventListener("change", ev => {
       try {
         const data = JSON.parse(txt);
         if (!Array.isArray(data.workouts)) throw 0;
-        S = Object.assign({drafts:{},custom:{},templates:{},coach:[],milestone:0,body:{weights:{},kcals:{}},progSel:null,editing:null,trendTab:"body",range:30,recapSeen:""}, data);
+        S = Object.assign({drafts:{},custom:{},templates:{},coach:[],milestone:0,uniO:{},body:{weights:{},kcals:{}},progSel:null,editing:null,trendTab:"body",range:30,recapSeen:""}, data);
         S.settings = Object.assign({}, DEF_SET, data.settings||{});
+        S.body = Object.assign({weights:{},kcals:{},meas:{},sleep:{},energy:{}}, S.body||{});
+        S.uniO = S.uniO || {};
         save(); alert("Restored " + S.workouts.length + " workouts."); render();
       } catch(e){ alert("That file doesn't look like a LiftLog backup."); }
     });
