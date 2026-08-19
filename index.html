@@ -466,7 +466,8 @@ const GROUP_M = {chest:{p:["chest"],s:["triceps"]}, triceps:{p:["triceps"],s:[]}
 /* ================= state ================= */
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
-  restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false};
+  restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
+  age:30, bodyFat:"", cardioKcal:7.8};
 let S = {workouts:[], drafts:{}, custom:{}, templates:{}, coach:[], milestone:0, uniO:{},
   body:{weights:{}, kcals:{}},
   settings:Object.assign({}, DEF_SET),
@@ -769,10 +770,14 @@ function rateWorkout(w){
   if (sd){
     const planSets = sd.plan.reduce((a,p) => a + p[1], 0);
     const did = new Set(w.exercises.filter(e => hardOf(e).length).map(e => e.id));
-    const cover = sd.plan.filter(p => did.has(p[0])).length / sd.plan.length;
+    const trained = new Set();
+    for (const e of w.exercises) if (hardOf(e).length) muscOf(e.id).p.forEach(r => trained.add(r));
+    // a swapped same-muscle exercise still covers its plan slot
+    const covered = p => did.has(p[0]) || muscOf(p[0]).p.some(r => trained.has(r));
+    const cover = sd.plan.filter(covered).length / sd.plan.length;
     comp = Math.min(1, hard/planSets)*22 + cover*8;
-    const missed = sd.plan.filter(p => !did.has(p[0])).map(p => exInfo(p[0]).n);
-    if (missed.length && missed.length <= 3) notes.push("Skipped: "+missed.join(", ")+".");
+    const missed = sd.plan.filter(p => !covered(p)).map(p => exInfo(p[0]).n);
+    if (missed.length && missed.length <= 3) notes.push("Skipped: "+missed.join(", ")+" — that muscle went untrained.");
   } else comp = Math.min(1, hard/16)*30;
 
   /* 2) performance vs last time, fatigue-adjusted — 40 pts */
@@ -1355,8 +1360,10 @@ function renderTrends(){
   let html = '<div class="seg">'
     + '<button data-act="ttab" data-t="body" class="'+(S.trendTab==="body"?"on":"")+'">Body</button>'
     + '<button data-act="ttab" data-t="str" class="'+(S.trendTab==="str"?"on":"")+'">Strength</button>'
-    + '<button data-act="ttab" data-t="ins" class="'+(S.trendTab==="ins"?"on":"")+'">Insights</button></div>';
-  html += S.trendTab === "body" ? trendsBody() : S.trendTab === "str" ? trendsStrength() : trendsInsights();
+    + '<button data-act="ttab" data-t="ins" class="'+(S.trendTab==="ins"?"on":"")+'">Insights</button>'
+    + '<button data-act="ttab" data-t="lab" class="'+(S.trendTab==="lab"?"on":"")+'">Lab</button></div>';
+  html += S.trendTab === "body" ? trendsBody() : S.trendTab === "str" ? trendsStrength()
+    : S.trendTab === "lab" ? trendsLab() : trendsInsights();
   $("#view").innerHTML = html;
   if (S.trendTab === "ins") paintHeat();
 }
@@ -1543,6 +1550,228 @@ function trendsInsights(){
   if (S.workouts.some(w => w.date >= lastWs && w.date <= addDays(lastWs,6)) || S.workouts.some(w => w.date < lastWs))
     html += recapCard(recapFor(lastWs), false);
   return html;
+}
+
+/* ================= LAB analytics ================= */
+let labGroup = "";
+function allWeekStarts(){
+  if (!S.workouts.length) return [];
+  const first = weekStart(S.workouts.reduce((a,w) => w.date < a ? w.date : a, "9999"));
+  const out = []; let d = first; const cur = weekStart(todayStr());
+  while (d <= cur && out.length < 260){ out.push(d); d = addDays(d, 7); }
+  return out;
+}
+function bestE1ByWeek(id){
+  const m = {}, ex = exInfo(id);
+  for (const w of S.workouts){
+    const e = w.exercises.find(x => x.id === id); if (!e) continue;
+    const ss = workSets(e.sets); if (!ss.length) continue;
+    const wk = weekStart(w.date);
+    m[wk] = Math.max(m[wk]||0, bestMetric(ss, ex));
+  }
+  return m;
+}
+function strengthIndex(group){
+  const weeks = allWeekStarts(); if (weeks.length < 2) return [];
+  const ids = [...new Set(S.workouts.flatMap(w => w.exercises.map(e => e.id)))]
+    .filter(id => { const g = exInfo(id).g;
+      if (group === "arms") return g === "biceps" || g === "triceps";
+      return !group || g === group; });
+  const per = ids.map(id => ({id, wk:bestE1ByWeek(id)})).filter(L => Object.keys(L.wk).length >= 2);
+  if (!per.length) return [];
+  const out = [], cur = {}, base = {};
+  for (const ws of weeks){
+    let sum = 0, n = 0;
+    for (const L of per){
+      if (L.wk[ws]){ if (base[L.id] === undefined) base[L.id] = L.wk[ws]; cur[L.id] = L.wk[ws]; }
+      if (cur[L.id] !== undefined){ sum += cur[L.id]/base[L.id]*100; n++; }
+    }
+    if (n) out.push({d:ws, val:sum/n, n});
+  }
+  return out;
+}
+function relStrength(){
+  const si = strengthIndex(null); if (si.length < 2) return [];
+  const tr = trendSeries(); if (!tr.length) return [];
+  const bwAt = ds => { let last = null;
+    for (const p of tr){ if (p.d <= addDays(ds,6)) last = p.t; else break; } return last; };
+  const b0 = bwAt(si[0].d); if (!b0) return [];
+  return si.map(p => { const bw = bwAt(p.d);
+    return {d:p.d, val: bw ? p.val/(bw/b0) : p.val}; });
+}
+function weeklyStats(){
+  const map = {};
+  for (const w of S.workouts){
+    const ws = weekStart(w.date);
+    const m = map[ws] = map[ws] || {d:ws, ton:0, sets:0, sess:0, prs:0};
+    m.ton += tonOf(w); m.sess++;
+    m.sets += w.exercises.reduce((a,e) => a + workSets(e.sets).length, 0);
+    m.prs += (w.prs||[]).length;
+  }
+  return allWeekStarts().map(ws => map[ws] || {d:ws, ton:0, sets:0, sess:0, prs:0});
+}
+function repDist(days){
+  const a = addDays(todayStr(), -days+1), d = {str:0, hyp:0, end:0};
+  for (const w of S.workouts){ if (w.date < a) continue;
+    for (const e of w.exercises) for (const s of workSets(e.sets)){
+      const r = +s.r; if (r <= 5) d.str++; else if (r <= 12) d.hyp++; else d.end++; } }
+  return d;
+}
+function balance(days){
+  const a = addDays(todayStr(), -days+1);
+  let push = 0, pull = 0, quad = 0, ham = 0;
+  for (const w of S.workouts){ if (w.date < a) continue;
+    for (const e of w.exercises){
+      const n = workSets(e.sets).length, p = muscOf(e.id).p;
+      if (p.includes("chest") || p.includes("shoulders") || p.includes("triceps")) push += n;
+      if (p.includes("lats") || p.includes("upper_back") || p.includes("biceps")) pull += n;
+      if (p.includes("quads")) quad += n;
+      if (p.includes("hamstrings")) ham += n; } }
+  return {push, pull, quad, ham};
+}
+function heightCm(){
+  const m = /(\d+)\s*'\s*(\d+(?:\.\d+)?)?/.exec(S.settings.height||"");
+  return m ? ((+m[1])*12 + (+m[2]||0)) * 2.54 : 178;
+}
+function bmrKcal(){
+  const kg = bodyweight()*0.45359, bf = +S.settings.bodyFat;
+  if (bf > 0 && bf < 60) return Math.round(370 + 21.6*kg*(1-bf/100)); // Katch-McArdle
+  return Math.round(10*kg + 6.25*heightCm() - 5*(+S.settings.age||30) + (S.settings.sex === "female" ? -161 : 5));
+}
+function energyModel(){
+  const b = bmrKcal(), a = addDays(todayStr(), -13);
+  let sets = 0, cmin = 0;
+  for (const w of S.workouts){ if (w.date < a) continue;
+    sets += w.exercises.reduce((x,e) => x + workSets(e.sets).length, 0);
+    cmin += w.cardio ? w.cardio.min : 0; }
+  const lift = sets*9/14, cardio = cmin*(+S.settings.cardioKcal||7.8)/14;
+  const neat = Math.round(b*0.35); // NEAT + TEF for a mostly-desk day outside the gym
+  return {bmr:b, neat, lift:Math.round(lift), cardio:Math.round(cardio),
+    tdee: Math.round((b + neat + lift + cardio)/25)*25};
+}
+function trendsLab(){
+  if (!S.workouts.length) return '<div class="card hint">Log some workouts and the lab lights up.</div>';
+  const lc = v => v > 0.05 ? "up" : v < -0.05 ? "dn" : "fl";
+  const ls = v => (v > 0 ? "+" : "")+v.toFixed(1);
+  const li = (l,v,suf) => '<div class="recap-li"><span>'+l+'</span><b class="num">'+(+v).toLocaleString()+(suf||' kcal')+'</b></div>';
+  const GROUPS_L = [["","All"],["chest","Chest"],["back","Back"],["shoulders","Delts"],["arms","Arms"],["quads","Quads"],["hamstrings","Hams"]];
+  let html = '<div class="chips">'+GROUPS_L.map(([k,l]) =>
+    '<button data-act="lab-group" data-g="'+k+'"'
+    + (labGroup === k ? ' style="color:var(--accent);border-color:rgba(44,224,139,.4);background:var(--accent-dim)"' : '')
+    + '>'+l+'</button>').join("")+'</div>';
+
+  const si = strengthIndex(labGroup || null);
+  if (si.length >= 2){
+    const cur = si[si.length-1].val;
+    const d4 = cur - si[Math.max(0, si.length-5)].val, all = cur - 100;
+    html += '<div class="card hero"><span class="lbl">Strength index'
+      + (labGroup ? ' · '+GROUPS_L.find(g => g[0] === labGroup)[1] : '')+'</span>'
+      + '<div class="xl grad-ink num" style="margin-top:6px">'+cur.toFixed(1)+'</div>'
+      + '<div class="cap">100 = your first logged week · weekly best e1RM per lift, averaged</div>'
+      + '<div class="rowline num" style="margin-top:10px;gap:16px;font-size:13.5px;font-weight:600">'
+      + '<span class="'+lc(d4)+'">'+ls(d4)+' last 4 wk</span>'
+      + '<span class="'+lc(all)+'">'+ls(all)+' all-time</span></div>'
+      + '<div class="chartwrap" style="margin-top:8px">'
+      + e1rmChart(si.map(p => ({date:p.d, val:+p.val.toFixed(1), lbl:p.n+" lifts tracked"})))
+      + '<div id="ctip"></div></div></div>';
+  } else html += '<div class="card hint">'+(labGroup ? 'Not enough logged sessions for this muscle group yet.' : 'Two weeks of logs and your strength index appears — one number for "am I actually getting stronger."')+'</div>';
+
+  const rs = relStrength();
+  if (!labGroup && rs.length >= 2){
+    const cur = rs[rs.length-1].val, d = cur - rs[0].val;
+    html += '<div class="card"><span class="lbl">Relative strength · pound-for-pound</span>'
+      + '<div class="stat num" style="margin-top:6px">'+cur.toFixed(1)
+      + ' <small class="'+lc(d)+'" style="font-size:13px">'+ls(d)+' all-time</small></div>'
+      + '<div class="cap" style="margin:2px 0 6px">strength index corrected for bodyweight change — on a cut, THIS is the win condition</div>'
+      + '<div class="chartwrap">'+e1rmChart(rs.map(p => ({date:p.d, val:+p.val.toFixed(1), lbl:""})))+'</div></div>';
+  }
+
+  const wk = weeklyStats();
+  if (wk.length >= 2){
+    html += '<div class="card"><span class="lbl">Weekly volume load</span>'
+      + '<div class="cap" style="margin:4px 0 6px">total lb moved (weight × reps, one-side lifts ×2) — the growth stimulus dose</div>'
+      + labBars(wk.map(w => ({d:w.d, val:w.ton})), v => v >= 1000 ? (v/1000).toFixed(0)+"k" : String(Math.round(v)))+'</div>';
+    html += '<div class="card"><span class="lbl">Weekly hard sets</span>'
+      + '<div class="cap" style="margin:4px 0 6px">working sets across all muscles</div>'
+      + labBars(wk.map(w => ({d:w.d, val:w.sets})), v => String(Math.round(v)))+'</div>';
+  }
+
+  const sc = [...S.workouts].sort((a,b) => a.date.localeCompare(b.date))
+    .map(w => { const r = rateWorkout(w); return r ? {date:w.date, val:r.score, lbl:r.grade} : null; })
+    .filter(Boolean);
+  if (sc.length >= 3)
+    html += '<div class="card"><span class="lbl">Session scores over time</span>'
+      + '<div class="chartwrap" style="margin-top:8px">'+e1rmChart(sc)+'</div></div>';
+
+  const rd = repDist(28), tot = rd.str + rd.hyp + rd.end;
+  if (tot){
+    const row = (l,v,c) => '<div class="vol-row"><span class="nm">'+l+'</span>'
+      + '<span class="bar"><i style="width:'+(v/tot*100).toFixed(0)+'%;background:'+c+'"></i></span>'
+      + '<span class="v num">'+(v/tot*100).toFixed(0)+'%</span></div>';
+    html += '<div class="card"><span class="lbl">Rep ranges · last 28 days</span>'
+      + '<div class="cap" style="margin:4px 0 2px">where your hard sets live</div>'
+      + row("1–5 strength", rd.str, "var(--info)")
+      + row("6–12 build", rd.hyp, "var(--accent)")
+      + row("13+ endurance", rd.end, "var(--warn)")
+      + '<p class="cap" style="margin-top:10px">Muscle grows in every range, but 6–12 is the efficiency sweet spot; a dash of 1–5 keeps top-end strength moving.</p></div>';
+  }
+
+  const bal = balance(28);
+  if (bal.push + bal.pull){
+    const pr = bal.pull ? bal.push/bal.pull : 99, hq = bal.quad ? bal.ham/bal.quad : 0;
+    const v = (ok, txt) => '<b class="num '+(ok ? "up" : "wr")+'">'+txt+'</b>';
+    html += '<div class="card"><span class="lbl">Structural balance · last 28 days</span>'
+      + '<div class="recap-li"><span>Push : pull sets</span>'+v(pr >= 0.75 && pr <= 1.35, bal.push+" : "+bal.pull)+'</div>'
+      + '<div class="recap-li"><span>Ham : quad sets</span>'+v(hq >= 0.55 || !bal.quad, bal.ham+" : "+bal.quad)+'</div>'
+      + '<p class="cap" style="margin-top:10px">Aim near 1:1 push-to-pull for shoulder health, and at least ~0.6 hamstring sets per quad set to protect knees and posture.</p></div>';
+  }
+
+  const em = energyModel(), real = impliedTDEE();
+  html += '<div class="card hero"><span class="lbl">Energy & maintenance</span>'
+    + '<div class="stat num" style="margin-top:6px"><span class="grad-ink">≈ '+em.tdee.toLocaleString()+'</span><small> kcal/day maintenance</small></div>'
+    + '<div class="cap">modelled from your body stats + your actual last 14 days of training</div>'
+    + '<div class="recap-block">'
+    + li("Base metabolism ("+(+S.settings.bodyFat > 0 ? "Katch-McArdle" : "Mifflin-St Jeor")+")", em.bmr)
+    + li("Daily living · NEAT + digestion", em.neat)
+    + li("Lifting (avg/day)", em.lift)
+    + li("Treadmill (avg/day)", em.cardio)+'</div>'
+    + (real
+        ? '<div class="recap-block">'+li("Measured from YOUR logs", real)
+          + '<p class="cap" style="margin-top:6px">Intake vs weight-trend over ~3 weeks — once this exists, trust it over the model above.</p></div>'
+        : '<p class="cap" style="margin-top:10px">Keep logging morning weight + calories — after ~3 weeks the app measures your real maintenance from the data and shows it here.</p>')
+    + (+S.settings.bodyFat > 0 ? '' : '<p class="cap" style="margin-top:8px">Set body-fat % in Settings to upgrade the BMR formula and unlock lean-mass tracking.</p>')
+    + '</div>';
+
+  const bf = +S.settings.bodyFat;
+  if (bf > 0 && bf < 60){
+    const kg = bodyweight()*0.45359, lbm = kg*(1-bf/100), h = heightCm()/100;
+    const ffmi = lbm/(h*h), norm = ffmi + 6.1*(1.8 - h);
+    const band = norm < 18 ? "below average" : norm < 20 ? "average" : norm < 22 ? "above average"
+      : norm < 23.5 ? "excellent" : norm < 25 ? "near the natural ceiling" : "beyond typical natural limits";
+    html += '<div class="card"><span class="lbl">Lean mass & FFMI</span>'
+      + '<div class="recap-li"><span>Lean body mass</span><b class="num">'+(lbm/0.45359).toFixed(1)+' lb</b></div>'
+      + '<div class="recap-li"><span>FFMI (normalized)</span><b class="num">'+norm.toFixed(1)+'</b></div>'
+      + '<p class="cap" style="margin-top:8px">'+norm.toFixed(1)+' is '+band+' for a natural lifter (most max out 24–25). On a cut, watch lean mass hold while weight falls.</p></div>';
+  }
+  return html;
+}
+function labBars(pts, fmt){
+  if (pts.length < 2) return '<p class="hint" style="padding:8px 0">A couple of weeks of data and this charts itself.</p>';
+  const W=360,H=170,L=42,R=8,T=12,B=22;
+  const hi = Math.max(...pts.map(p => p.val), 1)*1.12;
+  const X = i => L + (W-L-R)*(i/(pts.length-1));
+  const Y = v => T + (H-T-B)*(1 - v/hi);
+  const bw2 = Math.max(Math.min((W-L-R)/pts.length*0.62, 20), 3);
+  let g = "";
+  for (let i=1;i<4;i++){ const v = hi*i/4, y = Y(v);
+    g += '<line x1="'+L+'" y1="'+y+'" x2="'+(W-R)+'" y2="'+y+'" stroke="rgba(255,255,255,.07)"/>'
+      + '<text x="'+(L-5)+'" y="'+(y+4)+'" text-anchor="end" font-size="10" fill="rgba(255,255,255,.38)">'+fmt(v)+'</text>'; }
+  const bars = pts.map((p,i) =>
+    '<rect class="pt" x="'+(X(i)-bw2/2).toFixed(1)+'" y="'+Y(p.val).toFixed(1)+'" width="'+bw2.toFixed(1)+'" height="'+(Y(0)-Y(p.val)).toFixed(1)+'" rx="2" fill="'
+    + (i === pts.length-1 ? "#2CE08B" : "rgba(255,255,255,.28)")+'" data-d="'+p.d+'" data-v="'+fmt(p.val)+'" data-l="that week"/>').join("");
+  const xl = [0, pts.length-1].map(i =>
+    '<text x="'+X(i).toFixed(1)+'" y="'+(H-7)+'" text-anchor="middle" font-size="10" fill="rgba(255,255,255,.38)">'+fmtShort(pts[i].d)+'</text>').join("");
+  return '<div class="chartwrap"><svg viewBox="0 0 '+W+' '+H+'">'+g+bars+xl+'</svg></div>';
 }
 
 /* ================= charts ================= */
@@ -1755,7 +1984,10 @@ function renderMore(){
   const st = S.settings;
   $("#view").innerHTML =
     '<h2>Profile</h2><div class="card">'
-    + '<div class="set-item"><span class="lbl">Height (display only)</span><input id="st-height" value="'+esc(st.height||"")+'"></div>'
+    + '<div class="set-item"><span class="lbl">Height (feeds calorie math)</span><input id="st-height" value="'+esc(st.height||"")+'"></div>'
+    + '<div class="set-item"><span class="lbl">Age (feeds calorie math)</span><input id="st-age" type="number" inputmode="numeric" value="'+(st.age||30)+'"></div>'
+    + '<div class="set-item"><span class="lbl">Body fat % (optional — sharpens BMR + unlocks lean-mass stats)</span><input id="st-bf" type="number" inputmode="decimal" value="'+esc(st.bodyFat)+'" placeholder="e.g. 14"></div>'
+    + '<div class="set-item"><span class="lbl">Cardio burn · kcal per minute (treadmill ~150–160 per 20 min ≈ 7.8)</span><input id="st-cardiok" type="number" inputmode="decimal" step="0.1" value="'+(st.cardioKcal||7.8)+'"></div>'
     + '<div class="set-item"><span class="lbl">Sex (for strength standards)</span><select id="st-sex">'
     + '<option value="male"'+(st.sex==="male"?" selected":"")+'>Male</option>'
     + '<option value="female"'+(st.sex==="female"?" selected":"")+'>Female</option></select></div>'
@@ -2209,6 +2441,7 @@ document.addEventListener("click", ev => {
   else if (act === "goto-insights"){ tab = "trends"; S.trendTab = "ins"; render(); }
   else if (act === "goto-history"){ tab = "history"; render(); }
   else if (act === "ttab"){ S.trendTab = btn.dataset.t; save(); render(); }
+  else if (act === "lab-group"){ labGroup = btn.dataset.g; render(); }
   else if (act === "range"){ S.range = +btn.dataset.r; save(); render(); }
   else if (act === "t-adj"){
     const dd = S.drafts[S.editing || todayStr()];
@@ -2261,6 +2494,9 @@ document.addEventListener("change", ev => {
   else if (t.id === "st-height"){ S.settings.height = t.value; save(); }
   else if (t.id === "st-clock"){ S.settings.showClock = t.checked; save(); }
   else if (t.id === "st-chk"){ S.settings.checkOff = t.checked; save(); render(); }
+  else if (t.id === "st-age"){ S.settings.age = Math.max(14, Math.min(99, +t.value||30)); save(); }
+  else if (t.id === "st-bf"){ S.settings.bodyFat = t.value; save(); }
+  else if (t.id === "st-cardiok"){ S.settings.cardioKcal = Math.max(0, +t.value||7.8); save(); }
   else if (t.id === "st-apikey"){ S.settings.apiKey = t.value.trim(); save(); }
   else if (t.id === "importfile"){
     const f = t.files[0]; if (!f) return;
