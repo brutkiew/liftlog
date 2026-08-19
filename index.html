@@ -350,15 +350,15 @@ const GRIP = '<svg width="10" height="17" viewBox="0 0 10 17" fill="currentColor
 
 /* ================= exercise library ================= */
 const EX = {
-  bench:{n:"Barbell Bench Press",g:"chest",inc:5,rest:180,bb:1},
-  incbb:{n:"Incline Barbell Press",g:"chest",inc:5,rest:150,bb:1},
-  incdb:{n:"Incline DB Press",g:"chest",inc:5,db:1,rest:120},
-  flatdb:{n:"Flat DB Press",g:"chest",inc:5,db:1,rest:120},
-  dip:{n:"Weighted Dip",g:"chest",inc:5,bw:1,rest:120},
-  cfly:{n:"Cable Fly",g:"chest",inc:5},
-  l2h:{n:"Low-to-High Cable Fly",g:"chest",inc:5},
-  pec:{n:"Pec Deck",g:"chest",inc:5},
-  machchest:{n:"Machine Chest Press",g:"chest",inc:5,rest:120},
+  bench:{n:"Barbell Bench Press",g:"chest",inc:5,rest:180,bb:1,sub:"chest_low"},
+  incbb:{n:"Incline Barbell Press",g:"chest",inc:5,rest:150,bb:1,sub:"chest_up"},
+  incdb:{n:"Incline DB Press",g:"chest",inc:5,db:1,rest:120,sub:"chest_up"},
+  flatdb:{n:"Flat DB Press",g:"chest",inc:5,db:1,rest:120,sub:"chest_low"},
+  dip:{n:"Weighted Dip",g:"chest",inc:5,bw:1,rest:120,sub:"chest_low"},
+  cfly:{n:"Cable Fly",g:"chest",inc:5,sub:"chest_low"},
+  l2h:{n:"Low-to-High Cable Fly",g:"chest",inc:5,sub:"chest_up"},
+  pec:{n:"Pec Deck",g:"chest",inc:5,sub:"chest_low"},
+  machchest:{n:"Machine Chest Press",g:"chest",inc:5,rest:120,sub:"chest_low"},
   ohext:{n:"Single-Arm Overhead Cable Extension",g:"triceps",inc:5,uni:1},
   dbohext:{n:"DB Overhead Triceps Extension",g:"triceps",inc:5,db:1},
   ropeoh:{n:"Overhead Rope Extension",g:"triceps",inc:5},
@@ -383,17 +383,17 @@ const EX = {
   hammer:{n:"Hammer Curl",g:"biceps",inc:5,db:1},
   cablecurl:{n:"Cable Curl",g:"biceps",inc:5},
   preacher:{n:"Preacher Curl",g:"biceps",inc:5},
-  dbohp:{n:"Seated DB Shoulder Press",g:"shoulders",inc:5,db:1,rest:150},
-  machohp:{n:"Machine Shoulder Press",g:"shoulders",inc:5,rest:120},
-  smithohp:{n:"Smith Machine Shoulder Press",g:"shoulders",inc:5,rest:150},
-  arnold:{n:"Arnold Press",g:"shoulders",inc:5,db:1,rest:120},
-  bbohp:{n:"Overhead Barbell Press",g:"shoulders",inc:5,rest:180,bb:1},
-  latraise:{n:"DB Lateral Raise",g:"shoulders",inc:2.5,db:1},
-  clat:{n:"Cable Lateral Raise",g:"shoulders",inc:2.5},
-  cfront:{n:"Cable Rope Front Raise",g:"shoulders",inc:2.5},
-  rpd:{n:"Reverse Pec Deck",g:"shoulders",inc:5},
-  sarpd:{n:"Single-Arm Reverse Pec Deck",g:"shoulders",inc:5,uni:1},
-  facepull:{n:"Face Pull",g:"shoulders",inc:5},
+  dbohp:{n:"Seated DB Shoulder Press",g:"shoulders",inc:5,db:1,rest:150,sub:"delt_front"},
+  machohp:{n:"Machine Shoulder Press",g:"shoulders",inc:5,rest:120,sub:"delt_front"},
+  smithohp:{n:"Smith Machine Shoulder Press",g:"shoulders",inc:5,rest:150,sub:"delt_front"},
+  arnold:{n:"Arnold Press",g:"shoulders",inc:5,db:1,rest:120,sub:"delt_front"},
+  bbohp:{n:"Overhead Barbell Press",g:"shoulders",inc:5,rest:180,bb:1,sub:"delt_front"},
+  latraise:{n:"DB Lateral Raise",g:"shoulders",inc:2.5,db:1,sub:"delt_side"},
+  clat:{n:"Cable Lateral Raise",g:"shoulders",inc:2.5,sub:"delt_side"},
+  cfront:{n:"Cable Rope Front Raise",g:"shoulders",inc:2.5,sub:"delt_front"},
+  rpd:{n:"Reverse Pec Deck",g:"shoulders",inc:5,sub:"delt_rear"},
+  sarpd:{n:"Single-Arm Reverse Pec Deck",g:"shoulders",inc:5,uni:1,sub:"delt_rear"},
+  facepull:{n:"Face Pull",g:"shoulders",inc:5,sub:"delt_rear"},
   squat:{n:"Back Squat",g:"quads",inc:10,rest:180,bb:1},
   legpress:{n:"Leg Press",g:"quads",inc:25,rest:150},
   hack:{n:"Hack Squat",g:"quads",inc:10,rest:150},
@@ -1387,10 +1387,27 @@ function computePRs(kept){
   }
   return prs;
 }
+let lastAutoWarm = 0;
 function finishDraft(dateStr, silent){
   const d = S.drafts[dateStr];
   if (!d) return false;
   const chk = S.settings.checkOff;
+  /* auto-detect warm-ups: light sets logged BEFORE the day's top weight (≤75% of it)
+     are lead-in warm-ups; light back-off sets AFTER the top weight stay working sets */
+  lastAutoWarm = 0;
+  for (const e of d.exercises){
+    const ex = exInfo(e.id);
+    const logged = e.sets.filter(s => +s.r > 0 && (chk ? s.done : true));
+    if (logged.length < 2) continue;
+    const topW = Math.max(...logged.map(s => +s.w || 0));
+    if (!(topW > 0)) continue;
+    const topIdx = logged.findIndex(s => (+s.w || 0) === topW);
+    logged.forEach((s, j) => {
+      if (j >= topIdx || s.warm) return;
+      const w = +s.w || 0;
+      if ((w > 0 && w <= topW * 0.75) || (w === 0 && ex.bw)){ s.warm = true; lastAutoWarm++; }
+    });
+  }
   if (chk){
     const unchecked = d.exercises.reduce((a,e) => a + e.sets.filter(s => !s.done && (+s.r>0 || +s.w>0)).length, 0);
     if (!silent && unchecked && !confirm(unchecked+" set(s) have numbers but no check — they'll be dropped. Finish anyway?")) return false;
@@ -1640,6 +1657,47 @@ function trendsInsights(){
       + '<p class="hint" style="margin-top:8px"><b style="color:var(--text-1)">'+esc(weakest.name)+'</b> is your furthest-back benchmark ('
       + (weakest.lv.idx < 0 ? "Beginner" : LVLS[weakest.lv.idx])
       + (weakest.nextLb !== null ? ' — ~'+Math.max(1, Math.round(weakest.nextLb - weakest.e1))+' lb of e1RM to the next level' : '')+'). Keep it first in its session; add a set there before adding anywhere else.</p></div>';
+  }
+
+  // muscle report card
+  const mrep = muscleReport();
+  if (mrep.length){
+    html += '<div class="card"><span class="lbl">Muscle report card · last 28 days</span>'
+      + '<div class="cap" style="margin:4px 0 2px">volume dose + e1RM progress per muscle — grades update live as you log</div>';
+    for (const m of mrep){
+      const g = m.untrained ? "—" : gradeFor(m.score);
+      html += '<div class="'+(m.sub ? 'recap-li" style="padding-left:14px' : 'lift-row')+'">'
+        + (m.sub
+          ? '<span>'+m.label+'</span><b class="num" style="color:'+(m.untrained ? "var(--warn)" : gradeColor(m.score))+'">'
+            + (m.untrained ? 'untrained' : g+' <span class="cap">· '+(Math.round(m.wv*2)/2)+' sets/wk'
+              + (m.avgP !== null ? ' · '+(m.avgP>0?'+':'')+m.avgP.toFixed(1)+'%' : '')+'</span>')+'</b>'
+          : '<div class="rowline"><b>'+m.label+'</b><span class="lvl num" style="color:'+gradeColor(m.score)+'">'+g+'</span></div>'
+            + '<div class="sub num">'+(Math.round(m.wv*2)/2)+' sets/wk'
+            + (m.avgP !== null ? ' · e1RM '+(m.avgP>0?'+':'')+m.avgP.toFixed(1)+'% / 28d' : ' · no comparable history yet')+'</div>')
+        + '</div>';
+    }
+    html += '<p class="cap" style="margin-top:12px">Grade = volume in the growth zone (10–20 sets/wk for a muscle, ~4–12 for a sub-region) + whether its lifts\' e1RMs are climbing.</p></div>';
+  }
+
+  // exercise report card
+  const exIds = trainedIds(28).filter(id => perfHistory(id).length >= 2)
+    .sort((a,b) => (exScore(exProgress(a))||0) - (exScore(exProgress(b))||0));
+  if (exIds.length >= 3){
+    html += '<div class="card"><span class="lbl">Exercise report card · last 28 days</span>'
+      + '<div class="cap" style="margin:4px 0 4px">every lift you\'ve trained, worst first — so the fix is at the top</div>';
+    const byG = {};
+    for (const id of exIds) (byG[exInfo(id).g] = byG[exInfo(id).g] || []).push(id);
+    for (const g of Object.keys(GROUPS).filter(k => byG[k])){
+      html += '<div class="mgroup">'+GROUPS[g]+'</div>';
+      for (const id of byG[g]){
+        const p = exProgress(id), s = exScore(p);
+        html += '<div class="recap-li"><span>'+esc(exInfo(id).n)+'</span>'
+          + '<b class="num" style="color:'+gradeColor(s)+'">'+gradeFor(s)
+          + ' <span class="cap">· '+(p.pct !== null ? (p.pct>0?'+':'')+p.pct.toFixed(1)+'%' : 'new')
+          + (p.since ? ' · best '+p.since+' ago' : ' · at best')+'</span></b></div>';
+      }
+    }
+    html += '</div>';
   }
 
   // heat map
@@ -1956,6 +2014,75 @@ function highlights(){
   if (lag) out.push({tag:"Watch", tone:"wr",
     text:exInfo(lag.id).n+" hasn't touched its best in <b>"+lag.since+" sessions</b> — change the rep range for two weeks or drop 10% and rebuild."});
   return out.slice(0,5);
+}
+/* ---- exercise & muscle report cards ---- */
+function exProgress(id){
+  const hist = perfHistory(id); if (hist.length < 2) return null;
+  const ex = exInfo(id);
+  const b0 = bestPlainUpTo(id, addDays(todayStr(), -28));
+  const b1 = bestPlainUpTo(id, todayStr());
+  const pct = b0 > 0 ? (b1-b0)/b0*100 : null;
+  const best = Math.max(...hist.map(h => bestMetric(h.sets, ex)));
+  let since = 0;
+  for (const h of hist){ if (bestMetric(h.sets, ex) >= best - 0.01) break; since++; }
+  return {pct, since, n:hist.length};
+}
+function exScore(p){
+  if (!p) return null;
+  let s;
+  if (p.pct === null) s = 75;
+  else if (p.pct >= 3) s = 95; else if (p.pct >= 1) s = 88; else if (p.pct >= 0) s = 81;
+  else if (p.pct >= -2) s = 68; else s = 55;
+  if (p.since >= 4) s = Math.min(s, 60); else if (p.since >= 3) s = Math.min(s, 72);
+  return s;
+}
+const gradeColor = s => s >= 84 ? "var(--accent)" : s >= 68 ? "var(--text-2)" : "var(--warn)";
+function trainedIds(days){
+  const a = addDays(todayStr(), -days+1);
+  return [...new Set(S.workouts.filter(w => w.date >= a).flatMap(w =>
+    w.exercises.filter(e => workSets(e.sets).length).map(e => e.id)))];
+}
+function subVolume(subKey, days){
+  const a = addDays(todayStr(), -days+1); let n = 0;
+  for (const w of S.workouts){ if (w.date < a) continue;
+    for (const e of w.exercises) if (exInfo(e.id).sub === subKey) n += workSets(e.sets).length; }
+  return n;
+}
+function volScore(wv, isSub){
+  if (isSub) return wv >= 4 && wv <= 12 ? 50 : wv >= 3 || (wv > 12 && wv <= 16) ? 42 : wv >= 1.5 ? 28 : wv > 0 ? 15 : 0;
+  return wv >= 10 && wv <= 20 ? 50 : (wv >= 8 || (wv > 20 && wv <= 24)) ? 42 : wv > 24 ? 35 : wv >= 6 ? 32 : wv >= 3 ? 20 : wv > 0 ? 10 : 0;
+}
+function progScore(avgP){
+  if (avgP === null) return 36;
+  return avgP >= 3 ? 50 : avgP >= 1 ? 44 : avgP >= -0.5 ? 36 : avgP >= -2.5 ? 22 : 10;
+}
+const MUSC_SUBS = {chest:[["chest_up","Upper chest"],["chest_low","Mid & lower chest"]],
+  shoulders:[["delt_front","Front delts"],["delt_side","Side delts"],["delt_rear","Rear delts"]]};
+function muscleReport(){
+  const days = 28, ids28 = trainedIds(days);
+  const {per} = regionVolume(addDays(todayStr(), -days+1), todayStr());
+  const avgPctFor = ids => {
+    const ps = ids.map(exProgress).filter(p => p && p.pct !== null).map(p => p.pct);
+    return ps.length ? ps.reduce((a,b) => a+b, 0)/ps.length : null;
+  };
+  const rows = [];
+  const majors = [["chest","Chest"],["shoulders","Shoulders"],["lats","Lats"],["upper_back","Upper back"],
+    ["biceps","Biceps"],["triceps","Triceps"],["quads","Quads"],["hamstrings","Hamstrings"],
+    ["calves","Calves"],["core","Core"]];
+  for (const [r, label] of majors){
+    const wv = (per[r]||0)/(days/7);
+    if (!wv) continue;
+    const avgP = avgPctFor(ids28.filter(id => muscOf(id).p.includes(r)));
+    rows.push({label, wv, avgP, score:volScore(wv,false)+progScore(avgP), sub:false});
+    for (const [key, subLabel] of (MUSC_SUBS[r]||[])){
+      const sv = subVolume(key, days)/(days/7);
+      const subIds = ids28.filter(id => exInfo(id).sub === key);
+      const sp = avgPctFor(subIds);
+      rows.push({label:subLabel, wv:sv, avgP:sp,
+        score: sv > 0 ? volScore(sv,true)+progScore(sp) : 0, sub:true, untrained: sv === 0});
+    }
+  }
+  return rows;
 }
 function highlightsHTML(list){
   return list.map(h => '<p class="hint" style="margin-top:9px"><b class="'+h.tone+'" style="font-weight:700">'+h.tag+'</b> — '+h.text+'</p>').join("");
@@ -2673,6 +2800,8 @@ document.addEventListener("click", ev => {
     const rt = w && rateWorkout(w);
     let msg = rt ? "Session score <b class='grad-ink'>"+rt.score+" · "+rt.grade+"</b>" : "";
     if (prs.length) msg += (msg ? "<br>" : "") + "<b class='wr'>"+prs.length+" PR"+(prs.length>1?"s":"")+"</b> — "+prs.map(p => esc(p.name)).join(", ");
+    if (lastAutoWarm) msg += (msg ? "<br>" : "") + '<span style="font-size:12.5px;color:var(--text-2)">'
+      + lastAutoWarm+" light lead-in set"+(lastAutoWarm>1?"s":"")+" counted as warm-ups — tap a set number to change.</span>";
     const ton = S.workouts.reduce((a,x) => a + tonOf(x), 0);
     const hit = [1e5, 25e4, 5e5, 1e6, 2e6, 5e6].filter(m => m <= ton && m > S.milestone).pop();
     if (hit){ S.milestone = hit; save();
