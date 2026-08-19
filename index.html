@@ -319,6 +319,29 @@
   .setrow-lab{display:flex;justify-content:space-between;align-items:center;font-size:14px;color:var(--text-2);margin-top:13px}
   .set-item{margin-top:12px}
   .set-item .lbl{display:block;margin-bottom:6px}
+  /* ===== home dashboard (bento) ===== */
+  .bento{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+  .bento .card{margin:0}
+  .bento .span2{grid-column:1 / -1}
+  .tile-num{font-size:25px;font-weight:800;letter-spacing:-.01em;line-height:1.1;margin-top:7px}
+  .tile-num small{font-size:12px;font-weight:600;color:var(--text-2)}
+  .delta-chip{display:inline-block;font-size:11px;font-weight:650;border-radius:6px;padding:2px 7px;margin-top:7px;background:rgba(255,255,255,.06)}
+  .scorewrap{display:flex;align-items:center;gap:18px;margin-top:10px}
+  .scorewrap .ring-wrap{width:110px;height:110px;margin:0;flex:none}
+  .scorewrap .ring-center .num{font-size:30px}
+  .freshleg{display:flex;gap:14px;justify-content:center;margin-top:6px;font-size:11px;color:var(--text-2)}
+  .freshleg i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}
+  .bullet{height:14px;border-radius:7px;background:rgba(255,255,255,.06);position:relative;overflow:hidden;margin-top:8px}
+  .bullet .band{position:absolute;top:0;bottom:0;background:rgba(44,224,139,.13)}
+  .bullet .fill{position:absolute;top:3px;bottom:3px;left:3px;border-radius:5px;background:var(--grad)}
+  .bullet .tick{position:absolute;top:-2px;bottom:-2px;width:2px;background:rgba(255,255,255,.45);border-radius:1px}
+  @media (prefers-reduced-motion:no-preference){
+    .stagger .bento>*{animation:rise .5s var(--ease) backwards}
+    .stagger .bento>:nth-child(1){animation-delay:.05s}.stagger .bento>:nth-child(2){animation-delay:.11s}
+    .stagger .bento>:nth-child(3){animation-delay:.17s}.stagger .bento>:nth-child(4){animation-delay:.23s}
+    .stagger .bento>:nth-child(5){animation-delay:.29s}.stagger .bento>:nth-child(6){animation-delay:.35s}
+    .stagger .bento>:nth-child(7){animation-delay:.41s}.stagger .bento>:nth-child(8){animation-delay:.47s}
+  }
 </style>
 </head>
 <body>
@@ -970,13 +993,14 @@ function sparkSVG(tr){
   const W=128,H=34, vals=pts.map(p=>p.t);
   let lo=Math.min(...vals), hi=Math.max(...vals); if (hi-lo<0.5){lo-=0.3;hi+=0.3;}
   const X=i=>i/(pts.length-1)*(W-6)+3, Y=v=>H-4-(v-lo)/(hi-lo)*(H-8);
-  const line = pts.map((p,i)=>(i?"L":"M")+X(i).toFixed(1)+" "+Y(p.t).toFixed(1)).join(" ");
+  const xy = pts.map((p,i)=>({x:X(i), y:Y(p.t)}));
+  const line = smoothPath(xy);
   return '<svg class="spark" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'">'
     + '<defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">'
     + '<stop offset="0" stop-color="#2CE08B" stop-opacity=".16"/><stop offset="1" stop-color="#2CE08B" stop-opacity="0"/></linearGradient></defs>'
     + '<path d="'+line+' L '+X(pts.length-1).toFixed(1)+' '+H+' L '+X(0).toFixed(1)+' '+H+' Z" fill="url(#sg)"/>'
     + '<path d="'+line+'" fill="none" stroke="#2CE08B" stroke-width="2" stroke-linejoin="round"/>'
-    + '<circle cx="'+X(pts.length-1).toFixed(1)+'" cy="'+Y(pts[pts.length-1].t).toFixed(1)+'" r="3" fill="#7CF5AE"/></svg>';
+    + '<circle cx="'+X(pts.length-1).toFixed(1)+'" cy="'+Y(pts[pts.length-1].t).toFixed(1)+'" r="3" fill="#7CF5AE" style="filter:drop-shadow(0 0 4px rgba(124,245,174,.8))"/></svg>';
 }
 function rateBadge(rate){
   if (rate === null) return "";
@@ -1008,11 +1032,210 @@ function weekStripHTML(){
   return h + '</div>';
 }
 
+/* ---- dashboard building blocks ---- */
+function smoothPath(pts){
+  if (pts.length < 3) return pts.map((p,i) => (i?"L":"M")+p.x.toFixed(1)+" "+p.y.toFixed(1)).join(" ");
+  const k = 0.8, p = [pts[0], ...pts, pts[pts.length-1]];
+  let d = "M"+p[1].x.toFixed(1)+" "+p[1].y.toFixed(1);
+  for (let i = 1; i < p.length-2; i++)
+    d += "C"+(p[i].x+(p[i+1].x-p[i-1].x)/6*k).toFixed(1)+" "+(p[i].y+(p[i+1].y-p[i-1].y)/6*k).toFixed(1)
+      +" "+(p[i+1].x-(p[i+2].x-p[i].x)/6*k).toFixed(1)+" "+(p[i+1].y-(p[i+2].y-p[i].y)/6*k).toFixed(1)
+      +" "+p[i+1].x.toFixed(1)+" "+p[i+1].y.toFixed(1);
+  return d;
+}
+function countUpEl(id, end){
+  const el = document.getElementById(id); if (!el) return;
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches || !(end > 0)){ el.textContent = Math.round(+end); return; }
+  const t0 = performance.now(), dur = 850, ease = t => t >= 1 ? 1 : 1 - Math.pow(2, -10*t);
+  (function tick(now){
+    const kk = ease(Math.min((now-t0)/dur, 1));
+    el.textContent = Math.round(end*kk);
+    if (kk < 1) requestAnimationFrame(tick);
+  })(t0);
+}
+function ring2SVG(p, center, cap, col){
+  p = Math.min(1, Math.max(0, p||0));
+  return '<div class="ring-wrap"><svg viewBox="0 0 80 80">'
+    + '<defs><linearGradient id="rg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#17B9A0"/><stop offset="1" stop-color="#7CF5AE"/></linearGradient></defs>'
+    + '<circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="7"/>'
+    + (p > 0 ? '<circle cx="40" cy="40" r="34" fill="none" stroke="'+(col||"url(#rg2)")+'" stroke-width="7" stroke-linecap="round" pathLength="100"'
+      + ' stroke-dasharray="100" stroke-dashoffset="'+(100 - Math.max(2.5, p*100)).toFixed(1)+'" transform="rotate(-90 40 40)"'
+      + ' style="filter:drop-shadow(0 0 6px rgba(44,224,139,.3))"/>' : '')
+    + '</svg><div class="ring-center">'+center+(cap ? '<span class="cap">'+cap+'</span>' : '')+'</div></div>';
+}
+const FRESH_REG = {Chest:["chest"], Back:["lats","upper_back"], Delts:["shoulders"], Arms:["biceps","triceps"],
+  Quads:["quads"], Hams:["hamstrings"], Calves:["calves"], Core:["core"]};
+function freshSVG(id){ return bodySVG().replace(/heatmap/g, id); }
+function paintFresh(id){
+  const svg = document.getElementById(id); if (!svg) return;
+  const fill = {};
+  for (const f of freshness())
+    for (const r of FRESH_REG[f.nm] || [])
+      fill[r] = f.days === null ? "var(--bg-2)" : f.days <= 1 ? "rgba(255,214,10,.5)" : "rgba(44,224,139,.45)";
+  for (const el of svg.querySelectorAll("[data-region]"))
+    el.setAttribute("fill", fill[el.dataset.region] || "var(--bg-2)");
+}
+function weekBulletHTML(){
+  const wk = weeklyStats(), cur = wk.length ? wk[wk.length-1] : {sets:0};
+  const hist = wk.slice(-5,-1).map(x => x.sets).filter(x => x > 0).sort((a,b) => a-b);
+  const tgt = hist.length ? hist[Math.floor(hist.length/2)] : 60;
+  const max = Math.max(tgt*1.3, cur.sets*1.05, 1);
+  return '<div class="rowline" style="margin-top:12px"><span class="cap grow">Hard sets</span>'
+    + '<span class="num" style="font-size:13px;font-weight:700">'+cur.sets+'<span class="cap"> / ~'+tgt+'</span></span></div>'
+    + '<div class="bullet"><div class="band" style="left:'+(tgt*0.8/max*100).toFixed(1)+'%;width:'+(tgt*0.4/max*100).toFixed(1)+'%"></div>'
+    + '<div class="fill" style="width:'+Math.max(2, cur.sets/max*100-1).toFixed(1)+'%"></div>'
+    + '<div class="tick" style="left:'+(tgt/max*100).toFixed(1)+'%"></div></div>';
+}
+function prCount28(){
+  const a = addDays(todayStr(), -27);
+  let n = 0, last = null;
+  for (const w of S.workouts) if (w.date >= a && w.prs){ n += w.prs.length; if (w.prs.length) last = w.prs[w.prs.length-1]; }
+  return {n, last};
+}
+function sesFreshLine(ses){
+  if (!ses) return "";
+  const inv = {};
+  for (const [nm, regs] of Object.entries(FRESH_REG)) for (const r of regs) inv[r] = nm;
+  const majors = [...new Set(ses.plan.flatMap(p => muscOf(p[0]).p.map(r => inv[r])).filter(Boolean))];
+  if (!majors.length) return "";
+  const fr = freshness();
+  const rec = majors.filter(m => { const f = fr.find(x => x.nm === m); return f && f.days !== null && f.days <= 1; });
+  return rec.length
+    ? '<div class="hint" style="margin:2px 0 8px"><span style="color:var(--warn)">●</span> '+rec.join(" & ")+' trained yesterday — go by feel today.</div>'
+    : '<div class="hint" style="margin:2px 0 8px"><span style="color:var(--accent)">●</span> '+majors.slice(0,3).join(", ")+(majors.length>3?" & more":"")+' fully recovered — green light to push.</div>';
+}
+function todayHeroInner(today){
+  const dow = new Date(today+"T12:00:00").getDay();
+  const dd = S.drafts[today] || (S.drafts[today] = newDraft(today));
+  const ses = sesDef(dd.session);
+  return '<span class="lbl">Today</span>'
+    + '<div class="today-name grad-ink">'+(ses ? esc(ses.name) : (WEEK[dow] === null ? "Rest day" : "Custom workout"))+'</div>'
+    + (dd.planned ? '<div class="cap" style="margin:-2px 0 6px"><span class="ok-dot"></span>Planned ahead — ready to go</div>' : '')
+    + sesFreshLine(ses)
+    + '<div class="preview">'+(dd.exercises.length
+        ? dd.exercises.map(e => esc(exInfo(e.id).n)).join(" · ")
+        : (ses ? "" : "Off day on the program — recovery is where the growth happens."))+'</div>'
+    + '<select id="session-sel" style="margin-bottom:12px">'+sessionOptions(dd.session)+'</select>'
+    + '<button class="primary big" data-act="start">'+(draftHasData(dd) ? "Resume workout" : "Start workout")+'</button>'
+    + '<button class="ghost" data-act="past-workout" style="width:100%;margin-top:8px;font-size:13px">Logging a different day? Pick the date →</button>'
+    + (WEEK[dow] === null ? '<button class="ghost" data-act="plan-tomorrow" style="width:100%;margin-top:2px;font-size:13px">Plan tomorrow\'s workout →</button>' : '');
+}
+function scoreHeroInner(done){
+  const rt = rateWorkout(done);
+  const setsN = done.exercises.reduce((a,e) => a + e.sets.length, 0);
+  const tmr = S.drafts[addDays(todayStr(),1)], tp = !!(tmr && tmr.planned);
+  const col = !rt ? "url(#rg2)" : rt.score >= 80 ? "var(--accent)" : rt.score >= 60 ? "var(--info)" : rt.score >= 45 ? "var(--warn)" : "var(--bad)";
+  return '<span class="lbl">Session complete</span>'
+    + '<div class="scorewrap">'
+    + ring2SVG((rt ? rt.score : 0)/100, '<span class="num" id="scoreN">0</span>', rt ? rt.grade : "", col)
+    + '<div class="grow"><div style="font-size:16px;font-weight:700">'+esc(done.sesName||"Workout")+'</div>'
+    + '<div class="cap num" style="margin-top:3px">'+done.exercises.length+' exercises · '+setsN+' sets</div>'
+    + (done.prs && done.prs.length ? '<div class="wr" style="font-size:12.5px;font-weight:650;margin-top:5px">'+done.prs.length+' PR'+(done.prs.length>1?"s":"")+' — '+esc(done.prs.map(p=>p.name).slice(0,2).join(", "))+'</div>' : '')
+    + (rt ? '<div class="cap" style="margin-top:5px;cursor:pointer" data-act="score-why" data-id="'+done.id+'">Why this grade ›</div>' : '')
+    + '</div></div>'
+    + (tp ? '<div class="hint" style="margin-top:10px"><span class="ok-dot"></span>Tomorrow — '
+        + esc((sesDef(tmr.session)||{}).name || "Custom")+(tmr.exercises.length ? ' · '+tmr.exercises.length+' exercises' : '')+'</div>' : '')
+    + '<div class="btnrow"><button class="primary" data-act="plan-tomorrow">'+(tp ? "Edit tomorrow's plan" : "Plan tomorrow")+'</button>'
+    + '<button data-act="reopen" data-date="'+todayStr()+'">Reopen &amp; edit</button></div>';
+}
+function checkinHTML(today){
+  const wToday = S.body.weights[today], kYest = S.body.kcals[addDays(today,-1)];
+  const sToday = S.body.sleep[today], eToday = S.body.energy[today];
+  const tr = trendSeries();
+  if (wToday === undefined || kYest === undefined)
+    return '<div class="card"><span class="lbl">Morning check-in</span>'
+      + '<div class="checkin-grid">'
+      + '<label><span class="lbl">Weight lb</span><input id="ci-w" type="number" inputmode="decimal" step="0.1" value="'+(wToday!==undefined?wToday:"")+'" placeholder="'+(tr.length?tr[tr.length-1].t.toFixed(1):"161.2")+'"></label>'
+      + '<label><span class="lbl">Kcal yesterday</span><input id="ci-k" type="number" inputmode="numeric" value="'+(kYest!==undefined?kYest:"")+'" placeholder="'+S.settings.kcalTarget+'"></label>'
+      + '<label><span class="lbl">Sleep h</span><input id="ci-s" type="number" inputmode="decimal" step="0.5" value="'+(sToday!==undefined?sToday:"")+'" placeholder="7.5"></label>'
+      + '<label><span class="lbl">Energy 1–5</span><select id="ci-e">'
+      + ["","1","2","3","4","5"].map(v => '<option value="'+v+'"'+(String(eToday||"") === v ? " selected" : "")+'>'+(v || "–")+'</option>').join("")
+      + '</select></label>'
+      + '</div><div class="btnrow"><button class="primary" data-act="ci-save">Save</button></div></div>';
+  return '<div class="card rowline"><div class="grow hint"><span class="ok-dot"></span>Checked in — <b class="num" style="color:var(--text-1)">'+wToday+' lb</b>'
+    + (kYest ? ' · <span class="num">'+(+kYest).toLocaleString()+'</span> kcal yesterday' : '')
+    + (sToday ? ' · <span class="num">'+sToday+'h</span> sleep' : '')
+    + (eToday ? ' · energy <span class="num">'+eToday+'/5</span>' : '')+'</div>'
+    + '<button class="small" data-act="ci-edit">Edit</button></div>';
+}
+function measCardHTML(){
+  if (!measDue()) return "";
+  const hasAny = Object.keys(S.body.meas).length > 0;
+  return '<div class="card rowline"><div class="grow"><span class="lbl">Weekly measurements</span>'
+    + '<div class="hint" style="margin-top:4px">'+(hasAny
+      ? 'Due — the waist tells the fat-loss truth the scale hides.'
+      : 'Start a waist baseline — with legs regaining, it beats the scale.')+'</div></div>'
+    + '<button class="small primary" data-act="ms-open">Log</button></div>';
+}
+function lastWorkoutHTML(){
+  const lastW = [...S.workouts].sort((a,b) => b.date.localeCompare(a.date))[0];
+  if (!lastW) return "";
+  return '<div class="card tap" data-act="goto-history"><div class="rowline">'
+    + '<div class="grow"><span class="lbl">Last workout</span>'
+    + '<div style="font-size:14.5px;font-weight:650;margin-top:4px">'+esc(lastW.sesName||"Custom")+'</div>'
+    + '<div class="cap num">'+fmtDate(lastW.date)+' · '+lastW.exercises.reduce((a,e)=>a+e.sets.length,0)+' sets'
+    + (lastW.prs && lastW.prs.length ? ' · <span class="wr" style="font-weight:650">'+lastW.prs.length+' PR</span>' : '')+'</div></div>'
+    + '<span class="cap">›</span></div></div>';
+}
+
+let scoreShown = "";
 function renderHome(){
   const today = todayStr();
   const d = S.editing ? S.drafts[S.editing] : S.drafts[today];
   if (d && d.active){ renderWorkout(d); return; }
 
+  const doneW = S.workouts.find(w => w.date === today);
+  const isDone = doneW && !draftHasData(S.drafts[today]);
+  const tr = trendSeries(), rate = weeklyRate(tr);
+  const sess = weeklySessions(weekStart(today));
+  const st = streakWeeks();
+  const pr = prCount28();
+  const ciPending = S.body.weights[today] === undefined || S.body.kcals[addDays(today,-1)] === undefined;
+
+  let html = homeBannersHTML(today);
+  if (ciPending) html += checkinHTML(today);
+  html += '<div class="bento">';
+  html += '<div class="card hero span2">'+(isDone ? scoreHeroInner(doneW) : todayHeroInner(today))+'</div>';
+  html += '<div class="card tap" data-act="goto-trends"><span class="lbl">Trend weight</span>'
+    + (tr.length ? '<div class="tile-num num"><span class="grad-ink">'+tr[tr.length-1].t.toFixed(1)+'</span><small> lb</small></div>'
+      + (rate !== null ? '<span class="delta-chip num '+(rate <= -0.4 && rate >= -1.1 ? "up" : rate > 0.15 ? "dn" : "wr")+'">'+(rate>0?"▲ +":"▼ ")+Math.abs(rate).toFixed(1)+' lb/wk</span>' : '')
+      + sparkSVG(tr)
+      + (impliedTDEE() ? '<div class="cap num" style="margin-top:8px">maintenance ≈ '+impliedTDEE().toLocaleString()+'</div>' : '')
+      : '<div class="hint" style="margin-top:8px">Weigh in a few mornings and your trend appears here.</div>')+'</div>';
+  html += '<div class="card tap" data-act="goto-insights"><span class="lbl">This week</span>'
+    + ring2SVG(sess/6, '<span class="num">'+sess+'<small style="font-size:10px;color:var(--text-3)">/6</small></span>', "sessions")
+    + weekStripHTML()
+    + (st ? '<div class="cap num" style="text-align:center;margin-top:8px">'+st+'-wk streak at 5+</div>' : '')
+    + '</div>';
+  html += '<div class="card span2"><span class="lbl">Muscle freshness</span>'+freshSVG("freshmap")
+    + '<div class="freshleg"><span><i style="background:rgba(44,224,139,.7)"></i>Fresh</span>'
+    + '<span><i style="background:rgba(255,214,10,.7)"></i>Recovering</span>'
+    + '<span><i style="background:var(--bg-3)"></i>Quiet</span></div></div>';
+  html += '<div class="card tap" data-act="goto-trends"><span class="lbl">Volume</span>'+weekBulletHTML()
+    + '<div class="cap" style="margin-top:8px">vs your 4-week typical</div></div>';
+  html += '<div class="card tap" data-act="goto-insights"><span class="lbl">PRs · 28 days</span>'
+    + '<div class="tile-num num"><span class="wr">'+pr.n+'</span></div>'
+    + (pr.last ? '<div class="cap" style="margin-top:6px">latest — '+esc(pr.last.name)+'</div>' : '<div class="cap" style="margin-top:6px">they\'re coming</div>')+'</div>';
+  const hl = highlights().slice(0,2);
+  if (hl.length) html += '<div class="card span2 tap" data-act="goto-insights"><span class="lbl">Highlights</span>'+highlightsHTML(hl)
+    + '<div class="cap" style="margin-top:9px">More in Trends → Insights ›</div></div>';
+  html += '</div>';
+  if (!ciPending) html += checkinHTML(today);
+  html += measCardHTML();
+  html += lastWorkoutHTML();
+  $("#view").innerHTML = html;
+  paintFresh("freshmap");
+  if (isDone){
+    const rt = rateWorkout(doneW);
+    if (rt){
+      if (scoreShown === today){ const el = document.getElementById("scoreN"); if (el) el.textContent = rt.score; }
+      else { scoreShown = today; countUpEl("scoreN", rt.score); }
+    }
+  }
+}
+
+/* banner stack shared by Home (storage, recap, unfinished drafts, backup nudge, deload) */
+function homeBannersHTML(today){
   let html = "";
   if (!storeOK) html += '<div class="card banner hint">This browser is blocking storage — logs won\'t survive a reload here.</div>';
 
@@ -1053,115 +1276,7 @@ function renderHome(){
       + '. Take 4–5 days at ~60% of your usual weight and volume — fatigue resets, strength doesn\'t go anywhere.</div></div>';
   }
 
-  const done = S.workouts.find(w => w.date === today);
-  if (done && !draftHasData(S.drafts[today])){
-    const setsN = done.exercises.reduce((a,e) => a + e.sets.length, 0);
-    const rt = rateWorkout(done);
-    const tmr = S.drafts[addDays(today, 1)];
-    const tmrPlanned = !!(tmr && tmr.planned);
-    html += '<div class="card hero"><span class="lbl">Today</span>'
-      + '<div class="today-name"><span class="ok-dot"></span>'+esc(done.sesName||"Workout")+'</div>'
-      + '<div class="hint">Done — '+done.exercises.length+' exercises · '+setsN+' sets'
-      + (rt ? ' · <span data-act="score-why" data-id="'+done.id+'" style="cursor:pointer">score <b class="grad-ink num">'+rt.score+' ('+rt.grade+')</b> <span class="cap">›</span></span>' : '')
-      + (done.prs && done.prs.length ? ' · <span class="wr" style="font-weight:650">'+done.prs.length+' PR'+(done.prs.length>1?'s':'')+'</span>' : '')+'</div>'
-      + (tmrPlanned ? '<div class="hint" style="margin-top:8px"><span class="ok-dot"></span>Tomorrow — '
-          + esc((sesDef(tmr.session)||{}).name || "Custom")
-          + (tmr.exercises.length ? ' · '+tmr.exercises.length+' exercises' : '')+'</div>' : '')
-      + '<div class="btnrow"><button class="primary" data-act="plan-tomorrow">'+(tmrPlanned ? "Edit tomorrow's plan" : "Plan tomorrow")+'</button>'
-      + '<button data-act="reopen" data-date="'+today+'">Reopen &amp; edit</button></div></div>';
-    const hl = highlights().slice(0,2);
-    if (hl.length)
-      html += '<div class="card tap" data-act="goto-insights"><span class="lbl">Highlights</span>'
-        + highlightsHTML(hl)
-        + '<div class="cap" style="margin-top:9px">More in Trends → Insights ›</div></div>';
-  } else {
-    const dd = S.drafts[today] || (S.drafts[today] = newDraft(today));
-    const ses = sesDef(dd.session);
-    html += '<div class="card hero"><span class="lbl">Today</span>'
-      + '<div class="today-name grad-ink">'+(ses ? esc(ses.name) : (WEEK[dow] === null ? "Rest day" : "Custom workout"))+'</div>'
-      + (dd.planned ? '<div class="cap" style="margin:-2px 0 6px"><span class="ok-dot"></span>Planned ahead — ready to go</div>' : '')
-      + '<div class="preview">'+(dd.exercises.length
-          ? dd.exercises.map(e => esc(exInfo(e.id).n)).join(" · ")
-          : (ses ? "" : "Off day on the program — recovery is where the growth happens."))+'</div>'
-      + '<select id="session-sel" style="margin-bottom:12px">'+sessionOptions(dd.session)+'</select>'
-      + '<button class="primary big" data-act="start">'+(draftHasData(dd) ? "Resume workout" : "Start workout")+'</button>'
-      + '<button class="ghost" data-act="past-workout" style="width:100%;margin-top:8px;font-size:13px">Logging a different day? Pick the date →</button>'
-      + (WEEK[dow] === null ? '<button class="ghost" data-act="plan-tomorrow" style="width:100%;margin-top:2px;font-size:13px">Plan tomorrow\'s workout →</button>' : '')
-      + '</div>';
-  }
-
-  // check-in
-  const wToday = S.body.weights[today], kYest = S.body.kcals[addDays(today,-1)];
-  const sToday = S.body.sleep[today], eToday = S.body.energy[today];
-  const tr = trendSeries();
-  if (wToday === undefined || kYest === undefined){
-    html += '<div class="card"><span class="lbl">Morning check-in</span>'
-      + '<div class="checkin-grid">'
-      + '<label><span class="lbl">Weight lb</span><input id="ci-w" type="number" inputmode="decimal" step="0.1" value="'+(wToday!==undefined?wToday:"")+'" placeholder="'+(tr.length?tr[tr.length-1].t.toFixed(1):"161.2")+'"></label>'
-      + '<label><span class="lbl">Kcal yesterday</span><input id="ci-k" type="number" inputmode="numeric" value="'+(kYest!==undefined?kYest:"")+'" placeholder="'+S.settings.kcalTarget+'"></label>'
-      + '<label><span class="lbl">Sleep h</span><input id="ci-s" type="number" inputmode="decimal" step="0.5" value="'+(sToday!==undefined?sToday:"")+'" placeholder="7.5"></label>'
-      + '<label><span class="lbl">Energy 1–5</span><select id="ci-e">'
-      + ["","1","2","3","4","5"].map(v => '<option value="'+v+'"'+(String(eToday||"") === v ? " selected" : "")+'>'+(v || "–")+'</option>').join("")
-      + '</select></label>'
-      + '</div><div class="btnrow"><button class="primary" data-act="ci-save">Save</button></div></div>';
-  } else {
-    html += '<div class="card rowline"><div class="grow hint"><span class="ok-dot"></span>Checked in — <b class="num" style="color:var(--text-1)">'+wToday+' lb</b>'
-      + (kYest ? ' · <span class="num">'+(+kYest).toLocaleString()+'</span> kcal yesterday' : '')
-      + (sToday ? ' · <span class="num">'+sToday+'h</span> sleep' : '')
-      + (eToday ? ' · energy <span class="num">'+eToday+'/5</span>' : '')+'</div>'
-      + '<button class="small" data-act="ci-edit">Edit</button></div>';
-  }
-
-  // weekly measurements
-  if (measDue()){
-    const hasAny = Object.keys(S.body.meas).length > 0;
-    html += '<div class="card rowline"><div class="grow"><span class="lbl">Weekly measurements</span>'
-      + '<div class="hint" style="margin-top:4px">'+(hasAny
-        ? 'Due — the waist tells the fat-loss truth the scale hides.'
-        : 'Start a waist baseline — with legs regaining, it beats the scale.')+'</div></div>'
-      + '<button class="small primary" data-act="ms-open">Log</button></div>';
-  }
-
-  // muscle freshness
-  const fr = freshness().filter(f => f.days !== null);
-  if (fr.length){
-    const rec = fr.filter(f => f.days <= 1), fresh = fr.filter(f => f.days > 1);
-    html += '<div class="card"><span class="lbl">Muscle freshness</span>'
-      + '<div class="hint" style="margin-top:6px;line-height:1.7">'
-      + (fresh.length ? '<span class="up" style="font-weight:650">Fresh</span> · '+fresh.map(f => f.nm).join(" · ") : '')
-      + (rec.length ? (fresh.length ? '<br>' : '')+'<span class="wr" style="font-weight:650">Recovering</span> · '
-          + rec.map(f => f.nm+' <span class="cap num">('+(f.days === 0 ? "today" : "1d")+')</span>').join(" · ") : '')
-      + '</div></div>';
-  }
-
-  // stat grid: week ring + trend weight
-  const sess = weeklySessions(curWs);
-  const rate = weeklyRate(tr);
-  const st = streakWeeks();
-  html += '<div class="grid2">';
-  html += '<div class="card tap" data-act="goto-insights"><span class="lbl">This week</span>'
-    + ringSVG(sess/6, sess+"/6", "sessions")
-    + weekStripHTML()
-    + (st ? '<div class="cap num" style="text-align:center;margin-top:10px">'+st+'-week streak at 5+</div>' : '')
-    + '</div>';
-  html += '<div class="card tap" data-act="goto-trends"><span class="lbl">Trend weight</span>'
-    + (tr.length ? '<div class="stat num" style="margin-top:8px"><span class="grad-ink">'+tr[tr.length-1].t.toFixed(1)+'</span><small> lb</small></div>'
-      + '<div style="margin-top:3px">'+rateBadge(rate)+'</div>' + sparkSVG(tr)
-      + (impliedTDEE() ? '<div class="cap num" style="margin-top:10px">maintenance ≈ '+impliedTDEE().toLocaleString()+'</div>' : '')
-      : '<div class="hint" style="margin-top:10px">Weigh in a few mornings and your trend appears here.</div>')
-    + '</div></div>';
-
-  // last workout
-  const lastW = [...S.workouts].sort((a,b) => b.date.localeCompare(a.date))[0];
-  if (lastW){
-    html += '<div class="card tap" data-act="goto-history" style="margin-top:12px"><div class="rowline">'
-      + '<div class="grow"><span class="lbl">Last workout</span>'
-      + '<div style="font-size:14.5px;font-weight:650;margin-top:4px">'+esc(lastW.sesName||"Custom")+'</div>'
-      + '<div class="cap num">'+fmtDate(lastW.date)+' · '+lastW.exercises.reduce((a,e)=>a+e.sets.length,0)+' sets'
-      + (lastW.prs && lastW.prs.length ? ' · <span class="wr" style="font-weight:650">'+lastW.prs.length+' PR</span>' : '')+'</div></div>'
-      + '<span class="cap">›</span></div></div>';
-  }
-  $("#view").innerHTML = html;
+  return html;
 }
 
 /* ================= ACTIVE WORKOUT ================= */
