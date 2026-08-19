@@ -308,7 +308,8 @@
     max-height:84vh;overflow-y:auto;overflow-x:hidden;padding:20px 18px calc(20px + env(safe-area-inset-bottom));
     box-shadow:0 16px 48px rgba(0,0,0,.55)}
   #modal input,#modal select,#modal textarea{min-width:0;max-width:100%}
-  #modal input[type="date"]{display:block;width:100%;-webkit-min-logical-width:0}
+  #modal input[type="date"]{display:block;width:100%;-webkit-appearance:none;appearance:none;
+    min-height:46px;text-align:left;-webkit-min-logical-width:0}
   #modal h3{font-size:16px;font-weight:700;letter-spacing:-.01em;margin-bottom:12px}
   .pick{display:flex;align-items:center;width:100%;text-align:left;margin-top:6px;justify-content:space-between}
   .pick small{color:var(--text-3)}
@@ -856,10 +857,38 @@ function rateWorkout(w){
       if (sc && sc.lv.idx >= 0) notes.push(sc.name+" sits at "+LVLS[sc.lv.idx]+" for your bodyweight."); }
   }
   const score = Math.max(1, Math.min(100, Math.round(comp + perfPts + inten + bonus)));
-  const grade = score>=92?"A+":score>=84?"A":score>=76?"B+":score>=68?"B":score>=60?"C+":score>=52?"C":"D";
-  return {score, grade, g:grade[0], notes:notes.slice(0,4)};
+  const grade = gradeFor(score);
+  return {score, grade, g:grade[0], notes:notes.slice(0,4),
+    parts:{comp:Math.round(comp), perf:Math.round(perfPts), qual:Math.round(inten), bonus:Math.round(bonus)}};
 }
-const scoreBadge = rt => rt ? '<span class="badge sc g'+rt.g+' num">'+rt.score+' · '+rt.grade+'</span>' : '';
+function gradeFor(score){
+  return score>=92?"A+":score>=84?"A":score>=76?"B+":score>=68?"B":score>=60?"C+":score>=52?"C":"D";
+}
+const scoreBadge = (rt, id) => rt
+  ? '<button class="badge sc g'+rt.g+' num" data-act="score-why" data-id="'+id+'">'+rt.score+' · '+rt.grade+'</button>' : '';
+function openScoreModal(id){
+  const w = S.workouts.find(x => x.id === id); if (!w) return;
+  const rt = rateWorkout(w); if (!rt) return;
+  const row = (label, pts, max, desc) => {
+    const pct = pts/max*100;
+    return '<div class="lift-row"><div class="rowline"><b>'+label+'</b>'
+      + '<span class="lvl num" style="color:'+(pct>=84?"var(--accent)":pct>=60?"var(--text-2)":"var(--warn)")+'">'
+      + (max === 10 ? '+'+pts : gradeFor(pct))+' · '+pts+'/'+max+'</span></div>'
+      + '<div class="lbar"><span><i style="transform:scaleX('+Math.max(0.02, pct/100).toFixed(2)+')"></i></span></div>'
+      + '<div class="sub">'+desc+'</div></div>'; };
+  openModal('<h3>'+fmtDate(w.date)+' — <span class="grad-ink">'+rt.score+' · '+rt.grade+'</span></h3>'
+    + row("Did the work", rt.parts.comp, 30,
+        "Hard sets done vs the day's plan, plus covering every planned muscle. Swapping in a same-muscle exercise still counts.")
+    + row("Strength vs last time", rt.parts.perf, 40,
+        "Each lift's best e1RM vs your previous session of it — with slack for doing it later in the workout, earlier sets on the same muscles, or having trained them in the last 48 h. Beating = full marks, holding = most, unexplained drops cost.")
+    + row("Rep quality & volume", rt.parts.qual, 20,
+        "How many hard sets landed inside the target rep range, and total sets vs your own norm for this session type.")
+    + row("Bonus", rt.parts.bonus, 10,
+        "PRs (+2.5 each, up to 3) and cardio done (+2.5).")
+    + (rt.notes.length ? '<div class="mgroup">Notes</div>'
+        + rt.notes.map(n => '<p class="hint" style="margin-top:6px">• '+esc(n)+'</p>').join("") : "")
+    + '<div class="btnrow"><button data-act="modal-close">Close</button></div>');
+}
 
 /* ================= drafts ================= */
 function blankSets(n){
@@ -1026,9 +1055,14 @@ function renderHome(){
     html += '<div class="card hero"><span class="lbl">Today</span>'
       + '<div class="today-name"><span class="ok-dot"></span>'+esc(done.sesName||"Workout")+'</div>'
       + '<div class="hint">Done — '+done.exercises.length+' exercises · '+setsN+' sets'
-      + (rt ? ' · score <b class="grad-ink num">'+rt.score+' ('+rt.grade+')</b>' : '')
+      + (rt ? ' · <span data-act="score-why" data-id="'+done.id+'" style="cursor:pointer">score <b class="grad-ink num">'+rt.score+' ('+rt.grade+')</b> <span class="cap">›</span></span>' : '')
       + (done.prs && done.prs.length ? ' · <span class="wr" style="font-weight:650">'+done.prs.length+' PR'+(done.prs.length>1?'s':'')+'</span>' : '')+'</div>'
       + '<div class="btnrow"><button data-act="reopen" data-date="'+today+'">Reopen &amp; edit</button></div></div>';
+    const hl = highlights().slice(0,2);
+    if (hl.length)
+      html += '<div class="card tap" data-act="goto-insights"><span class="lbl">Highlights</span>'
+        + highlightsHTML(hl)
+        + '<div class="cap" style="margin-top:9px">More in Trends → Insights ›</div></div>';
   } else {
     const dd = S.drafts[today] || (S.drafts[today] = newDraft(today));
     const ses = sesDef(dd.session);
@@ -1402,7 +1436,7 @@ function renderHistory(){
     return '<div class="card hist" id="h-'+w.id+'">'
       + '<div class="h-head" data-act="hist-toggle" data-id="'+w.id+'">'
       + '<div class="grow"><b style="font-size:14.5px">'+fmtDate(w.date)+'</b> <span class="cap">· '+esc(w.sesName||"Custom")+'</span>'
-      + '<div class="badges">'+scoreBadge(rt)+'<span class="badge num">'+setsN+' sets</span><span class="badge num">'+Math.round(ton).toLocaleString()+' lb</span>'
+      + '<div class="badges">'+scoreBadge(rt, w.id)+'<span class="badge num">'+setsN+' sets</span><span class="badge num">'+Math.round(ton).toLocaleString()+' lb</span>'
       + (S.settings.showClock && w.durMin ? '<span class="badge num">'+w.durMin+' min</span>' : '')
       + (w.cardio ? '<span class="badge num">cardio '+w.cardio.min+'m</span>' : '')
       + (w.prs && w.prs.length ? '<span class="badge pr num">'+w.prs.length+' PR</span>' : '')
@@ -1413,6 +1447,7 @@ function renderHistory(){
           + (isUni(e.id) ? ' <span class="cap">per side</span>' : '')+'</p>').join("")
       + (rt && rt.notes.length
           ? '<div style="margin-top:8px"><span class="lbl">Session score '+rt.score+' · '+rt.grade+'</span>'
+            + ' <button class="link" data-act="score-why" data-id="'+w.id+'" style="font-size:11px">Why this grade?</button>'
             + rt.notes.map(n => '<p class="cap" style="margin-top:4px">• '+esc(n)+'</p>').join("")+'</div>' : "")
       + (w.note ? '<p class="cap">“'+esc(w.note)+'”</p>' : "")
       + '<div class="btnrow"><button class="small" data-act="hist-edit" data-id="'+w.id+'">Edit</button>'
@@ -1574,6 +1609,11 @@ function trendsInsights(){
   const hasData = S.workouts.length > 0;
   if (!hasData)
     return '<div class="card hint">Log a few workouts (the barbell lifts especially) and your scorecard, muscle map and recap build themselves.</div>';
+
+  // highlights
+  const hl = highlights();
+  if (hl.length)
+    html += '<div class="card"><span class="lbl">Highlights</span>'+highlightsHTML(hl)+'</div>';
 
   // scorecard
   if (scores.length){
@@ -1842,6 +1882,83 @@ function energyModel(){
   const neat = Math.round(b*0.35); // NEAT + TEF for a mostly-desk day outside the gym
   return {bmr:b, neat, lift:Math.round(lift), cardio:Math.round(cardio),
     tdee: Math.round((b + neat + lift + cardio)/25)*25};
+}
+function stdE1UpTo(id, dateEnd){
+  const std = STD[id]; if (!std) return 0;
+  const bw = bodyweight(); let m = 0;
+  for (const w of S.workouts){ if (w.date > dateEnd) continue;
+    const e = w.exercises.find(x => x.id === id); if (!e) continue;
+    for (const s of workSets(e.sets)){
+      const v = std.bwTotal ? (bw + (+s.w||0))*(1+(+s.r)/30) : (+s.w||0)*(1+(+s.r)/30);
+      if (v > m) m = v; } }
+  return m;
+}
+function bestPlainUpTo(id, dateEnd){
+  const ex = exInfo(id); let m = 0;
+  for (const w of S.workouts){ if (w.date > dateEnd) continue;
+    const e = w.exercises.find(x => x.id === id); if (!e) continue;
+    const ss = workSets(e.sets); if (ss.length) m = Math.max(m, bestMetric(ss, ex)); }
+  return m;
+}
+function highlights(){
+  const out = [], today = todayStr();
+  if (S.workouts.length < 2) return out;
+  const bw = bodyweight(), fem = S.settings.sex === "female" ? 0.72 : 1;
+  /* level-ups in the last 7 days */
+  for (const [id, std] of Object.entries(STD)){
+    const nowB = stdE1UpTo(id, today), oldB = stdE1UpTo(id, addDays(today,-7));
+    if (!nowB || !oldB || nowB <= oldB + 0.01) continue;
+    const iNow = lvlOf(nowB/bw/fem, std.t).idx, iOld = lvlOf(oldB/bw/fem, std.t).idx;
+    if (iNow > iOld && iNow >= 0)
+      out.push({tag:"Level up", tone:"up",
+        text:exInfo(id).n+" crossed into <b>"+LVLS[iNow]+"</b> this week — a line most people never cross."});
+  }
+  /* biggest volume week ever */
+  const wk = weeklyStats();
+  if (wk.length >= 3){
+    const cur = wk[wk.length-1], prevMax = Math.max(...wk.slice(0,-1).map(w => w.ton));
+    if (cur.ton > prevMax && prevMax > 0)
+      out.push({tag:"Volume PR", tone:"up",
+        text:"Biggest training week you've ever logged — "+Math.round(cur.ton).toLocaleString()+" lb moved."});
+  }
+  /* pound-for-pound all-time high */
+  const rs = relStrength();
+  if (rs.length >= 4 && rs[rs.length-1].val >= Math.max(...rs.map(p => p.val)) - 0.01){
+    const tr = trendSeries(), rate = weeklyRate(tr);
+    out.push({tag:"P4P high", tone:"up",
+      text:"Pound-for-pound strength is at an all-time high"+(rate !== null && rate < -0.2 ? " — while losing weight. That's the whole game." : ".")});
+  }
+  /* fastest riser over 28 days */
+  let riser = null;
+  for (const id of [...new Set(S.workouts.flatMap(w => w.exercises.map(e => e.id)))]){
+    const b0 = bestPlainUpTo(id, addDays(today,-28)); if (!b0) continue;
+    const b1 = bestPlainUpTo(id, today);
+    const pct = (b1-b0)/b0*100;
+    if (pct >= 3 && (!riser || pct > riser.pct)) riser = {id, pct};
+  }
+  if (riser) out.push({tag:"Fastest riser", tone:"up",
+    text:exInfo(riser.id).n+" is up <b>"+riser.pct.toFixed(1)+"%</b> e1RM in 28 days — your best-responding lift right now."});
+  /* closest level-up on the board */
+  const near = liftScores().filter(sc => sc.lv.idx >= 0 && sc.lv.frac >= 0.8 && sc.nextLb !== null)
+    .sort((a,b) => b.lv.frac - a.lv.frac)[0];
+  if (near) out.push({tag:"Almost", tone:"fl",
+    text:near.name+" is "+Math.round(near.lv.frac*100)+"% of the way to <b>"+LVLS[Math.min(4, near.lv.idx+1)]+"</b> — about "
+      + Math.max(1, Math.round(near.nextLb - near.e1))+" lb of e1RM to go."});
+  /* laggard alert */
+  let lag = null;
+  for (const id of [...new Set(S.workouts.flatMap(w => w.exercises.map(e => e.id)))]){
+    const hist = perfHistory(id); if (hist.length < 5) continue;
+    const ex = exInfo(id), best = Math.max(...hist.map(h => bestMetric(h.sets, ex)));
+    let since = 0;
+    for (const h of hist){ if (bestMetric(h.sets, ex) >= best - 0.01) break; since++; }
+    if (since >= 4 && (!lag || since > lag.since)) lag = {id, since};
+  }
+  if (lag) out.push({tag:"Watch", tone:"wr",
+    text:exInfo(lag.id).n+" hasn't touched its best in <b>"+lag.since+" sessions</b> — change the rep range for two weeks or drop 10% and rebuild."});
+  return out.slice(0,5);
+}
+function highlightsHTML(list){
+  return list.map(h => '<p class="hint" style="margin-top:9px"><b class="'+h.tone+'" style="font-weight:700">'+h.tag+'</b> — '+h.text+'</p>').join("");
 }
 function trendsLab(){
   if (!S.workouts.length) return '<div class="card hint">Log some workouts and the lab lights up.</div>';
@@ -2711,6 +2828,7 @@ document.addEventListener("click", ev => {
     showToast("Logged — the waist chart lives in Trends → Body.");
   }
   else if (act === "backup-later"){ S.backupSnooze = todayStr(); save(); render(); }
+  else if (act === "score-why"){ openScoreModal(btn.dataset.id); }
   else if (act === "goto-trends"){ tab = "trends"; S.trendTab = "body"; render(); }
   else if (act === "goto-insights"){ tab = "trends"; S.trendTab = "ins"; render(); }
   else if (act === "goto-history"){ tab = "history"; render(); }
