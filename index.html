@@ -308,7 +308,7 @@
     max-height:84vh;overflow-y:auto;overflow-x:hidden;padding:20px 18px calc(20px + env(safe-area-inset-bottom));
     box-shadow:0 16px 48px rgba(0,0,0,.55)}
   #modal input,#modal select,#modal textarea{min-width:0;max-width:100%}
-  #modal input[type="date"]{display:block;width:100%;-webkit-appearance:none;appearance:none;
+  #modal input[type="date"],#plan-date{display:block;width:100%;-webkit-appearance:none;appearance:none;
     min-height:46px;text-align:left;-webkit-min-logical-width:0}
   #modal h3{font-size:16px;font-weight:700;letter-spacing:-.01em;margin-bottom:12px}
   .pick{display:flex;align-items:center;width:100%;text-align:left;margin-top:6px;justify-content:space-between}
@@ -530,6 +530,10 @@ function perfHistory(exId){
   }
   return out;
 }
+const histTopW = exId => {
+  const h = perfHistory(exId);
+  return h.length ? Math.max(0, ...h[0].sets.map(s => +s.w || 0)) : 0;
+};
 function bestEver(exId){
   const ex = exInfo(exId); let best = 0;
   for (const h of perfHistory(exId)) best = Math.max(best, bestMetric(h.sets, ex));
@@ -1020,7 +1024,8 @@ function renderHome(){
   }
 
   for (const [ds, dr] of Object.entries(S.drafts)){
-    if (ds !== today && draftHasData(dr)){
+    if (ds < today && !draftHasData(dr)){ delete S.drafts[ds]; continue; } // stale empty plan/draft
+    if (ds < today && draftHasData(dr)){
       html += '<div class="card banner"><b>Unfinished workout — '+fmtDate(ds)+'</b>'
         + '<div class="btnrow"><button class="small" data-act="resume-old" data-date="'+ds+'">Resume</button>'
         + '<button class="small" data-act="save-old" data-date="'+ds+'">Save as-is</button>'
@@ -1052,12 +1057,18 @@ function renderHome(){
   if (done && !draftHasData(S.drafts[today])){
     const setsN = done.exercises.reduce((a,e) => a + e.sets.length, 0);
     const rt = rateWorkout(done);
+    const tmr = S.drafts[addDays(today, 1)];
+    const tmrPlanned = !!(tmr && tmr.planned);
     html += '<div class="card hero"><span class="lbl">Today</span>'
       + '<div class="today-name"><span class="ok-dot"></span>'+esc(done.sesName||"Workout")+'</div>'
       + '<div class="hint">Done — '+done.exercises.length+' exercises · '+setsN+' sets'
       + (rt ? ' · <span data-act="score-why" data-id="'+done.id+'" style="cursor:pointer">score <b class="grad-ink num">'+rt.score+' ('+rt.grade+')</b> <span class="cap">›</span></span>' : '')
       + (done.prs && done.prs.length ? ' · <span class="wr" style="font-weight:650">'+done.prs.length+' PR'+(done.prs.length>1?'s':'')+'</span>' : '')+'</div>'
-      + '<div class="btnrow"><button data-act="reopen" data-date="'+today+'">Reopen &amp; edit</button></div></div>';
+      + (tmrPlanned ? '<div class="hint" style="margin-top:8px"><span class="ok-dot"></span>Tomorrow — '
+          + esc((sesDef(tmr.session)||{}).name || "Custom")
+          + (tmr.exercises.length ? ' · '+tmr.exercises.length+' exercises' : '')+'</div>' : '')
+      + '<div class="btnrow"><button class="primary" data-act="plan-tomorrow">'+(tmrPlanned ? "Edit tomorrow's plan" : "Plan tomorrow")+'</button>'
+      + '<button data-act="reopen" data-date="'+today+'">Reopen &amp; edit</button></div></div>';
     const hl = highlights().slice(0,2);
     if (hl.length)
       html += '<div class="card tap" data-act="goto-insights"><span class="lbl">Highlights</span>'
@@ -1068,12 +1079,14 @@ function renderHome(){
     const ses = sesDef(dd.session);
     html += '<div class="card hero"><span class="lbl">Today</span>'
       + '<div class="today-name grad-ink">'+(ses ? esc(ses.name) : (WEEK[dow] === null ? "Rest day" : "Custom workout"))+'</div>'
+      + (dd.planned ? '<div class="cap" style="margin:-2px 0 6px"><span class="ok-dot"></span>Planned ahead — ready to go</div>' : '')
       + '<div class="preview">'+(dd.exercises.length
           ? dd.exercises.map(e => esc(exInfo(e.id).n)).join(" · ")
           : (ses ? "" : "Off day on the program — recovery is where the growth happens."))+'</div>'
       + '<select id="session-sel" style="margin-bottom:12px">'+sessionOptions(dd.session)+'</select>'
       + '<button class="primary big" data-act="start">'+(draftHasData(dd) ? "Resume workout" : "Start workout")+'</button>'
       + '<button class="ghost" data-act="past-workout" style="width:100%;margin-top:8px;font-size:13px">Logging a different day? Pick the date →</button>'
+      + (WEEK[dow] === null ? '<button class="ghost" data-act="plan-tomorrow" style="width:100%;margin-top:2px;font-size:13px">Plan tomorrow\'s workout →</button>' : '')
       + '</div>';
   }
 
@@ -1154,17 +1167,71 @@ function renderHome(){
 /* ================= ACTIVE WORKOUT ================= */
 let tickInt = null;
 const setLogged = s => S.settings.checkOff ? s.done : +s.r > 0;
+/* live warm-up detection — same rule finishDraft applies at the end, run as sets land so
+   the W shows up in the moment. Reference weight = the heavier of today's top logged set
+   and last session's top working set; flags are provisional (wAuto) and a manual tap on
+   the set number (wMan) always wins. finishDraft re-derives the final state. */
+function liveWarmCheck(ei){
+  const d = curDraft(), e = d.exercises[ei];
+  if (!e) return;
+  const ex = exInfo(e.id);
+  const logged = e.sets.map((s, si) => ({s, si})).filter(x => setLogged(x.s));
+  if (!logged.length) return;
+  const histTop = histTopW(e.id);
+  const todayTop = Math.max(...logged.map(x => +x.s.w || 0));
+  const effTop = Math.max(todayTop, histTop);
+  // repeated sets at today's top weight = a genuinely lighter day, not a warm-up ramp
+  const nAtTop = logged.filter(x => (+x.s.w || 0) === todayTop).length;
+  const lightDay = histTop > 0 && todayTop <= histTop * 0.75 && nAtTop >= 2;
+  let changed = false, flagged = false;
+  logged.forEach((x, j) => {
+    const s = x.s, w = +s.w || 0;
+    if (s.wMan) return;
+    const workBefore = logged.slice(0, j).some(y => (+y.s.w || 0) > effTop * 0.75);
+    const light = effTop > 0 && ((w > 0 && w <= effTop * 0.75) || (w === 0 && ex.bw));
+    const want = light && !workBefore && !(lightDay && w === todayTop);
+    if (want === !!s.warm || (!want && !s.wAuto)) return; // never auto-clear a manual W
+    s.warm = want; s.wAuto = want; changed = true;
+    if (want) flagged = true;
+    const row = document.querySelector('.srow[data-ei="'+ei+'"][data-si="'+x.si+'"]');
+    if (row){
+      row.classList.toggle("warm", want);
+      row.querySelector(".snum").textContent = want ? "W" : x.si + 1;
+    }
+  });
+  if (!changed) return;
+  if (flagged && !S.warmHint){
+    S.warmHint = 1;
+    showToast("That looks like a warm-up — marked <b>W</b>. Tap the set number if it was a real set.");
+  }
+  save();
+}
+let liveWarmT = null;
+const liveWarmSoon = ei => { clearTimeout(liveWarmT); liveWarmT = setTimeout(() => liveWarmCheck(ei), 400); };
 function renderWorkout(d){
   const isToday = d.date === todayStr();
+  const planning = !!d.planned && d.date > todayStr();
   const chk = S.settings.checkOff;
   const total = d.exercises.reduce((a,e) => a + e.sets.length, 0);
   const doneN = d.exercises.reduce((a,e) => a + e.sets.filter(setLogged).length, 0);
   let html = '<div id="sessbar"><button class="ghost" data-act="pause" title="Save & exit">‹</button>'
     + '<b class="grow">'+esc((sesDef(d.session)||{}).name || "Workout")
     + (isToday ? "" : ' <span class="t num">· '+fmtShort(d.date)+'</span>')+'</b>'
-    + (S.settings.showClock ? '<span class="t num" id="elapsed"></span>' : '')
-    + '<span class="t num" id="setcount">'+doneN+'/'+total+'</span>'
-    + '<button class="primary small" data-act="finish">Finish</button></div>';
+    + (planning
+      ? '<button class="primary small" data-act="plan-done">Done</button>'
+      : (S.settings.showClock ? '<span class="t num" id="elapsed"></span>' : '')
+        + '<span class="t num" id="setcount">'+doneN+'/'+total+'</span>'
+        + '<button class="primary small" data-act="finish">Finish</button>')
+    + '</div>';
+  if (planning)
+    html += '<div class="card"><span class="lbl">Planning ahead</span>'
+      + '<div class="hint" style="margin-top:5px">Set it up now — it\'ll be waiting on Home, ready to start '
+      + (d.date === addDays(todayStr(), 1) ? 'tomorrow' : fmtDate(d.date))
+      + '. Swap, reorder, add — the ghost numbers are your usual targets.</div>'
+      + '<div class="rowline" style="margin-top:10px">'
+      + '<input id="plan-date" type="date" value="'+d.date+'" min="'+addDays(todayStr(), 1)+'" style="flex:1">'
+      + '<select id="plan-ses" style="flex:1.2">'+sessionOptions(d.session)+'</select>'
+      + '</div></div>';
 
   d.exercises.forEach((e, i) => {
     const a = analyze(e.id, e.plan);
@@ -1290,6 +1357,7 @@ function toggleSet(ei, si){
     s.done = false; row.classList.remove("done");
   }
   save();
+  liveWarmCheck(ei);
   const total = d.exercises.reduce((a,x) => a + x.sets.length, 0);
   const doneN = d.exercises.reduce((a,x) => a + x.sets.filter(t => t.done).length, 0);
   const sc = $("#setcount"); if (sc) sc.textContent = doneN+"/"+total;
@@ -1392,20 +1460,29 @@ function finishDraft(dateStr, silent){
   const d = S.drafts[dateStr];
   if (!d) return false;
   const chk = S.settings.checkOff;
-  /* auto-detect warm-ups: light sets logged BEFORE the day's top weight (≤75% of it)
-     are lead-in warm-ups; light back-off sets AFTER the top weight stay working sets */
+  /* auto-detect warm-ups: light sets logged BEFORE the day's top weight are lead-in
+     warm-ups (≤75% of the heavier of today's top and last session's top working set);
+     light back-off sets AFTER the top weight stay working sets. This pass is the final
+     word over the live detection: provisional (wAuto) flags are re-derived from what was
+     actually logged, manual taps (wMan) are never touched. */
   lastAutoWarm = 0;
   for (const e of d.exercises){
     const ex = exInfo(e.id);
+    const wasWarm = e.sets.map(s => !!s.warm);
+    for (const s of e.sets) if (s.wAuto && !s.wMan){ s.warm = false; s.wAuto = false; }
     const logged = e.sets.filter(s => +s.r > 0 && (chk ? s.done : true));
     if (logged.length < 2) continue;
     const topW = Math.max(...logged.map(s => +s.w || 0));
     if (!(topW > 0)) continue;
+    const effTop = Math.max(topW, histTopW(e.id));
     const topIdx = logged.findIndex(s => (+s.w || 0) === topW);
     logged.forEach((s, j) => {
-      if (j >= topIdx || s.warm) return;
+      if (j >= topIdx || s.warm || s.wMan) return;
       const w = +s.w || 0;
-      if ((w > 0 && w <= topW * 0.75) || (w === 0 && ex.bw)){ s.warm = true; lastAutoWarm++; }
+      if ((w > 0 && w <= effTop * 0.75) || (w === 0 && ex.bw)){
+        s.warm = true; s.wAuto = true;
+        if (!wasWarm[e.sets.indexOf(s)]) lastAutoWarm++;
+      }
     });
   }
   if (chk){
@@ -2706,13 +2783,27 @@ document.addEventListener("click", ev => {
   if (act === "tab"){ tab = btn.dataset.tab; render(); }
   else if (act === "start"){
     const dd = S.drafts[todayStr()] || (S.drafts[todayStr()] = newDraft(todayStr()));
+    delete dd.planned;
     dd.active = true; if (!dd.startedAt) dd.startedAt = Date.now();
     save(); render();
+  }
+  else if (act === "plan-tomorrow"){
+    const ds = addDays(todayStr(), 1);
+    const dr = S.drafts[ds] || (S.drafts[ds] = newDraft(ds));
+    dr.planned = true; dr.active = true;
+    S.editing = ds;
+    save(); tab = "home"; render();
+  }
+  else if (act === "plan-done"){
+    const ds = d.date;
+    d.active = false; S.editing = null;
+    save(); tab = "home"; render();
+    showToast("Planned — it'll be waiting on Home "+(ds === addDays(todayStr(), 1) ? "tomorrow" : fmtDate(ds))+".");
   }
   else if (act === "pause"){ d.active = false; S.editing = null; save(); render(); }
   else if (act === "chk"){ toggleSet(ei, si); }
   else if (act === "warm"){
-    const s = d.exercises[ei].sets[si]; s.warm = !s.warm; save();
+    const s = d.exercises[ei].sets[si]; s.warm = !s.warm; s.wMan = true; s.wAuto = false; save();
     const row = document.querySelector('.srow[data-ei="'+ei+'"][data-si="'+si+'"]');
     row.classList.toggle("warm", s.warm);
     row.querySelector(".snum").textContent = s.warm ? "W" : si+1;
@@ -3008,6 +3099,30 @@ document.addEventListener("change", ev => {
     S.drafts[todayStr()] = draftFromSession(t.value === "custom" ? null : t.value, todayStr());
     save(); render();
   }
+  else if (t.id === "plan-ses"){
+    const d0 = curDraft(), ds = d0.date;
+    if (draftHasData(d0) && !confirm("Changing the session resets this plan. Continue?")){
+      t.value = d0.session || "custom"; return;
+    }
+    const nd = draftFromSession(t.value === "custom" ? null : t.value, ds);
+    nd.planned = true; nd.active = true;
+    S.drafts[ds] = nd; save(); render();
+  }
+  else if (t.id === "plan-date"){
+    const d0 = curDraft(), old = d0.date, nv = t.value;
+    if (!nv || nv <= todayStr()){
+      alert("Pick a date after today — for today or earlier, log it as a workout instead.");
+      t.value = old; return;
+    }
+    if (nv === old) return;
+    if (S.drafts[nv] && draftHasData(S.drafts[nv])
+        && !confirm(fmtDate(nv)+" already has an unfinished draft — replace it?")){
+      t.value = old; return;
+    }
+    delete S.drafts[old];
+    d0.date = nv; S.drafts[nv] = d0; S.editing = nv;
+    save(); render();
+  }
   else if (t.id === "cardio-on"){ curDraft().cardio.on = t.checked; save(); }
   else if (t.id === "cardio-min"){ curDraft().cardio.min = Math.max(0, +t.value||0); save(); }
   else if (t.id === "prog-sel"){ S.progSel = t.value; save(); render(); }
@@ -3066,6 +3181,7 @@ document.addEventListener("input", ev => {
       }
     }
     save();
+    liveWarmSoon(+t.dataset.ei);
   }
   else if (t.id === "wnote"){ curDraft().note = t.value; save(); }
 });
