@@ -175,6 +175,30 @@
   .srow.done .chk{background:var(--accent);border-color:transparent;color:#0A0B0D}
   .srow.done input{border-color:transparent;background:var(--accent-dim)}
   .addset{margin-top:12px;width:100%;color:var(--text-3);border-style:dashed;background:none;padding:9px;font-size:13.5px;font-weight:550}
+  /* collapsed exercise card */
+  .xmin{padding:0}
+  .xrow{display:flex;align-items:center;gap:10px;width:100%;background:none;border:none;
+    padding:14px 15px;text-align:left;border-radius:var(--r-card)}
+  .xrow .xn{font-size:14.5px;font-weight:650;letter-spacing:-.01em;flex:none;max-width:54%;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .xrow .xsum{flex:1;min-width:0;text-align:right;color:var(--text-3);font-size:12.5px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .xrow .xsum b{color:var(--text-2);font-weight:600}
+  .xmin.alldone{border-color:rgba(44,224,139,.28)}
+  .xmin.alldone .xn::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;
+    background:var(--good);margin-right:7px;vertical-align:2px}
+  /* This session / Last time tabs */
+  .stabs{display:flex;gap:6px;margin-top:12px}
+  .stabs button{flex:none;padding:4px 12px;font-size:12px;border-radius:999px;color:var(--text-3);font-weight:600}
+  .stabs button.on{color:var(--accent);border-color:rgba(44,224,139,.4);background:var(--accent-dim)}
+  .lastrow{display:flex;gap:10px;font-size:13px;margin-top:9px;color:var(--text-2);align-items:baseline}
+  .lastrow .ld{width:56px;color:var(--text-3);flex:none;font-size:12px}
+  /* no check-off mode: drop the check column */
+  body.nochk .cols,body.nochk .srow{grid-template-columns:34px 1fr 84px 72px}
+  /* session score badge */
+  .badge.sc{font-weight:700;border:none;color:#0A0B0D}
+  .sc.gA{background:var(--accent)} .sc.gB{background:var(--info)}
+  .sc.gC{background:var(--warn)} .sc.gD{background:var(--bad);color:#fff}
   .shake{animation:shake .3s}
   @keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
   #timer{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(92px + env(safe-area-inset-bottom));
@@ -337,7 +361,7 @@ const EX = {
   csrow:{n:"Chest-Supported Row",g:"back",inc:5,rest:120},
   bbrow:{n:"Barbell Row",g:"back",inc:10,rest:150,bb:1},
   tbar:{n:"T-Bar Row",g:"back",inc:10,rest:150},
-  dbrow:{n:"Single-Arm DB Row",g:"back",inc:5,db:1,rest:120},
+  dbrow:{n:"Single-Arm DB Row",g:"back",inc:5,db:1,rest:120,uni:1},
   cablerow:{n:"Seated Cable Row",g:"back",inc:5,rest:120},
   sapd:{n:"Straight-Arm Pulldown",g:"back",inc:5},
   pullover:{n:"DB Pullover",g:"back",inc:5,db:1},
@@ -359,7 +383,7 @@ const EX = {
   legpress:{n:"Leg Press",g:"quads",inc:25,rest:150},
   hack:{n:"Hack Squat",g:"quads",inc:10,rest:150},
   legext:{n:"Leg Extension",g:"quads",inc:5},
-  bss:{n:"Bulgarian Split Squat",g:"quads",inc:5,db:1,rest:120},
+  bss:{n:"Bulgarian Split Squat",g:"quads",inc:5,db:1,rest:120,uni:1},
   lunge:{n:"Walking Lunge",g:"quads",inc:5,db:1,rest:120},
   rdl:{n:"Romanian Deadlift",g:"hamstrings",inc:10,rest:180,bb:1},
   legcurl:{n:"Leg Curl",g:"hamstrings",inc:5},
@@ -434,8 +458,8 @@ const GROUP_M = {chest:{p:["chest"],s:["triceps"]}, triceps:{p:["triceps"],s:[]}
 /* ================= state ================= */
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
-  restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false};
-let S = {workouts:[], drafts:{}, custom:{}, templates:{}, coach:[], milestone:0,
+  restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false};
+let S = {workouts:[], drafts:{}, custom:{}, templates:{}, coach:[], milestone:0, uniO:{},
   body:{weights:{}, kcals:{}},
   settings:Object.assign({}, DEF_SET),
   progSel:null, editing:null, trendTab:"body", range:30, recapSeen:""};
@@ -447,6 +471,7 @@ try { const raw = localStorage.getItem(KEY); if (raw){
   S.settings = Object.assign({}, DEF_SET, d.settings||{});
 }} catch(e){ storeOK = false; }
 S.templates = S.templates || {}; S.coach = S.coach || []; S.milestone = S.milestone || 0;
+S.uniO = S.uniO || {};
 S.coach.forEach(x => { x.pending = false; if (x.a === "") x.a = "(interrupted)"; });
 for (const d of Object.values(S.drafts||{}))
   for (const e of d.exercises||[])
@@ -468,6 +493,9 @@ const exInfo = id => EX[id] || S.custom[id] || {n:"Unknown",g:"other",inc:5};
 const sesDef = key => key ? (SESSIONS[key] || S.templates[key] || null) : null;
 const restFor = id => S.settings.restO[id] || exInfo(id).rest || S.settings.restDefault;
 const muscOf = id => MUSC[id] || GROUP_M[exInfo(id).g] || {p:[],s:[]};
+const isUni = id => S.uniO[id] !== undefined ? !!S.uniO[id] : !!exInfo(id).uni;
+const tonOf = w => w.exercises.reduce((a,e) => a + e.sets.reduce((x,s) =>
+  x + (+s.w||0)*(+s.r||0)*(isUni(e.id)?2:1), 0), 0);
 
 /* ================= smart logic ================= */
 const metric = (s, ex) => { const w=+s.w||0, r=+s.r||0; return (ex.bw && !w) ? r : w*(1+r/30); };
@@ -716,25 +744,120 @@ function recapCard(r, dismissable){
   return h + '</div>';
 }
 
+/* ================= session score ================= */
+const hardOf = e => e.sets.filter(s => +s.r > 0 && !s.warm);
+function creditTo(exId, prim){ const m = muscOf(exId);
+  return m.p.some(r => prim.includes(r)) ? 1 : m.s.some(r => prim.includes(r)) ? 0.5 : 0; }
+function rateWorkout(w){
+  const hard = w.exercises.reduce((a,e) => a + hardOf(e).length, 0);
+  if (!hard) return null;
+  const prior = S.workouts.filter(x => x.id !== w.id && x.date < w.date)
+    .sort((a,b) => b.date.localeCompare(a.date));
+  const sd = sesDef(w.session);
+  const notes = [];
+
+  /* 1) completion vs plan — 30 pts */
+  let comp;
+  if (sd){
+    const planSets = sd.plan.reduce((a,p) => a + p[1], 0);
+    const did = new Set(w.exercises.filter(e => hardOf(e).length).map(e => e.id));
+    const cover = sd.plan.filter(p => did.has(p[0])).length / sd.plan.length;
+    comp = Math.min(1, hard/planSets)*22 + cover*8;
+    const missed = sd.plan.filter(p => !did.has(p[0])).map(p => exInfo(p[0]).n);
+    if (missed.length && missed.length <= 3) notes.push("Skipped: "+missed.join(", ")+".");
+  } else comp = Math.min(1, hard/16)*30;
+
+  /* 2) performance vs last time, fatigue-adjusted — 40 pts */
+  const res = [];
+  w.exercises.forEach((e, pos) => {
+    const ex = exInfo(e.id), sets = hardOf(e);
+    if (!sets.length) return;
+    const now = bestMetric(sets, ex);
+    let prev = null, prevPos = 0;
+    for (const pw of prior){
+      const pe = pw.exercises.find(x => x.id === e.id);
+      if (pe){ const ps = hardOf(pe);
+        if (ps.length){ prev = bestMetric(ps, ex); prevPos = pw.exercises.indexOf(pe); break; } }
+    }
+    if (prev === null){ res.push({name:ex.n, cls:"new"}); return; }
+    const pct = (now - prev) / prev * 100;
+    const prim = muscOf(e.id).p;
+    let pre = 0;
+    for (let j = 0; j < pos; j++) pre += hardOf(w.exercises[j]).length * creditTo(w.exercises[j].id, prim);
+    let recent = 0;
+    for (const pw of prior){
+      const gap = (new Date(w.date+"T12:00:00") - new Date(pw.date+"T12:00:00")) / 864e5;
+      if (gap > 2) break;
+      for (const pe of pw.exercises) recent += hardOf(pe).length * creditTo(pe.id, prim);
+    }
+    const posDelta = Math.max(0, pos - prevPos);
+    const tol = 1.5 + Math.min(3, posDelta*0.8) + Math.min(2.5, pre*0.3) + (recent >= 4 ? 2 : 0);
+    const why = [];
+    if (posDelta) why.push("done "+posDelta+" slot"+(posDelta>1?"s":"")+" later than last time");
+    if (pre >= 3) why.push(Math.round(pre)+" earlier sets hit the same muscles");
+    if (recent >= 4) why.push("same muscles trained in the last 2 days");
+    res.push({name:ex.n, pct, why, cls: pct >= 0.5 ? "win" : pct >= -tol ? "hold" : "miss"});
+  });
+  const scored = res.filter(r => r.cls !== "new");
+  const perfPts = scored.length
+    ? scored.reduce((a,r) => a + (r.cls==="win" ? 1 : r.cls==="hold" ? 0.7 : 0.2), 0) / scored.length * 40
+    : 28;
+  const wins = scored.filter(r => r.cls === "win").sort((a,b) => b.pct - a.pct);
+  if (wins.length) notes.push("Biggest win: "+wins[0].name+" +"+wins[0].pct.toFixed(1)+"% e1RM.");
+  for (const r of scored){
+    if (r.cls === "miss")
+      notes.push(r.name+" down "+Math.abs(r.pct).toFixed(1)+"% with no fatigue excuse — watch it.");
+    else if (r.cls === "hold" && r.pct < -1.5 && r.why.length)
+      notes.push(r.name+" dipped "+Math.abs(r.pct).toFixed(1)+"% — expected ("+r.why[0]+"), not penalized.");
+  }
+
+  /* 3) rep quality + volume vs your norm — 20 pts */
+  let inR = 0, above = 0;
+  for (const e of w.exercises){
+    const p = sd && sd.plan.find(x => x[0] === e.id);
+    const lo = p ? p[2] : 5, hi = p ? p[3] : 30;
+    for (const s of hardOf(e)){ if (+s.r >= lo && +s.r <= hi+2) inR++; if (+s.r > hi+2) above++; }
+  }
+  const same = w.session ? prior.filter(x => x.session === w.session).slice(0,4) : [];
+  const medHard = same.length
+    ? same.map(x => x.exercises.reduce((a,e) => a + hardOf(e).length, 0)).sort((a,b) => a-b)[Math.floor(same.length/2)]
+    : null;
+  const inten = (inR/hard)*12 + (medHard ? Math.min(1, hard/medHard)*8 : 6);
+  if (above >= 3) notes.push(above+" sets sailed past the rep range — time to add weight.");
+
+  /* 4) bonus — 10 pts */
+  const bonus = Math.min(3, (w.prs||[]).length)*2.5 + (w.cardio ? 2.5 : 0);
+
+  if (notes.length < 4){
+    const bm = w.exercises.map(e => e.id).find(id => STD[id] && perfHistory(id).length);
+    if (bm){ const sc = liftScores().find(s => s.id === bm);
+      if (sc && sc.lv.idx >= 0) notes.push(sc.name+" sits at "+LVLS[sc.lv.idx]+" for your bodyweight."); }
+  }
+  const score = Math.max(1, Math.min(100, Math.round(comp + perfPts + inten + bonus)));
+  const grade = score>=92?"A+":score>=84?"A":score>=76?"B+":score>=68?"B":score>=60?"C+":score>=52?"C":"D";
+  return {score, grade, g:grade[0], notes:notes.slice(0,4)};
+}
+const scoreBadge = rt => rt ? '<span class="badge sc g'+rt.g+' num">'+rt.score+' · '+rt.grade+'</span>' : '';
+
 /* ================= drafts ================= */
 function draftFromSession(key, dateStr){
   const ses = sesDef(key);
   return {date:dateStr, session:key || null, active:false, startedAt:null, timer:null,
-    exercises: ses ? ses.plan.map(p => ({id:p[0], plan:{n:p[1],lo:p[2],hi:p[3]}, note:"",
+    exercises: ses ? ses.plan.map((p,i) => ({id:p[0], plan:{n:p[1],lo:p[2],hi:p[3]}, note:"", open:i===0,
       sets:Array.from({length:p[1]}, () => ({w:"",r:"",done:false,warm:false}))})) : [],
     cardio:{on:true, min:20}, note:""};
 }
 function newDraft(dateStr){
   return draftFromSession(WEEK[new Date(dateStr+"T12:00:00").getDay()], dateStr);
 }
-const draftHasData = d => d && d.exercises.some(e => e.sets.some(s => s.done));
+const draftHasData = d => d && d.exercises.some(e => e.sets.some(s => s.done || +s.r > 0));
 function curDraft(){ const date = S.editing || todayStr();
   return S.drafts[date] || (S.drafts[date] = newDraft(date)); }
 function openWorkoutDraft(w){
   const sd = sesDef(w.session);
   S.drafts[w.date] = {date:w.date, session:w.session, active:true,
     startedAt:(w.date === todayStr() && w.durMin) ? Date.now() - w.durMin*60000 : null, timer:null,
-    exercises: w.exercises.map(e => ({id:e.id, note:e.note||"",
+    exercises: w.exercises.map((e,i) => ({id:e.id, note:e.note||"", open:i===0,
       plan:(sd && sd.plan.find(p => p[0] === e.id))
         ? (p => ({n:p[1],lo:p[2],hi:p[3]}))(sd.plan.find(p => p[0] === e.id)) : null,
       sets:e.sets.map(s => ({w:String(s.w||""), r:String(s.r), done:true, warm:!!s.warm}))})),
@@ -753,6 +876,7 @@ function renderTabs(){
 }
 function render(){
   $("#hdrdate").textContent = fmtDate(todayStr());
+  document.body.classList.toggle("nochk", !S.settings.checkOff);
   renderTabs();
   const d = S.editing ? S.drafts[S.editing] : S.drafts[todayStr()];
   const viewKey = tab + (tab === "home" && d && d.active ? ":w" : "") + (tab === "trends" ? ":"+S.trendTab : "");
@@ -848,9 +972,11 @@ function renderHome(){
   const done = S.workouts.find(w => w.date === today);
   if (done && !draftHasData(S.drafts[today])){
     const setsN = done.exercises.reduce((a,e) => a + e.sets.length, 0);
+    const rt = rateWorkout(done);
     html += '<div class="card hero"><span class="lbl">Today</span>'
       + '<div class="today-name"><span class="ok-dot"></span>'+esc(done.sesName||"Workout")+'</div>'
       + '<div class="hint">Done — '+done.exercises.length+' exercises · '+setsN+' sets'
+      + (rt ? ' · score <b class="grad-ink num">'+rt.score+' ('+rt.grade+')</b>' : '')
       + (done.prs && done.prs.length ? ' · <span class="wr" style="font-weight:650">'+done.prs.length+' PR'+(done.prs.length>1?'s':'')+'</span>' : '')+'</div>'
       + '<div class="btnrow"><button data-act="reopen" data-date="'+today+'">Reopen &amp; edit</button></div></div>';
   } else {
@@ -914,10 +1040,12 @@ function renderHome(){
 
 /* ================= ACTIVE WORKOUT ================= */
 let tickInt = null;
+const setLogged = s => S.settings.checkOff ? s.done : +s.r > 0;
 function renderWorkout(d){
   const isToday = d.date === todayStr();
+  const chk = S.settings.checkOff;
   const total = d.exercises.reduce((a,e) => a + e.sets.length, 0);
-  const doneN = d.exercises.reduce((a,e) => a + e.sets.filter(s => s.done).length, 0);
+  const doneN = d.exercises.reduce((a,e) => a + e.sets.filter(setLogged).length, 0);
   let html = '<div id="sessbar"><button class="ghost" data-act="pause" title="Save & exit">‹</button>'
     + '<b class="grow">'+esc((sesDef(d.session)||{}).name || "Workout")
     + (isToday ? "" : ' <span class="t num">· '+fmtShort(d.date)+'</span>')+'</b>'
@@ -927,18 +1055,40 @@ function renderWorkout(d){
 
   d.exercises.forEach((e, i) => {
     const a = analyze(e.id, e.plan);
+    const uni = isUni(e.id);
+    const uniTag = uni ? ' <span class="tgt">/side</span>' : '';
     const tgt = e.plan ? e.plan.n+"×"+e.plan.lo+"–"+e.plan.hi : "";
+    if (e.open === false){
+      const ls = e.sets.map((s,si) => ({s,si})).filter(x => setLogged(x.s));
+      const sum = ls.length
+        ? ls.length+'/'+e.sets.length+' · <b>'+ls.map(({s,si}) => { const w = +s.w || +a.gW(si) || 0;
+            return w ? w+'×'+s.r : s.r; }).join(' · ')+'</b>'
+        : (a.prev.length
+            ? 'last '+a.prev.map(s => (+s.w ? s.w+'×'+s.r : s.r)).join(' · ')
+            : (tgt || e.sets.length+' sets'));
+      html += '<div class="card xcard xmin'+(ls.length && ls.length === e.sets.length ? ' alldone' : '')+'" data-ei="'+i+'">'
+        + '<button class="xrow" data-act="ex-open" data-ei="'+i+'">'
+        + '<span class="xn">'+esc(a.ex.n)+uniTag+'</span>'
+        + '<span class="xsum num">'+sum+'</span><span class="cap">▾</span></button></div>';
+      return;
+    }
     html += '<div class="card xcard" data-ei="'+i+'"><div class="xhead">'
-      + '<button class="xname" data-act="ex-detail" data-exid="'+e.id+'">'+esc(a.ex.n)
+      + '<button class="xname" data-act="ex-detail" data-exid="'+e.id+'">'+esc(a.ex.n)+uniTag
       + (tgt ? ' <span class="tgt num">'+tgt+'</span>' : '')+'</button>'
       + (a.chip ? '<span class="chip '+a.chip.cls+' num">'+a.chip.txt+'</span>' : '')
-      + '<button class="chip num" data-act="rest-cycle" data-ei="'+i+'">'+fmtSec(restFor(e.id))+'</button>'
+      + (chk ? '<button class="chip num" data-act="rest-cycle" data-ei="'+i+'">'+fmtSec(restFor(e.id))+'</button>' : '')
+      + '<button class="ghost" data-act="ex-close" data-ei="'+i+'" title="Collapse">▴</button>'
       + '<button class="ghost" data-act="ex-menu" data-ei="'+i+'">⋯</button></div>'
       + (e.note ? '<div class="xnote">'+esc(e.note)+'</div>' : '')
       + (a.ex.bb && +a.gW(0) ? (ps => ps ? '<div class="cap num" style="margin-top:4px">'+(+a.gW(0))+' lb = '+ps+'</div>' : '')(plateStr(+a.gW(0))) : '')
-      + '<div class="cols"><span>Set</span><span>Previous</span><span>Lbs</span><span>Reps</span><span></span></div>'
-      + e.sets.map((s, si) => setRow(e, a, i, si)).join("")
-      + '<button class="addset" data-act="addset" data-ei="'+i+'">+ Add set</button></div>';
+      + (a.prev.length ? '<div class="stabs">'
+          + '<button class="'+(!e.tabLast ? "on" : "")+'" data-act="stab" data-ei="'+i+'" data-v="cur">This session</button>'
+          + '<button class="'+(e.tabLast ? "on" : "")+'" data-act="stab" data-ei="'+i+'" data-v="last">Last time</button></div>' : '')
+      + (e.tabLast && a.prev.length ? lastPanel(e, a)
+        : '<div class="cols"><span>Set</span><span>Previous</span><span>Lbs</span><span>Reps</span>'+(chk ? '<span></span>' : '')+'</div>'
+          + e.sets.map((s, si) => setRow(e, a, i, si, chk)).join("")
+          + '<button class="addset" data-act="addset" data-ei="'+i+'">+ Add set</button>')
+      + '</div>';
   });
 
   html += '<div class="btnrow" style="margin:2px 0 10px">'
@@ -966,16 +1116,25 @@ function plateStr(total){
     while (per >= p - 0.01){ out.push(p); per -= p; }
   return out.length ? "bar + " + out.join(" + ") + " / side" + (per > 0.3 ? " ≈" : "") : "";
 }
-function setRow(e, a, ei, si){
+function setRow(e, a, ei, si, chk){
   const s = e.sets[si];
   const prev = a.prev[si] ? ((+a.prev[si].w||0) ? a.prev[si].w+" × "+a.prev[si].r : a.prev[si].r+" reps")
     : (a.prev.length ? "—" : "");
-  return '<div class="srow'+(s.done?" done":"")+(s.warm?" warm":"")+'" data-ei="'+ei+'" data-si="'+si+'">'
+  return '<div class="srow'+(chk && s.done?" done":"")+(s.warm?" warm":"")+'" data-ei="'+ei+'" data-si="'+si+'">'
     + '<button class="snum" data-act="warm" data-ei="'+ei+'" data-si="'+si+'">'+(s.warm?"W":si+1)+'</button>'
     + '<div class="prev num">'+prev+'</div>'
     + '<input class="w num" type="number" inputmode="decimal" step="0.5" min="0" value="'+esc(s.w)+'" placeholder="'+esc(a.gW(si))+'" data-ei="'+ei+'" data-si="'+si+'">'
     + '<input class="r num" type="number" inputmode="numeric" min="0" value="'+esc(s.r)+'" placeholder="'+esc(a.gR(si))+'" data-ei="'+ei+'" data-si="'+si+'">'
-    + '<button class="chk" data-act="chk" data-ei="'+ei+'" data-si="'+si+'">'+icon("check",20,2.4)+'</button></div>';
+    + (chk ? '<button class="chk" data-act="chk" data-ei="'+ei+'" data-si="'+si+'">'+icon("check",20,2.4)+'</button>' : '')
+    + '</div>';
+}
+function lastPanel(e, a){
+  const hist = perfHistory(e.id).slice(0,3);
+  return hist.map(h =>
+    '<div class="lastrow"><span class="ld num">'+fmtShort(h.date)+'</span>'
+    + '<span class="grow num">'+h.sets.map(s => (+s.w ? s.w+"×"+s.r : s.r+" reps")).join(", ")+'</span>'
+    + '<span class="cap num" style="flex:none">e1RM '+Math.round(bestMetric(h.sets, a.ex))+'</span></div>').join("")
+    + '<div class="cap" style="margin-top:10px">Your last '+(hist.length>1 ? hist.length+' sessions' : 'session')+' of this lift — the ghost numbers on the set rows carry the most recent one over.</div>';
 }
 function fmtSec(s){ return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
 function tickElapsed(){
@@ -1019,6 +1178,16 @@ function toggleSet(ei, si){
   const total = d.exercises.reduce((a,x) => a + x.sets.length, 0);
   const doneN = d.exercises.reduce((a,x) => a + x.sets.filter(t => t.done).length, 0);
   const sc = $("#setcount"); if (sc) sc.textContent = doneN+"/"+total;
+  if (s.done && e.sets.every(x => x.done)){
+    let nxt = -1;
+    for (let j = ei+1; j < d.exercises.length; j++)
+      if (!d.exercises[j].sets.every(u => u.done)){ nxt = j; break; }
+    e.open = false;
+    if (nxt >= 0) d.exercises[nxt].open = true;
+    save(); render();
+    if (nxt >= 0){ const el = document.querySelector('.xcard[data-ei="'+nxt+'"]');
+      if (el) el.scrollIntoView({block:"center", behavior:"smooth"}); }
+  }
 }
 
 /* ================= rest timer / toast ================= */
@@ -1106,10 +1275,21 @@ function computePRs(kept){
 function finishDraft(dateStr, silent){
   const d = S.drafts[dateStr];
   if (!d) return false;
-  const unchecked = d.exercises.reduce((a,e) => a + e.sets.filter(s => !s.done && (+s.r>0 || +s.w>0)).length, 0);
-  if (!silent && unchecked && !confirm(unchecked+" set(s) have numbers but no check — they'll be dropped. Finish anyway?")) return false;
+  const chk = S.settings.checkOff;
+  if (chk){
+    const unchecked = d.exercises.reduce((a,e) => a + e.sets.filter(s => !s.done && (+s.r>0 || +s.w>0)).length, 0);
+    if (!silent && unchecked && !confirm(unchecked+" set(s) have numbers but no check — they'll be dropped. Finish anyway?")) return false;
+  } else {
+    // reps typed + weight left blank → adopt the ghost suggestion, same as tapping the check used to
+    for (const e of d.exercises){
+      const a = analyze(e.id, e.plan);
+      e.sets.forEach((s, si) => {
+        if (+s.r > 0 && s.w === ""){ const gw = a.gW(si); if (+gw) s.w = gw; }
+      });
+    }
+  }
   const kept = d.exercises
-    .map(e => ({id:e.id, note:e.note||"", sets:e.sets.filter(s => s.done && +s.r > 0)
+    .map(e => ({id:e.id, note:e.note||"", sets:e.sets.filter(s => (chk ? s.done : true) && +s.r > 0)
       .map(s => ({w:+s.w||0, r:+s.r, warm:!!s.warm}))}))
     .filter(e => e.sets.length);
   if (!kept.length){ if (!silent) alert("Check off at least one set first."); return false; }
@@ -1136,18 +1316,23 @@ function renderHistory(){
   const list = [...S.workouts].sort((a,b) => b.date.localeCompare(a.date));
   $("#view").innerHTML = html + list.map(w => {
     const setsN = w.exercises.reduce((a,e) => a + e.sets.length, 0);
-    const ton = w.exercises.reduce((a,e) => a + e.sets.reduce((x,s) => x + (+s.w||0)*(+s.r||0), 0), 0);
+    const ton = tonOf(w);
+    const rt = rateWorkout(w);
     return '<div class="card hist" id="h-'+w.id+'">'
       + '<div class="h-head" data-act="hist-toggle" data-id="'+w.id+'">'
       + '<div class="grow"><b style="font-size:14.5px">'+fmtDate(w.date)+'</b> <span class="cap">· '+esc(w.sesName||"Custom")+'</span>'
-      + '<div class="badges"><span class="badge num">'+setsN+' sets</span><span class="badge num">'+Math.round(ton).toLocaleString()+' lb</span>'
+      + '<div class="badges">'+scoreBadge(rt)+'<span class="badge num">'+setsN+' sets</span><span class="badge num">'+Math.round(ton).toLocaleString()+' lb</span>'
       + (S.settings.showClock && w.durMin ? '<span class="badge num">'+w.durMin+' min</span>' : '')
       + (w.cardio ? '<span class="badge num">cardio '+w.cardio.min+'m</span>' : '')
       + (w.prs && w.prs.length ? '<span class="badge pr num">'+w.prs.length+' PR</span>' : '')
       + '</div></div><span class="cap">▾</span></div>'
       + '<div class="h-body">'
       + w.exercises.map((e,i) => '<p class="num"><b>'+(i+1)+'. '+esc(exInfo(e.id).n)+'</b> — '
-          + e.sets.map(s => (s.warm?"w:":"")+(+s.w ? s.w+"×"+s.r : s.r+" reps")).join(", ")+'</p>').join("")
+          + e.sets.map(s => (s.warm?"w:":"")+(+s.w ? s.w+"×"+s.r : s.r+" reps")).join(", ")
+          + (isUni(e.id) ? ' <span class="cap">per side</span>' : '')+'</p>').join("")
+      + (rt && rt.notes.length
+          ? '<div style="margin-top:8px"><span class="lbl">Session score '+rt.score+' · '+rt.grade+'</span>'
+            + rt.notes.map(n => '<p class="cap" style="margin-top:4px">• '+esc(n)+'</p>').join("")+'</div>' : "")
       + (w.note ? '<p class="cap">“'+esc(w.note)+'”</p>' : "")
       + '<div class="btnrow"><button class="small" data-act="hist-edit" data-id="'+w.id+'">Edit</button>'
       + '<button class="small" data-act="hist-date" data-id="'+w.id+'">Change date</button>'
@@ -1570,6 +1755,8 @@ function renderMore(){
     + '<div class="set-item"><span class="lbl">Goal weight · lb (blank = none)</span><input id="st-goal" type="number" inputmode="decimal" value="'+esc(st.goalWeight)+'"></div>'
     + '</div>'
     + '<h2>Workout</h2><div class="card">'
+    + '<div class="setrow-lab"><span>Check off sets + rest timer</span><input type="checkbox" id="st-chk" style="width:22px;height:22px"'+(st.checkOff?" checked":"")+'></div>'
+    + '<p class="cap" style="margin-top:4px">Off = just write down what you did; a set counts once it has reps. On = tap the check per set and the rest timer runs.</p>'
     + '<div class="set-item"><span class="lbl">Default rest timer · seconds (big lifts have their own)</span><input id="st-rest" type="number" inputmode="numeric" value="'+st.restDefault+'"></div>'
     + '<div class="setrow-lab"><span>Timer sound</span><input type="checkbox" id="st-sound" style="width:22px;height:22px"'+(st.sound?" checked":"")+'></div>'
     + '<div class="setrow-lab"><span>Timer vibration</span><input type="checkbox" id="st-vib" style="width:22px;height:22px"'+(st.vibrate?" checked":"")+'></div>'
@@ -1598,32 +1785,40 @@ function renderMore(){
     + '<input type="file" id="importfile" accept=".json" style="display:none">'
     + '<p class="cap" style="margin-top:10px">“Copy for Claude” puts your recent training + body data on the clipboard — paste into a Claude chat for coaching. Data lives on this device only; back up occasionally.</p>'
     + '<div class="btnrow"><button class="danger" data-act="reset">Erase all data</button></div></div>'
-    + '<p class="cap" style="margin:16px 2px">Ghost numbers in the inputs are your target — last time’s sets, bumped when you max the rep range. Tap the check on an untouched row to log exactly those numbers. Tap a set number to mark it a warm-up.</p>';
+    + '<p class="cap" style="margin:16px 2px">Ghost numbers in the inputs are your target — last time’s sets, bumped when you max the rep range. Type reps and a set is logged (blank weight adopts the ghost number at finish); with check-off on, tap the check instead. Tap a set number to mark it a warm-up.</p>';
 }
 
 /* ================= modal ================= */
 function openModal(html){ $("#modal").innerHTML = html; $("#ovl").classList.add("show"); }
 function closeModal(){ $("#ovl").classList.remove("show"); }
-function exercisePicker(act, ei, filterGroup){
+function exercisePicker(act, ei, prio){
   const q = ($("#exsearch") && $("#exsearch").value || "").toLowerCase();
   const all = Object.entries(EX).concat(Object.entries(S.custom));
   const match = all.filter(([id,e]) => e.n.toLowerCase().includes(q));
   const groups = {};
   for (const [id,e] of match) (groups[e.g] = groups[e.g] || []).push([id,e]);
   const order = Object.keys(GROUPS).filter(g => groups[g]);
-  if (filterGroup && order.includes(filterGroup)){
-    order.splice(order.indexOf(filterGroup), 1); order.unshift(filterGroup);
-  }
+  const pr = (prio||[]).filter(g => order.includes(g));
+  for (const g of [...pr].reverse()){ order.splice(order.indexOf(g), 1); order.unshift(g); }
   return order.map(g =>
-    '<div class="mgroup">'+GROUPS[g]+'</div>'
+    '<div class="mgroup">'+GROUPS[g]+(pr.includes(g) ? ' <span style="color:var(--accent)">· today</span>' : '')+'</div>'
     + groups[g].map(([id,e]) =>
       '<button class="pick" data-act="'+act+'" data-exid="'+id+'"'+(ei!=null?' data-ei="'+ei+'"':"")+'>'
       + esc(e.n)+'<small>'+(e.bw?"BW":"+"+e.inc+" lb")+'</small></button>').join("")
   ).join("") || '<p class="hint" style="margin-top:10px">No match — create it below.</p>';
 }
+function todayGroups(){
+  const d = curDraft(), gs = [];
+  for (const e of d.exercises){ const g = exInfo(e.id).g; if (!gs.includes(g)) gs.push(g); }
+  if (!gs.length){
+    const ses = sesDef(WEEK[new Date(d.date+"T12:00:00").getDay()]);
+    if (ses) for (const p of ses.plan){ const g = exInfo(p[0]).g; if (!gs.includes(g)) gs.push(g); }
+  }
+  return gs;
+}
 function openAddModal(swapEi){
   const act = swapEi != null ? "modal-swap" : "modal-add";
-  const fg = swapEi != null ? exInfo(curDraft().exercises[swapEi].id).g : null;
+  const fg = swapEi != null ? [exInfo(curDraft().exercises[swapEi].id).g] : todayGroups();
   openModal('<h3>'+(swapEi!=null ? "Replace exercise" : "Add exercise")+'</h3>'
     + '<input id="exsearch" placeholder="Search…" autocomplete="off">'
     + '<div id="exlist">'+exercisePicker(act, swapEi, fg)+'</div>'
@@ -1641,6 +1836,8 @@ function openExMenu(ei){
   openModal('<h3>'+esc(exInfo(e.id).n)+'</h3>'
     + (wgt ? '<button class="menu-item" data-act="warmup-gen" data-ei="'+ei+'">Add warm-up sets</button>' : '')
     + '<button class="menu-item" data-act="note-ex" data-ei="'+ei+'">'+(e.note?"Edit note":"Add note")+'</button>'
+    + '<button class="menu-item" data-act="uni-toggle" data-ei="'+ei+'">'
+    + (isUni(e.id) ? '✓ One side at a time — turn off' : 'One side at a time (1-arm / 1-leg)')+'</button>'
     + '<button class="menu-item" data-act="swap" data-ei="'+ei+'">Replace exercise</button>'
     + '<button class="menu-item" data-act="up" data-ei="'+ei+'">Move up</button>'
     + '<button class="menu-item" data-act="down" data-ei="'+ei+'">Move down</button>'
@@ -1662,7 +1859,7 @@ function openExDetail(exId){
       + (mw ? 'Heaviest: <b style="color:var(--text-1)">'+mw+' × '+mws.r+'</b> · ' : '')
       + 'Best e1RM: <b style="color:var(--text-1)">'+Math.round(me)+(ex.bw && !mw ? ' reps' : ' lb')+'</b></p>';
   }
-  openModal('<h3>'+esc(ex.n)+'</h3>'
+  openModal('<h3>'+esc(ex.n)+(isUni(exId) ? ' <span class="tgt">/side</span>' : '')+'</h3>'
     + (hist.length ? '<div class="chartwrap">'+e1rmChart(pts)+'</div>' + rec
       + '<div class="mgroup">Recent sessions</div>'
       + hist.slice(0,6).map(h => '<p class="hint num" style="margin-top:6px"><b style="color:var(--text-1)">'+fmtDate(h.date)+'</b> — '
@@ -1726,16 +1923,19 @@ function claudeText(){
         const m = bestMetric(h.sets, ex);
         if (!best || m > best.m) best = {m, s:bestSet(h.sets, ex), d:h.date};
       }
-      if (best) L.push("  " + ex.n + ": " + Math.round(best.m) + " (" + (+best.s.w||0) + "×" + best.s.r + " on " + best.d + ")");
+      if (best) L.push("  " + ex.n + (isUni(id) ? " (per side)" : "") + ": " + Math.round(best.m) + " (" + (+best.s.w||0) + "×" + best.s.r + " on " + best.d + ")");
     }
   }
   L.push("");
   L.push("RECENT WORKOUTS (newest first):");
   const list = [...S.workouts].sort((a,b) => b.date.localeCompare(a.date)).slice(0,12);
   for (const w of list){
-    L.push(w.date + " — " + (w.sesName||"Custom") + (w.durMin ? " (" + w.durMin + " min)" : "") + (w.prs && w.prs.length ? "  PRs: " + w.prs.map(p => p.name).join(", ") : ""));
+    const rt = rateWorkout(w);
+    L.push(w.date + " — " + (w.sesName||"Custom") + (w.durMin ? " (" + w.durMin + " min)" : "")
+      + (rt ? " · session score " + rt.score + " (" + rt.grade + ")" : "")
+      + (w.prs && w.prs.length ? "  PRs: " + w.prs.map(p => p.name).join(", ") : ""));
     w.exercises.forEach((e,i) =>
-      L.push("  " + (i+1) + ". " + exInfo(e.id).n + ": " + e.sets.map(s => (s.warm?"w:":"")+(s.w? s.w+"×"+s.r : s.r+" reps")).join(", ")));
+      L.push("  " + (i+1) + ". " + exInfo(e.id).n + (isUni(e.id) ? " (per side)" : "") + ": " + e.sets.map(s => (s.warm?"w:":"")+(s.w? s.w+"×"+s.r : s.r+" reps")).join(", ")));
     if (w.cardio) L.push("  cardio: incline treadmill " + w.cardio.min + " min");
     if (w.note) L.push("  note: " + w.note);
   }
@@ -1783,6 +1983,20 @@ document.addEventListener("click", ev => {
     S.settings.restO[id] = nxt; save();
     btn.textContent = fmtSec(nxt);
   }
+  else if (act === "ex-open"){
+    d.exercises.forEach((x,j) => x.open = j === ei);
+    save(); render();
+    const el = document.querySelector('.xcard[data-ei="'+ei+'"]');
+    if (el) el.scrollIntoView({block:"center", behavior:"smooth"});
+  }
+  else if (act === "ex-close"){ d.exercises[ei].open = false; save(); render(); }
+  else if (act === "stab"){ d.exercises[ei].tabLast = btn.dataset.v === "last"; save(); render(); }
+  else if (act === "uni-toggle"){
+    const id = d.exercises[ei].id;
+    S.uniO[id] = isUni(id) ? 0 : 1;
+    save(); closeModal(); render();
+    if (S.uniO[id]) showToast("Marked one side at a time — log the weight per side; totals count both.");
+  }
   else if (act === "ex-menu"){ openExMenu(ei); }
   else if (act === "ex-detail"){ openExDetail(btn.dataset.exid); }
   else if (act === "note-ex"){
@@ -1810,7 +2024,8 @@ document.addEventListener("click", ev => {
   else if (act === "swap"){ openAddModal(ei); }
   else if (act === "add-ex"){ openAddModal(null); }
   else if (act === "modal-add"){
-    d.exercises.push({id:btn.dataset.exid, plan:null, note:"",
+    d.exercises.forEach(x => x.open = false);
+    d.exercises.push({id:btn.dataset.exid, plan:null, note:"", open:true,
       sets:[{w:"",r:"",done:false,warm:false},{w:"",r:"",done:false,warm:false},{w:"",r:"",done:false,warm:false}]});
     save(); closeModal(); render();
   }
@@ -1827,18 +2042,22 @@ document.addEventListener("click", ev => {
     S.custom[id] = {n:name, g:$("#newexgroup").value, inc:5};
     const sei = btn.dataset.ei;
     if (sei != null && sei !== ""){ const e = d.exercises[+sei]; e.id = id; e.sets = e.sets.map(() => ({w:"",r:"",done:false,warm:false})); }
-    else d.exercises.push({id, plan:null, note:"", sets:[{w:"",r:"",done:false,warm:false},{w:"",r:"",done:false,warm:false},{w:"",r:"",done:false,warm:false}]});
+    else { d.exercises.forEach(x => x.open = false);
+      d.exercises.push({id, plan:null, note:"", open:true, sets:[{w:"",r:"",done:false,warm:false},{w:"",r:"",done:false,warm:false},{w:"",r:"",done:false,warm:false}]}); }
     save(); closeModal(); render();
   }
   else if (act === "modal-close"){ closeModal(); }
   else if (act === "finish"){
-    const prs = finishDraft(d.date, false);
+    const fdate = d.date;
+    const prs = finishDraft(fdate, false);
     if (prs === false) return;
     clearInterval(tickInt);
     tab = "home"; render();
-    let msg = prs.length ? "<b class='wr'>"+prs.length+" PR"+(prs.length>1?"s":"")+"</b> — "+prs.map(p => esc(p.name)).join(", ") : "";
-    const ton = S.workouts.reduce((a,w) => a + w.exercises.reduce((x,e) =>
-      x + e.sets.reduce((y,s) => y + (+s.w||0)*(+s.r||0), 0), 0), 0);
+    const w = S.workouts.find(x => x.date === fdate);
+    const rt = w && rateWorkout(w);
+    let msg = rt ? "Session score <b class='grad-ink'>"+rt.score+" · "+rt.grade+"</b>" : "";
+    if (prs.length) msg += (msg ? "<br>" : "") + "<b class='wr'>"+prs.length+" PR"+(prs.length>1?"s":"")+"</b> — "+prs.map(p => esc(p.name)).join(", ");
+    const ton = S.workouts.reduce((a,x) => a + tonOf(x), 0);
     const hit = [1e5, 25e4, 5e5, 1e6, 2e6, 5e6].filter(m => m <= ton && m > S.milestone).pop();
     if (hit){ S.milestone = hit; save();
       msg += (msg ? "<br>" : "") + "<b class='grad-ink'>" + hit.toLocaleString() + " lb</b> lifted lifetime"; }
@@ -2033,6 +2252,7 @@ document.addEventListener("change", ev => {
   else if (t.id === "st-sex"){ S.settings.sex = t.value; save(); }
   else if (t.id === "st-height"){ S.settings.height = t.value; save(); }
   else if (t.id === "st-clock"){ S.settings.showClock = t.checked; save(); }
+  else if (t.id === "st-chk"){ S.settings.checkOff = t.checked; save(); render(); }
   else if (t.id === "st-apikey"){ S.settings.apiKey = t.value.trim(); save(); }
   else if (t.id === "importfile"){
     const f = t.files[0]; if (!f) return;
@@ -2063,7 +2283,14 @@ document.addEventListener("input", ev => {
             if (inp) inp.placeholder = t.value;
           }
         });
-    } else s.r = t.value;
+    } else {
+      s.r = t.value;
+      if (!S.settings.checkOff){
+        const total = d.exercises.reduce((a,x) => a + x.sets.length, 0);
+        const doneN = d.exercises.reduce((a,x) => a + x.sets.filter(u => +u.r > 0).length, 0);
+        const sc = $("#setcount"); if (sc) sc.textContent = doneN+"/"+total;
+      }
+    }
     save();
   }
   else if (t.id === "wnote"){ curDraft().note = t.value; save(); }
