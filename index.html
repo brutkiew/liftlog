@@ -833,7 +833,7 @@ function rateWorkout(w){
       if (pe){ const ps = hardOf(pe);
         if (ps.length){ prev = bestMetric(ps, ex); prevPos = pw.exercises.indexOf(pe); break; } }
     }
-    if (prev === null){ res.push({name:ex.n, cls:"new"}); return; }
+    if (prev === null){ res.push({id:e.id, name:ex.n, cls:"new"}); return; }
     const pct = (now - prev) / prev * 100;
     const prim = muscOf(e.id).p;
     let pre = 0;
@@ -850,7 +850,7 @@ function rateWorkout(w){
     if (posDelta) why.push("done "+posDelta+" slot"+(posDelta>1?"s":"")+" later than last time");
     if (pre >= 3) why.push(Math.round(pre)+" earlier sets hit the same muscles");
     if (recent >= 4) why.push("same muscles trained in the last 2 days");
-    res.push({name:ex.n, pct, why, cls: pct >= 0.5 ? "win" : pct >= -tol ? "hold" : "miss"});
+    res.push({id:e.id, name:ex.n, pct, why, cls: pct >= 0.5 ? "win" : pct >= -tol ? "hold" : "miss"});
   });
   const scored = res.filter(r => r.cls !== "new");
   const perfPts = scored.length
@@ -887,9 +887,47 @@ function rateWorkout(w){
     if (bm){ const sc = liftScores().find(s => s.id === bm);
       if (sc && sc.lv.idx >= 0) notes.push(sc.name+" sits at "+LVLS[sc.lv.idx]+" for your bodyweight."); }
   }
+  /* 5) per-muscle grades — same win/hold/miss data, cut by primary muscle, plus that
+     muscle's rep quality and hard-set volume vs your norm for this session type */
+  const muscles = [];
+  for (const [nm, regs] of Object.entries(FRESH_REG)){
+    const exs = w.exercises.filter(e => hardOf(e).length && muscOf(e.id).p.some(r => regs.includes(r)));
+    if (!exs.length) continue;
+    const mSets = exs.reduce((a,e) => a + hardOf(e).length, 0);
+    if (mSets < 2) continue;
+    const rs = res.filter(r => r.cls !== "new" && exs.some(e => e.id === r.id));
+    const str = rs.length ? rs.reduce((a,r) => a + (r.cls==="win" ? 1 : r.cls==="hold" ? 0.7 : 0.2), 0) / rs.length : 0.7;
+    let mIn = 0;
+    for (const e of exs){
+      const p = sd && sd.plan.find(x => x[0] === e.id);
+      const lo = p ? p[2] : 5, hi = p ? p[3] : 30;
+      for (const s of hardOf(e)) if (+s.r >= lo && +s.r <= hi+2) mIn++;
+    }
+    const rq = mIn / mSets;
+    let vol = 0.75; // neutral until this session type has history
+    if (same.length){
+      const meds = same.map(x => x.exercises
+        .filter(e2 => hardOf(e2).length && muscOf(e2.id).p.some(r => regs.includes(r)))
+        .reduce((a,e2) => a + hardOf(e2).length, 0)).sort((a,b) => a-b);
+      const md = meds[Math.floor(meds.length/2)];
+      if (md > 0) vol = Math.min(1, mSets/md);
+    }
+    const ms = Math.max(1, Math.min(100, Math.round((str*0.6 + (rq*0.5 + vol*0.5)*0.4) * 100)));
+    const win = rs.filter(r => r.cls === "win").length, miss = rs.filter(r => r.cls === "miss").length;
+    const bits = [mSets+" hard sets"];
+    if (!rs.length) bits.push("first time on these lifts");
+    else {
+      if (win) bits.push(win+" lift"+(win>1?"s":"")+" up");
+      if (miss) bits.push(miss+" down");
+      if (!win && !miss) bits.push("held steady");
+    }
+    muscles.push({nm, score:ms, grade:gradeFor(ms), detail:bits.join(" · ")});
+  }
+  muscles.sort((a,b) => b.score - a.score);
+
   const score = Math.max(1, Math.min(100, Math.round(comp + perfPts + inten + bonus)));
   const grade = gradeFor(score);
-  return {score, grade, g:grade[0], notes:notes.slice(0,4),
+  return {score, grade, g:grade[0], notes:notes.slice(0,4), muscles,
     parts:{comp:Math.round(comp), perf:Math.round(perfPts), qual:Math.round(inten), bonus:Math.round(bonus)}};
 }
 function gradeFor(score){
@@ -916,6 +954,8 @@ function openScoreModal(id){
         "How many hard sets landed inside the target rep range, and total sets vs your own norm for this session type.")
     + row("Bonus", rt.parts.bonus, 10,
         "PRs (+2.5 each, up to 3) and cardio done (+2.5).")
+    + (rt.muscles && rt.muscles.length ? '<div class="mgroup">By muscle</div>'
+        + rt.muscles.map(m => row(m.nm, m.score, 100, m.detail)).join("") : "")
     + (rt.notes.length ? '<div class="mgroup">Notes</div>'
         + rt.notes.map(n => '<p class="hint" style="margin-top:6px">• '+esc(n)+'</p>').join("") : "")
     + '<div class="btnrow"><button data-act="modal-close">Close</button></div>');
@@ -1131,7 +1171,9 @@ function scoreHeroInner(done){
   const col = !rt ? "url(#rg2)" : rt.score >= 80 ? "var(--accent)" : rt.score >= 60 ? "var(--info)" : rt.score >= 45 ? "var(--warn)" : "var(--bad)";
   return '<span class="lbl">Session complete</span>'
     + '<div class="scorewrap">'
+    + (rt ? '<span data-act="score-why" data-id="'+done.id+'" style="cursor:pointer">' : '<span>')
     + ring2SVG((rt ? rt.score : 0)/100, '<span class="num" id="scoreN">0</span>', rt ? rt.grade : "", col)
+    + '</span>'
     + '<div class="grow"><div style="font-size:16px;font-weight:700">'+esc(done.sesName||"Workout")+'</div>'
     + '<div class="cap num" style="margin-top:3px">'+done.exercises.length+' exercises · '+setsN+' sets</div>'
     + (done.prs && done.prs.length ? '<div class="wr" style="font-size:12.5px;font-weight:650;margin-top:5px">'+done.prs.length+' PR'+(done.prs.length>1?"s":"")+' — '+esc(done.prs.map(p=>p.name).slice(0,2).join(", "))+'</div>' : '')
