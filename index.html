@@ -515,6 +515,10 @@ try { const raw = localStorage.getItem(KEY); if (raw){
 S.templates = S.templates || {}; S.coach = S.coach || []; S.milestone = S.milestone || 0;
 S.uniO = S.uniO || {};
 S.coach.forEach(x => { x.pending = false; if (x.a === "") x.a = "(interrupted)"; });
+/* names that clearly mean one limb at a time — used to auto-set the per-side flag */
+const UNI_RE = /\b(single|one|1)[ -]?(arm|leg|hand)\b|unilateral|per side|each side|alternat/i;
+for (const [cid, c] of Object.entries(S.custom||{}))
+  if (c.uni === undefined && UNI_RE.test(c.n||"") && S.uniO[cid] === undefined) c.uni = 1;
 for (const d of Object.values(S.drafts||{}))
   for (const e of d.exercises||[])
     for (const s of e.sets||[]){ if (s.done === undefined) s.done = +s.r > 0; if (s.warm === undefined) s.warm = false; }
@@ -2760,6 +2764,11 @@ function openVariantModal(ei){
     + '<span style="font-size:14px">One side at a time (1-arm / 1-leg)</span></label>'
     + '<div class="btnrow"><button class="primary" data-act="variant-create" data-ei="'+ei+'">Create</button>'
     + '<button data-act="modal-close">Cancel</button></div>');
+  // "Single arm", "1-leg", "alternating"… → tick the per-side box automatically
+  $("#varuni").addEventListener("change", () => { $("#varuni").dataset.touched = 1; });
+  $("#varname").addEventListener("input", () => {
+    if (!$("#varuni").dataset.touched && UNI_RE.test($("#varname").value)) $("#varuni").checked = true;
+  });
   $("#varname").focus();
 }
 function openExDetail(exId){
@@ -3001,6 +3010,7 @@ document.addEventListener("click", ev => {
     if (!name){ alert("Give it a name."); return; }
     const id = "c_" + name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
     S.custom[id] = {n:name, g:$("#newexgroup").value, inc:5};
+    if (UNI_RE.test(name)) S.custom[id].uni = 1;
     const sei = btn.dataset.ei;
     if (sei != null && sei !== ""){ const e = d.exercises[+sei]; e.id = id; e.sets = e.sets.map(() => ({w:"",r:"",done:false,warm:false})); }
     else { d.exercises.forEach(x => x.open = false);
