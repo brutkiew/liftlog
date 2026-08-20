@@ -534,7 +534,7 @@ const weekStart = ds => addDays(ds, -new Date(ds+"T12:00:00").getDay()); // Sund
 const exInfo = id => EX[id] || S.custom[id] || {n:"Unknown",g:"other",inc:5};
 const sesDef = key => key ? (SESSIONS[key] || S.templates[key] || null) : null;
 const restFor = id => S.settings.restO[id] || exInfo(id).rest || S.settings.restDefault;
-const muscOf = id => MUSC[id] || GROUP_M[exInfo(id).g] || {p:[],s:[]};
+const muscOf = id => MUSC[id] || (S.custom[id] && MUSC[S.custom[id].base]) || GROUP_M[exInfo(id).g] || {p:[],s:[]};
 const isUni = id => S.uniO[id] !== undefined ? !!S.uniO[id] : !!exInfo(id).uni;
 const tonOf = w => w.exercises.reduce((a,e) => a + e.sets.reduce((x,s) =>
   x + (+s.w||0)*(+s.r||0)*(isUni(e.id)?2:1), 0), 0);
@@ -2744,11 +2744,23 @@ function openExMenu(ei){
     + '<button class="menu-item" data-act="note-ex" data-ei="'+ei+'">'+(e.note?"Edit note":"Add note")+'</button>'
     + '<button class="menu-item" data-act="uni-toggle" data-ei="'+ei+'">'
     + (isUni(e.id) ? '✓ One side at a time — turn off' : 'One side at a time (1-arm / 1-leg)')+'</button>'
+    + '<button class="menu-item" data-act="variant-open" data-ei="'+ei+'">New variant — different bar, grip or setup</button>'
     + '<button class="menu-item" data-act="swap" data-ei="'+ei+'">Replace exercise</button>'
     + '<button class="menu-item" data-act="up" data-ei="'+ei+'">Move up</button>'
     + '<button class="menu-item" data-act="down" data-ei="'+ei+'">Move down</button>'
     + '<button class="menu-item danger" data-act="del-ex" data-ei="'+ei+'">Remove from workout</button>'
     + '<div class="btnrow"><button data-act="modal-close">Close</button></div>');
+}
+function openVariantModal(ei){
+  const e = curDraft().exercises[ei], p = exInfo(e.id);
+  openModal('<h3>Variant of '+esc(p.n)+'</h3>'
+    + '<p class="hint">Same lift, different setup — it gets its own history, ghost numbers and PRs, but counts for the same muscles.</p>'
+    + '<input id="varname" placeholder="What\'s different? e.g. Short bar, Single handle" autocomplete="off" style="margin-top:10px">'
+    + '<label class="rowline" style="gap:8px;margin-top:12px"><input type="checkbox" id="varuni" style="width:20px;height:20px"'+(isUni(e.id) ? " checked" : "")+'>'
+    + '<span style="font-size:14px">One side at a time (1-arm / 1-leg)</span></label>'
+    + '<div class="btnrow"><button class="primary" data-act="variant-create" data-ei="'+ei+'">Create</button>'
+    + '<button data-act="modal-close">Cancel</button></div>');
+  $("#varname").focus();
 }
 function openExDetail(exId){
   const ex = exInfo(exId), hist = perfHistory(exId);
@@ -2993,6 +3005,33 @@ document.addEventListener("click", ev => {
     if (sei != null && sei !== ""){ const e = d.exercises[+sei]; e.id = id; e.sets = e.sets.map(() => ({w:"",r:"",done:false,warm:false})); }
     else { d.exercises.forEach(x => x.open = false);
       d.exercises.push({id, plan:null, note:"", open:true, sets:[{w:"",r:"",done:false,warm:false},{w:"",r:"",done:false,warm:false},{w:"",r:"",done:false,warm:false}]}); }
+    save(); closeModal(); render();
+  }
+  else if (act === "variant-open"){ closeModal(); openVariantModal(ei); }
+  else if (act === "variant-create"){
+    const e = d.exercises[ei], pid = e.id, p = exInfo(pid);
+    const label = ($("#varname").value || "").trim();
+    if (!label){ alert('Describe the variant — e.g. "Short bar".'); return; }
+    const id = "v_" + (pid + "_" + label.toLowerCase().replace(/[^a-z0-9]+/g,"-")).replace(/-+$/,"");
+    if (EX[id] || S.custom[id]){ alert("You already have this variant — find it in the exercise picker."); return; }
+    const entry = {n: p.n + " — " + label, g: p.g, inc: p.inc || 5,
+      base: (S.custom[pid] && S.custom[pid].base) || (EX[pid] ? pid : null)};
+    if (p.rest) entry.rest = p.rest;
+    if (p.bw) entry.bw = 1;
+    if (p.bb) entry.bb = 1;
+    if (p.sub) entry.sub = p.sub;
+    if ($("#varuni").checked) entry.uni = 1;
+    S.custom[id] = entry;
+    if (e.sets.some(s => setLogged(s))){
+      d.exercises.forEach(x => x.open = false);
+      d.exercises.splice(ei+1, 0, {id, plan:null, note:"", open:true,
+        sets: blankSets(Math.max(1, e.sets.length))});
+      showToast("Added <b>"+esc(entry.n)+"</b> below — its own history starts now.");
+    } else {
+      e.id = id;
+      e.sets = e.sets.map(() => ({w:"", r:"", done:false, warm:false}));
+      showToast("Switched to <b>"+esc(entry.n)+"</b> — its own history starts now.");
+    }
     save(); closeModal(); render();
   }
   else if (act === "modal-close"){ closeModal(); }
