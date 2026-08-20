@@ -382,30 +382,30 @@ const EX = {
   l2h:{n:"Low-to-High Cable Fly",g:"chest",inc:5,sub:"chest_up"},
   pec:{n:"Pec Deck",g:"chest",inc:5,sub:"chest_low"},
   machchest:{n:"Machine Chest Press",g:"chest",inc:5,rest:120,sub:"chest_low"},
-  ohext:{n:"Single-Arm Overhead Cable Extension",g:"triceps",inc:5,uni:1},
-  dbohext:{n:"DB Overhead Triceps Extension",g:"triceps",inc:5,db:1},
-  ropeoh:{n:"Overhead Rope Extension",g:"triceps",inc:5},
-  pushdown:{n:"Triceps Pushdown",g:"triceps",inc:5},
-  rope:{n:"Rope Pushdown",g:"triceps",inc:5},
-  cgbp:{n:"Close-Grip Bench Press",g:"triceps",inc:5,rest:150,bb:1},
-  jm:{n:"JM Press",g:"triceps",inc:5,rest:120},
-  skull:{n:"Skull Crusher",g:"triceps",inc:5},
-  pullup:{n:"Weighted Pull-Up",g:"back",inc:5,bw:1,rest:150},
-  latpd:{n:"Lat Pulldown",g:"back",inc:5,rest:120},
-  ngpd:{n:"Neutral-Grip Pulldown",g:"back",inc:5,rest:120},
-  csrow:{n:"Chest-Supported Row",g:"back",inc:5,rest:120},
-  bbrow:{n:"Barbell Row",g:"back",inc:10,rest:150,bb:1},
-  tbar:{n:"T-Bar Row",g:"back",inc:10,rest:150},
-  dbrow:{n:"Single-Arm DB Row",g:"back",inc:5,db:1,rest:120,uni:1},
-  cablerow:{n:"Seated Cable Row",g:"back",inc:5,rest:120},
-  sapd:{n:"Straight-Arm Pulldown",g:"back",inc:5},
-  pullover:{n:"DB Pullover",g:"back",inc:5,db:1},
-  ezcurl:{n:"EZ-Bar Curl",g:"biceps",inc:5},
-  bbcurl:{n:"Barbell Curl",g:"biceps",inc:5},
-  incurl:{n:"Incline DB Curl",g:"biceps",inc:5,db:1},
-  hammer:{n:"Hammer Curl",g:"biceps",inc:5,db:1},
-  cablecurl:{n:"Cable Curl",g:"biceps",inc:5},
-  preacher:{n:"Preacher Curl",g:"biceps",inc:5},
+  ohext:{n:"Single-Arm Overhead Cable Extension",g:"triceps",inc:5,uni:1,sub:"tri_long"},
+  dbohext:{n:"DB Overhead Triceps Extension",g:"triceps",inc:5,db:1,sub:"tri_long"},
+  ropeoh:{n:"Overhead Rope Extension",g:"triceps",inc:5,sub:"tri_long"},
+  pushdown:{n:"Triceps Pushdown",g:"triceps",inc:5,sub:"tri_lat"},
+  rope:{n:"Rope Pushdown",g:"triceps",inc:5,sub:"tri_lat"},
+  cgbp:{n:"Close-Grip Bench Press",g:"triceps",inc:5,rest:150,bb:1,sub:"tri_lat"},
+  jm:{n:"JM Press",g:"triceps",inc:5,rest:120,sub:"tri_lat"},
+  skull:{n:"Skull Crusher",g:"triceps",inc:5,sub:"tri_long"},
+  pullup:{n:"Weighted Pull-Up",g:"back",inc:5,bw:1,rest:150,sub:"back_lat"},
+  latpd:{n:"Lat Pulldown",g:"back",inc:5,rest:120,sub:"back_lat"},
+  ngpd:{n:"Neutral-Grip Pulldown",g:"back",inc:5,rest:120,sub:"back_lat"},
+  csrow:{n:"Chest-Supported Row",g:"back",inc:5,rest:120,sub:"back_mid"},
+  bbrow:{n:"Barbell Row",g:"back",inc:10,rest:150,bb:1,sub:"back_mid"},
+  tbar:{n:"T-Bar Row",g:"back",inc:10,rest:150,sub:"back_mid"},
+  dbrow:{n:"Single-Arm DB Row",g:"back",inc:5,db:1,rest:120,uni:1,sub:"back_mid"},
+  cablerow:{n:"Seated Cable Row",g:"back",inc:5,rest:120,sub:"back_mid"},
+  sapd:{n:"Straight-Arm Pulldown",g:"back",inc:5,sub:"back_lat"},
+  pullover:{n:"DB Pullover",g:"back",inc:5,db:1,sub:"back_lat"},
+  ezcurl:{n:"EZ-Bar Curl",g:"biceps",inc:5,sub:"bi_curl"},
+  bbcurl:{n:"Barbell Curl",g:"biceps",inc:5,sub:"bi_curl"},
+  incurl:{n:"Incline DB Curl",g:"biceps",inc:5,db:1,sub:"bi_curl"},
+  hammer:{n:"Hammer Curl",g:"biceps",inc:5,db:1,sub:"bi_brach"},
+  cablecurl:{n:"Cable Curl",g:"biceps",inc:5,sub:"bi_curl"},
+  preacher:{n:"Preacher Curl",g:"biceps",inc:5,sub:"bi_curl"},
   dbohp:{n:"Seated DB Shoulder Press",g:"shoulders",inc:5,db:1,rest:150,sub:"delt_front"},
   machohp:{n:"Machine Shoulder Press",g:"shoulders",inc:5,rest:120,sub:"delt_front"},
   smithohp:{n:"Smith Machine Shoulder Press",g:"shoulders",inc:5,rest:150,sub:"delt_front"},
@@ -417,18 +417,18 @@ const EX = {
   rpd:{n:"Reverse Pec Deck",g:"shoulders",inc:5,sub:"delt_rear"},
   sarpd:{n:"Single-Arm Reverse Pec Deck",g:"shoulders",inc:5,uni:1,sub:"delt_rear"},
   facepull:{n:"Face Pull",g:"shoulders",inc:5,sub:"delt_rear"},
-  squat:{n:"Back Squat",g:"quads",inc:10,rest:180,bb:1},
-  legpress:{n:"Leg Press",g:"quads",inc:25,rest:150},
-  hack:{n:"Hack Squat",g:"quads",inc:10,rest:150},
-  legext:{n:"Leg Extension",g:"quads",inc:5},
-  bss:{n:"Bulgarian Split Squat",g:"quads",inc:5,db:1,rest:120,uni:1},
-  lunge:{n:"Walking Lunge",g:"quads",inc:5,db:1,rest:120},
-  rdl:{n:"Romanian Deadlift",g:"hamstrings",inc:10,rest:180,bb:1},
-  legcurl:{n:"Leg Curl",g:"hamstrings",inc:5},
-  scalf:{n:"Standing Calf Raise",g:"calves",inc:10},
-  seatcalf:{n:"Seated Calf Raise",g:"calves",inc:10},
-  hlr:{n:"Hanging Leg Raise",g:"abs",inc:0,bw:1},
-  cablecrunch:{n:"Cable Crunch",g:"abs",inc:5},
+  squat:{n:"Back Squat",g:"quads",inc:10,rest:180,bb:1,sub:"quad_comp"},
+  legpress:{n:"Leg Press",g:"quads",inc:25,rest:150,sub:"quad_comp"},
+  hack:{n:"Hack Squat",g:"quads",inc:10,rest:150,sub:"quad_comp"},
+  legext:{n:"Leg Extension",g:"quads",inc:5,sub:"quad_iso"},
+  bss:{n:"Bulgarian Split Squat",g:"quads",inc:5,db:1,rest:120,uni:1,sub:"quad_comp"},
+  lunge:{n:"Walking Lunge",g:"quads",inc:5,db:1,rest:120,sub:"quad_comp"},
+  rdl:{n:"Romanian Deadlift",g:"hamstrings",inc:10,rest:180,bb:1,sub:"ham_hinge"},
+  legcurl:{n:"Leg Curl",g:"hamstrings",inc:5,sub:"ham_curl"},
+  scalf:{n:"Standing Calf Raise",g:"calves",inc:10,sub:"calf_stand"},
+  seatcalf:{n:"Seated Calf Raise",g:"calves",inc:10,sub:"calf_seat"},
+  hlr:{n:"Hanging Leg Raise",g:"abs",inc:0,bw:1,sub:"abs_low"},
+  cablecrunch:{n:"Cable Crunch",g:"abs",inc:5,sub:"abs_crunch"},
 };
 const GROUPS = {chest:"Chest",triceps:"Triceps",back:"Back",biceps:"Biceps",
   shoulders:"Shoulders",quads:"Quads",hamstrings:"Hamstrings",calves:"Calves",abs:"Abs",other:"Other"};
@@ -796,6 +796,16 @@ function recapCard(r, dismissable){
 
 /* ================= session score ================= */
 const hardOf = e => e.sets.filter(s => +s.r > 0 && !s.warm);
+/* sub-region taxonomy: short labels for in-workout lines, group → expected parts */
+const SUB_LBL = {chest_up:"Upper", chest_low:"Mid/lower", delt_front:"Front", delt_side:"Side", delt_rear:"Rear",
+  tri_long:"Overhead/long head", tri_lat:"Pushdown/lateral", bi_curl:"Curls", bi_brach:"Hammer/brachialis",
+  back_lat:"Lats/vertical", back_mid:"Rows/mid-back", quad_comp:"Squat/press", quad_iso:"Extensions",
+  ham_hinge:"Hinge (RDL)", ham_curl:"Leg curl", calf_stand:"Standing", calf_seat:"Seated",
+  abs_low:"Hanging raises", abs_crunch:"Crunches"};
+const GROUP_SUBS = {chest:["chest_up","chest_low"], shoulders:["delt_front","delt_side","delt_rear"],
+  triceps:["tri_long","tri_lat"], biceps:["bi_curl","bi_brach"], back:["back_lat","back_mid"],
+  quads:["quad_comp","quad_iso"], hamstrings:["ham_hinge","ham_curl"], calves:["calf_stand","calf_seat"],
+  abs:["abs_low","abs_crunch"]};
 function creditTo(exId, prim){ const m = muscOf(exId);
   return m.p.some(r => prim.includes(r)) ? 1 : m.s.some(r => prim.includes(r)) ? 0.5 : 0; }
 function rateWorkout(w){
@@ -921,7 +931,22 @@ function rateWorkout(w){
       if (miss) bits.push(miss+" down");
       if (!win && !miss) bits.push("held steady");
     }
-    muscles.push({nm, score:ms, grade:gradeFor(ms), detail:bits.join(" · ")});
+    /* per-part line: hard sets by sub-region of the groups trained today, 0 = flagged */
+    const expected = [...new Set([].concat(...exs.map(e => GROUP_SUBS[exInfo(e.id).g] || [])))];
+    let subs = "";
+    if (expected.length){
+      const cnt = {}; let other = 0;
+      for (const e of exs){
+        const sb = exInfo(e.id).sub;
+        if (sb && expected.includes(sb)) cnt[sb] = (cnt[sb]||0) + hardOf(e).length;
+        else other += hardOf(e).length;
+      }
+      subs = expected.map(k => (cnt[k]
+          ? SUB_LBL[k]+' <b class="num" style="color:var(--text-1)">'+cnt[k]+'</b>'
+          : '<span class="wr">'+SUB_LBL[k]+' 0 — untouched</span>')).join(" · ")
+        + (other ? ' · unclassified '+other : '');
+    }
+    muscles.push({nm, score:ms, grade:gradeFor(ms), detail:bits.join(" · "), subs});
   }
   muscles.sort((a,b) => b.score - a.score);
 
@@ -955,7 +980,7 @@ function openScoreModal(id){
     + row("Bonus", rt.parts.bonus, 10,
         "PRs (+2.5 each, up to 3) and cardio done (+2.5).")
     + (rt.muscles && rt.muscles.length ? '<div class="mgroup">By muscle</div>'
-        + rt.muscles.map(m => row(m.nm, m.score, 100, m.detail)).join("") : "")
+        + rt.muscles.map(m => row(m.nm, m.score, 100, m.detail + (m.subs ? '<br>' + m.subs : ''))).join("") : "")
     + (rt.notes.length ? '<div class="mgroup">Notes</div>'
         + rt.notes.map(n => '<p class="hint" style="margin-top:6px">• '+esc(n)+'</p>').join("") : "")
     + '<div class="btnrow"><button data-act="modal-close">Close</button></div>');
@@ -2295,7 +2320,13 @@ function progScore(avgP){
   return avgP >= 3 ? 50 : avgP >= 1 ? 44 : avgP >= -0.5 ? 36 : avgP >= -2.5 ? 22 : 10;
 }
 const MUSC_SUBS = {chest:[["chest_up","Upper chest"],["chest_low","Mid & lower chest"]],
-  shoulders:[["delt_front","Front delts"],["delt_side","Side delts"],["delt_rear","Rear delts"]]};
+  shoulders:[["delt_front","Front delts"],["delt_side","Side delts"],["delt_rear","Rear delts"]],
+  triceps:[["tri_long","Long head — overhead work"],["tri_lat","Lateral head — pushdowns & presses"]],
+  biceps:[["bi_curl","Biceps — supinated curls"],["bi_brach","Brachialis — hammer work"]],
+  quads:[["quad_comp","Squats & presses"],["quad_iso","Leg extensions"]],
+  hamstrings:[["ham_hinge","Hip hinge — RDLs"],["ham_curl","Leg curls"]],
+  calves:[["calf_stand","Standing — gastrocnemius"],["calf_seat","Seated — soleus"]],
+  core:[["abs_low","Hanging raises"],["abs_crunch","Crunches"]]};
 function muscleReport(){
   const days = 28, ids28 = trainedIds(days);
   const {per} = regionVolume(addDays(todayStr(), -days+1), todayStr());
