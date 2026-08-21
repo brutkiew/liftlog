@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0A0B0D">
+<meta name="theme-color" content="#0A0C13">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="LiftLog">
@@ -13,9 +13,9 @@
 <title>LiftLog</title>
 <style>
   :root{
-    /* surfaces */
-    --bg-0:#0A0B0D; --bg-1:#14161A; --bg-2:#1D2026; --bg-3:#262A31;
-    --stroke:rgba(255,255,255,.07); --stroke-soft:rgba(255,255,255,.04);
+    /* surfaces — deep indigo-charcoal, not plain black */
+    --bg-0:#0A0C13; --bg-1:#141826; --bg-2:#1D2333; --bg-3:#262E42;
+    --stroke:rgba(150,165,255,.10); --stroke-soft:rgba(150,165,255,.05);
     /* text */
     --text-1:#F4F5F7; --text-2:rgba(255,255,255,.62); --text-3:rgba(255,255,255,.38);
     /* accent + semantic */
@@ -30,26 +30,26 @@
     color-scheme:dark;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-  html{background:var(--bg-0)}
-  body{color:var(--text-1);background:var(--bg-0);min-height:100vh;
+  html{background:radial-gradient(130% 50% at 50% -10%,rgba(88,108,232,.17),transparent 60%),var(--bg-0)}
+  body{color:var(--text-1);background:transparent;min-height:100vh;
     font:15px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI Variable Display","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
     -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
     padding-bottom:calc(92px + env(safe-area-inset-bottom))}
   /* aurora */
   body::before,body::after{content:"";position:fixed;z-index:-1;border-radius:50%;filter:blur(90px);pointer-events:none}
-  body::before{width:440px;height:440px;top:-150px;left:-130px;
-    background:radial-gradient(circle,rgba(23,185,160,.22),transparent 65%)}
-  body::after{width:500px;height:500px;bottom:-190px;right:-150px;
-    background:radial-gradient(circle,rgba(139,124,246,.18),transparent 65%)}
+  body::before{width:500px;height:500px;top:-160px;left:-140px;
+    background:radial-gradient(circle,rgba(23,185,160,.30),transparent 65%)}
+  body::after{width:560px;height:560px;bottom:-200px;right:-160px;
+    background:radial-gradient(circle,rgba(139,124,246,.26),transparent 65%)}
   @media (prefers-reduced-motion:no-preference){
     body::before{animation:drift1 26s ease-in-out infinite alternate}
     body::after{animation:drift2 32s ease-in-out infinite alternate}
     @keyframes drift1{to{transform:translate(80px,60px) scale(1.15)}}
     @keyframes drift2{to{transform:translate(-70px,-80px) scale(1.1)}}
   }
-  main::before{content:"";position:fixed;z-index:-1;width:400px;height:400px;border-radius:50%;
-    filter:blur(100px);pointer-events:none;top:32%;right:-170px;
-    background:radial-gradient(circle,rgba(255,123,172,.10),transparent 65%)}
+  main::before{content:"";position:fixed;z-index:-1;width:440px;height:440px;border-radius:50%;
+    filter:blur(100px);pointer-events:none;top:30%;right:-180px;
+    background:radial-gradient(circle,rgba(255,123,172,.16),transparent 65%)}
   @media (prefers-reduced-motion:no-preference){
     main::before{animation:drift3 38s ease-in-out infinite alternate}
     @keyframes drift3{to{transform:translate(-70px,70px) scale(1.12)}}
@@ -66,7 +66,7 @@
     background:radial-gradient(130% 100% at 18% 0%,var(--tint),transparent 55%)}
   /* ===== chrome ===== */
   #topbar{position:sticky;top:0;z-index:5;
-    background:rgba(20,22,26,.72);backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);
+    background:rgba(21,25,42,.72);backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);
     border-bottom:1px solid var(--stroke);
     padding:calc(12px + env(safe-area-inset-top)) 20px 12px;display:flex;align-items:center;gap:9px}
   #topbar .mark{color:var(--accent);display:flex}
@@ -77,7 +77,7 @@
     margin:24px 2px 12px;display:flex;align-items:center;gap:8px}
   h2::before{content:"";width:16px;height:3px;border-radius:2px;background:var(--grad2)}
   #tabs{position:fixed;bottom:0;left:0;right:0;z-index:6;
-    background:rgba(20,22,26,.72);backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);
+    background:rgba(21,25,42,.72);backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);
     border-top:1px solid var(--stroke);display:flex;
     padding:6px 8px calc(8px + env(safe-area-inset-bottom))}
   #tabs button{flex:1;background:none;border:none;color:var(--text-3);font-size:10.5px;
@@ -1925,82 +1925,94 @@ function trendsStrength(){
 
 /* ===== body silhouette heat map ===== */
 function bodySVG(){
-  /* anatomical muscle map — two mirrored-half figures (front / back). Every muscle is a
-     path pair mirrored across the figure's centerline (x=110 local); the back figure is
-     the same skeleton in a <g translate(220)>. Paint functions only ever set fill on
-     [data-region], so all styling lives here. */
-  const P = (d, reg) => '<path d="'+d+'" data-region="'+reg+'"/>'
-    + '<path d="'+d+'" data-region="'+reg+'" transform="translate(220,0) scale(-1,1)"/>';
+  /* muscle map — two mirrored-half figures (front / back). Every muscle is a path pair
+     mirrored across the figure's centerline (x=110 local); the back figure reuses the
+     same skeleton in a <g translate(220)>. Shapes may carry data-sub so the heat map can
+     paint sub-regions (upper vs lower chest, delt heads, triceps heads, gastroc/soleus)
+     with their own volume; freshness paints at region level and ignores data-sub. */
+  const P = (d, reg, sub) => { const a = ' data-region="'+reg+'"'+(sub ? ' data-sub="'+sub+'"' : '');
+    return '<path d="'+d+'"'+a+'/><path d="'+d+'"'+a+' transform="translate(220,0) scale(-1,1)"/>'; };
   const SIL = d => '<path d="'+d+'" class="sil"/>'
     + '<path d="'+d+'" class="sil" transform="translate(220,0) scale(-1,1)"/>';
-  /* shared half-body outline (neck → arm → hand → torso → leg → foot → centerline) */
-  const OUTLINE = "M110 34 L119 35 C121 44 127 47 138 51 C149 54 155 61 155 70 C155 80 151 89 149 97 "
-    + "C148 106 147 112 148 118 C150 128 148 141 143 155 C141 161 139 166 137 170 C140 176 139 183 135 186 "
-    + "C131 188 128 184 128 178 C128 172 127 166 126 160 C129 146 131 132 130 120 C129 112 131 104 133 97 "
-    + "C134 94 135 92 136 89 C133 100 132 112 133 124 C134 136 137 144 139 152 C142 162 143 176 141 192 "
-    + "C139 210 137 220 136 228 C137 238 138 246 137 254 C136 268 132 280 129 288 C129 294 130 298 134 301 "
-    + "L118 302 C115 296 115 292 116 286 C118 274 118 262 117 250 C116 240 116 232 117 226 C118 214 118 200 117 186 "
-    + "C116 176 114 168 111 163 L110 163 Z";
-  const HEAD = '<ellipse cx="110" cy="21" rx="11.5" ry="13.5" class="sil"/>'
-    + '<rect x="103.5" y="27" width="13" height="10" rx="3" class="sil"/>';
-  const label = t => '<text x="110" y="322" text-anchor="middle" font-size="11" fill="var(--text-3)" font-weight="600" letter-spacing="1.5">'+t+'</text>';
-  let s = '<svg viewBox="0 0 440 330" style="width:100%;max-width:360px;margin:0 auto;display:block" id="heatmap">';
-  s += '<style>#heatmap .sil{fill:#171A20}'
-    + '#heatmap [data-region]{stroke:rgba(10,11,13,.85);stroke-width:1.1;stroke-linejoin:round;transition:fill .35s}'
+  /* half-body outline: neck → shoulder → arm (rounded tip, no hands) → armpit → torso →
+     leg → foot → centerline. Softer taper than v1. */
+  const OUTLINE = "M110 30 L118 31 C120 40 126 44 137 48 C148 51 154 58 154 68 C154 78 151 87 149 96 "
+    + "C148 105 147 113 147 121 C147 133 145 145 141 157 C139 163 136 169 133 172 C130 174 127 172 127 166 "
+    + "C127 160 127 154 127 149 C128 139 128 129 129 120 C130 110 131 102 134 95 C135 92 136 90 136 88 "
+    + "C134 98 133 110 134 122 C135 134 137 142 139 150 C142 160 143 174 141 190 C139 208 137 220 136 230 "
+    + "C137 240 138 248 137 256 C136 268 133 280 130 290 C130 296 131 300 135 303 L119 304 "
+    + "C116 298 116 292 117 286 C118 272 118 258 117 248 C116 238 116 232 117 226 C118 212 118 198 117 186 "
+    + "C116 176 114 168 111 164 L110 164 Z";
+  const HEAD = '<ellipse cx="110" cy="19" rx="12" ry="14" class="sil"/>'
+    + '<rect x="102" y="26" width="16" height="10" rx="4" class="sil"/>';
+  const label = t => '<text x="110" y="323" text-anchor="middle" font-size="11" fill="var(--text-3)" font-weight="600" letter-spacing="1.5">'+t+'</text>';
+  let s = '<svg viewBox="0 0 440 332" style="width:100%;max-width:360px;margin:0 auto;display:block" id="heatmap">';
+  s += '<style>#heatmap .sil{fill:#191D2B}'
+    + '#heatmap [data-region]{stroke:rgba(8,10,20,.8);stroke-width:1.1;stroke-linejoin:round;transition:fill .35s}'
     + '</style>';
   /* ================= FRONT ================= */
   s += '<g>' + HEAD + SIL(OUTLINE);
-  // delts
-  s += P("M137 53 C146 55 153 62 153 71 C153 79 150 85 147 88 C143 84 139 76 137 68 C136 62 136 57 137 53 Z","shoulders");
-  // pecs
-  s += P("M111 58 C120 56 128 55 135 55 C137 62 137 72 135 80 C130 88 121 91 114 90 C111 88 110.5 84 110.5 78 L110.5 60 Z","chest");
+  // delts — front head (inner crescent) + side head (outer crescent)
+  s += P("M136 50 C141 51 146 55 148 60 C149 64 149 68 148 72 C144 70 140 65 138 60 C137 56 136 53 136 50 Z","shoulders","delt_front");
+  s += P("M150 60 C152 63 153 66 153 70 C153 77 151 84 148 89 C145 86 144 80 144 74 C145 68 147 63 150 60 Z","shoulders","delt_side");
+  // chest — upper band + mid/lower fan
+  s += P("M111 54 C119 52 127 51 134 51 C135 55 135.5 59 135 64 C127 66 118 66 110.5 65 L110.5 55 Z","chest","chest_up");
+  s += P("M110.5 68 C118 69 127 69 134 67 C135 73 134 79 132 84 C127 90 118 92 113 90 C111 87 110.5 83 110.5 77 Z","chest","chest_low");
   // biceps
-  s += P("M137 91 C141 90 145 92 146 98 C147 106 146 112 144 117 C141 120 137 119 136 114 C135 106 135 97 137 91 Z","biceps");
+  s += P("M136 92 C140 91 144 93 145 99 C145 106 144 112 142 117 C139 120 135 118 134 112 C133 105 134 98 136 92 Z","biceps");
   // forearms
-  s += P("M132 122 C137 120 141 122 142 128 C143 138 140 148 136 156 C134 160 131 160 130 156 C128 146 129 132 132 122 Z","forearms");
-  // abs — rectus segments + oblique, all core
-  s += P("M111.5 96 C115 95 119 96 120.5 98 L120.5 109 C117 110 113 110 111.5 109 Z","core");
-  s += P("M111.5 112 C115 111 119 112 120.5 114 L120.5 125 C117 126 113 126 111.5 125 Z","core");
-  s += P("M111.5 128 C115 127 119 128 121 130 C122 136 121 143 119 148 C116 149 113 149 111.5 148 Z","core");
-  s += P("M123 98 C127 99 130 102 130.5 108 C131 118 130 128 128 136 C126 140 123.5 139 123 134 C122 122 122 108 123 98 Z","core");
+  s += P("M130 122 C135 119 139 121 140 127 C141 137 138 148 134 158 C131 163 127 161 127 155 C126 144 127 132 130 122 Z","forearms");
+  // abs — upper crunch zone (2 plates) + lower zone + obliques
+  s += P("M111 96 C114.5 95 118.5 96 120 98 L120 109 C116.5 110 113 110 111 109 Z","core","abs_crunch");
+  s += P("M111 112 C114.5 111 118.5 112 120 114 L120 125 C116.5 126 113 126 111 125 Z","core","abs_crunch");
+  s += P("M111 128 C114.5 127 118.5 128 120.5 130 C121.5 137 120.5 144 117.5 150 C114.5 151.5 112 151.5 110.5 150 L110.5 129 Z","core","abs_low");
+  s += P("M122.5 98 C126 99 129 103 129.5 109 C130 119 129 129 127 137 C125 141 122.5 140 122 135 C121.5 123 121.5 109 122.5 98 Z","core");
   // quads — outer sweep + inner teardrop
-  s += P("M139 158 C144 162 146 174 145 188 C144 204 141 216 137 224 C133 228 129 226 128 218 C127 204 128 186 130 172 C132 163 135 158 139 158 Z","quads");
-  s += P("M118 172 C122 170 125 174 126 184 C127 198 126 212 122 222 C119 227 115 224 114 215 C113 200 114 183 118 172 Z","quads");
+  s += P("M138 158 C143 162 145 174 144 188 C143 204 140 216 136 226 C132 230 128 227 127 219 C126 204 127 186 129 172 C131 163 134 158 138 158 Z","quads");
+  s += P("M117 172 C121 170 124 174 125 184 C126 198 125 212 121 224 C118 229 114 226 113 216 C112 200 113 183 117 172 Z","quads");
   // front calf (tibialis)
-  s += P("M121 234 C125 232 128 236 128 244 C128 258 126 272 123 282 C121 286 118 284 118 276 C118 260 118 244 121 234 Z","calves");
+  s += P("M120 236 C124 234 127 238 127 246 C127 259 125 272 122 283 C120 287 117 285 117 277 C117 261 117 245 120 236 Z","calves");
   s += label("FRONT") + '</g>';
   /* ================= BACK ================= */
   s += '<g transform="translate(220,0)">' + HEAD + SIL(OUTLINE);
   // traps
-  s += P("M110.5 42 C117 44 126 48 133 52 C128 58 122 64 117 74 C114 80 112 84 110.5 86 Z","upper_back");
+  s += P("M110.5 38 C117 40 125 44 132 49 C127 55 121 62 116 72 C113 78 112 82 110.5 84 Z","upper_back");
   // rear delts
-  s += P("M137 53 C146 55 153 62 153 71 C153 79 150 85 147 88 C143 84 139 76 137 68 C136 62 136 57 137 53 Z","shoulders");
+  s += P("M136 50 C145 52 152 59 152 68 C152 76 150 82 147 86 C143 82 139 74 137 66 C136 60 136 54 136 50 Z","shoulders","delt_rear");
   // lats
-  s += P("M132 84 C136 88 137 94 136 100 C134 114 128 126 119 134 C115 137 112 138 110.5 138 L110.5 96 C118 94 126 90 132 84 Z","lats");
-  // triceps
-  s += P("M137 90 C142 89 146 92 146 99 C146 108 144 114 141 118 C138 121 135 119 135 113 C134 104 135 95 137 90 Z","triceps");
+  s += P("M131 82 C135 86 136 92 135 98 C133 112 127 124 118 132 C114 135 111.5 136 110.5 136 L110.5 94 C117 92 125 88 131 82 Z","lats");
+  // triceps — long head (inner) + lateral head (outer)
+  s += P("M134 91 C137 90 139 92 139.5 97 C139.5 104 138.5 111 136.5 116 C134.5 119 133 117 133 112 C132.5 104 133 96 134 91 Z","triceps","tri_long");
+  s += P("M141.5 90 C144.5 90 146.5 93 146.5 99 C146 106 144 112 141.5 117 C139.5 119 138.5 117 138.5 112 C139 104 140 96 141.5 90 Z","triceps","tri_lat");
   // forearms
-  s += P("M132 122 C137 120 141 122 142 128 C143 138 140 148 136 156 C134 160 131 160 130 156 C128 146 129 132 132 122 Z","forearms");
+  s += P("M130 122 C135 119 139 121 140 127 C141 137 138 148 134 158 C131 163 127 161 127 155 C126 144 127 132 130 122 Z","forearms");
   // erectors
-  s += P("M110.5 118 C115 118 118 122 118 130 C118 140 116 148 113 152 C112 153 111 153 110.5 153 Z","lower_back");
+  s += P("M110.5 118 C114 118 117 122 117 130 C117 140 115 148 112.5 153 C111.5 154 110.5 154 110.5 154 Z","lower_back");
   // glutes
-  s += P("M111 148 C120 146 128 150 130 158 C132 166 129 174 122 177 C115 179 111 176 110.5 170 L110.5 152 Z","glutes");
+  s += P("M111 150 C119 148 127 152 129 159 C131 167 128 175 121 178 C114.5 180 111 177 110.5 170 L110.5 153 Z","glutes");
   // hamstrings
-  s += P("M116 182 C122 180 128 182 131 188 C133 198 132 212 128 224 C125 230 120 230 118 224 C115 212 114 196 116 182 Z","hamstrings");
-  // calves (gastrocnemius)
-  s += P("M119 232 C125 230 130 234 130 244 C130 256 127 268 123 276 C120 280 117 278 116 270 C115 258 116 240 119 232 Z","calves");
+  s += P("M115 183 C121 181 127 183 130 189 C132 199 131 213 127 225 C124 231 119 231 117 225 C114 213 113 197 115 183 Z","hamstrings");
+  // calves — gastrocnemius (upper bulge) + soleus (lower band)
+  s += P("M118 233 C124 231 129 235 129 244 C129 252 127 259 124 264 C120 267 117 264 116 257 C115 248 116 238 118 233 Z","calves","calf_stand");
+  s += P("M117 267 C121 266 125 268 125 274 C124 280 122 285 120 288 C118 290 116 288 116 283 C116 277 116 271 117 267 Z","calves","calf_seat");
   s += label("BACK") + '</g>';
   return s + '</svg>';
 }
-let heatData = null;
+let heatData = null, heatSubs = null;
 function paintHeat(){
   const svg = $("#heatmap"); if (!svg) return;
   heatData = regionVolume(addDays(todayStr(),-6), todayStr());
+  heatSubs = {};
+  for (const subs of Object.values(GROUP_SUBS)) for (const k of subs) heatSubs[k] = subVolume(k, 7);
   for (const el of svg.querySelectorAll("[data-region]")){
-    const v = heatData.per[el.dataset.region] || 0;
-    el.setAttribute("fill", heatFill(v));
-    el.style.filter = v > 15 ? "drop-shadow(0 0 5px rgba(255,170,50,.4))"
-      : v > 10 ? "drop-shadow(0 0 4px rgba(190,230,90,.3))" : "";
+    const sub = el.dataset.sub;
+    const v = sub !== undefined ? (heatSubs[sub] || 0) : (heatData.per[el.dataset.region] || 0);
+    /* a sub-region's growth zone is ~4–12 sets/wk vs 10–20 for a whole muscle — scale so
+       the shared color ramp means the same thing on both kinds of shape */
+    const vv = sub !== undefined ? v * 1.8 : v;
+    el.setAttribute("fill", heatFill(vv));
+    el.style.filter = vv > 15 ? "drop-shadow(0 0 5px rgba(255,170,50,.4))"
+      : vv > 10 ? "drop-shadow(0 0 4px rgba(190,230,90,.3))" : "";
   }
 }
 function trendsInsights(){
@@ -3142,11 +3154,13 @@ function claudeText(){
 document.addEventListener("click", ev => {
   const reg = ev.target.closest && ev.target.closest("[data-region]");
   if (reg && heatData){
-    const r = reg.dataset.region, v = heatData.per[r] || 0;
+    const r = reg.dataset.region, sub = reg.dataset.sub;
+    const v = sub !== undefined ? ((heatSubs && heatSubs[sub]) || 0) : (heatData.per[r] || 0);
+    const nm = REGIONS[r] + (sub !== undefined && SUB_LBL[sub] ? " · "+SUB_LBL[sub].toLowerCase() : "");
     const top = Object.entries(heatData.contrib[r] || {}).sort((a,b) => b[1]-a[1]).slice(0,3)
       .map(([n,c]) => n+" "+(Math.round(c*2)/2)).join(" · ");
     const el = $("#heat-detail");
-    if (el) el.innerHTML = "<b>"+REGIONS[r]+"</b> — "+(Math.round(v*2)/2)+" hard sets"+(top ? "<br><span class='cap'>"+top+"</span>" : "");
+    if (el) el.innerHTML = "<b>"+nm+"</b> — "+(Math.round(v*2)/2)+" hard sets"+(top ? "<br><span class='cap'>"+top+"</span>" : "");
     return;
   }
   const btn = ev.target.closest("[data-act]");
