@@ -47,9 +47,23 @@
     @keyframes drift1{to{transform:translate(80px,60px) scale(1.15)}}
     @keyframes drift2{to{transform:translate(-70px,-80px) scale(1.1)}}
   }
+  main::before{content:"";position:fixed;z-index:-1;width:400px;height:400px;border-radius:50%;
+    filter:blur(100px);pointer-events:none;top:32%;right:-170px;
+    background:radial-gradient(circle,rgba(255,123,172,.10),transparent 65%)}
+  @media (prefers-reduced-motion:no-preference){
+    main::before{animation:drift3 38s ease-in-out infinite alternate}
+    @keyframes drift3{to{transform:translate(-70px,70px) scale(1.12)}}
+  }
   .num{font-variant-numeric:tabular-nums}
   .ic{vertical-align:-4px}
   .grad-ink{background:var(--grad2);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .gold-ink{background:linear-gradient(135deg,#FFB020,#FFD60A 60%,#FFF0A8);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .mdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:1px;
+    box-shadow:0 0 6px 0 currentColor}
+  .gdot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px}
+  .tint{position:relative;overflow:hidden}
+  .tint::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+    background:radial-gradient(130% 100% at 18% 0%,var(--tint),transparent 55%)}
   /* ===== chrome ===== */
   #topbar{position:sticky;top:0;z-index:5;
     background:rgba(20,22,26,.72);backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);
@@ -73,6 +87,15 @@
   #tabs button .ic{display:block;margin:0 auto 3px}
   #tabs button.on{color:var(--text-1);background:var(--accent-dim)}
   #tabs button.on .ic{color:var(--accent)}
+  /* each tab owns a hue */
+  #tabs button[data-tab="history"].on{background:rgba(90,167,240,.14)}
+  #tabs button[data-tab="history"].on .ic{color:#5AA7F0}
+  #tabs button[data-tab="trends"].on{background:rgba(139,124,246,.15)}
+  #tabs button[data-tab="trends"].on .ic{color:#A99BFF}
+  #tabs button[data-tab="coach"].on{background:rgba(255,107,107,.13)}
+  #tabs button[data-tab="coach"].on .ic{color:#FF6B6B}
+  #tabs button[data-tab="more"].on{background:rgba(255,176,32,.12)}
+  #tabs button[data-tab="more"].on .ic{color:#FFB020}
   /* ===== cards ===== */
   .card{background:var(--bg-1);border:1px solid var(--stroke);border-radius:var(--r-card);
     padding:18px;margin-bottom:12px;transition:transform .35s var(--ease)}
@@ -265,7 +288,7 @@
   .vol-row .bar{flex:1;height:8px;border-radius:4px;background:rgba(255,255,255,.06);position:relative;overflow:hidden}
   .vol-row .bar::after{content:"";position:absolute;top:0;bottom:0;left:40%;width:40%;background:rgba(255,255,255,.05)}
   .vol-row .bar i{position:absolute;top:0;bottom:0;left:0;border-radius:4px;background:var(--grad);z-index:1}
-  .vol-row .bar.low i{background:rgba(255,214,10,.55)}
+  .vol-row .bar.low i{opacity:.45}
   .vol-row .v{width:52px;text-align:right;color:var(--text-3);font-size:12px}
   .focus-card{border-color:rgba(44,224,139,.3);background:linear-gradient(180deg,rgba(44,224,139,.07),var(--bg-1) 70%)}
   /* heat map */
@@ -302,11 +325,13 @@
   .thinking{display:inline-block;animation:tpulse 1.2s ease-in-out infinite}
   @keyframes tpulse{50%{opacity:.35}}
   /* ===== modal ===== */
-  #ovl{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:10;display:none;align-items:flex-end;justify-content:center}
+  #ovl{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:10;display:none;align-items:flex-end;justify-content:center;
+    overscroll-behavior:contain;touch-action:none}
   #ovl.show{display:flex}
   #modal{background:var(--bg-1);border:1px solid var(--stroke);border-radius:20px 20px 0 0;width:100%;max-width:480px;
     max-height:84vh;overflow-y:auto;overflow-x:hidden;padding:20px 18px calc(20px + env(safe-area-inset-bottom));
-    box-shadow:0 16px 48px rgba(0,0,0,.55)}
+    box-shadow:0 16px 48px rgba(0,0,0,.55);overscroll-behavior:contain;touch-action:pan-y}
+  body.mlock{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   #modal input,#modal select,#modal textarea{min-width:0;max-width:100%}
   #modal input[type="date"],#plan-date{display:block;width:100%;-webkit-appearance:none;appearance:none;
     min-height:46px;text-align:left;-webkit-min-logical-width:0}
@@ -461,6 +486,15 @@ const LVLS = ["Beginner","Novice","Intermediate","Advanced","Elite"];
 const REGIONS = {chest:"Chest",shoulders:"Shoulders",biceps:"Biceps",forearms:"Forearms",
   core:"Core",quads:"Quads",calves:"Calves",upper_back:"Upper back",lats:"Lats",
   triceps:"Triceps",lower_back:"Lower back",glutes:"Glutes",hamstrings:"Hamstrings"};
+/* one hue per muscle family — bars, dots, tile tints. Push = warm, pull = blue, arms = violet. */
+const REG_COL = {chest:"#FF6B6B", shoulders:"#FFB020", biceps:"#C08BF8", forearms:"#8E9BFF",
+  core:"#FFD60A", quads:"#2CE08B", calves:"#64D2FF", upper_back:"#4D8FE0", lats:"#5AA7F0",
+  triceps:"#9B8CF8", lower_back:"#3E7FD6", glutes:"#F27FD2", hamstrings:"#FF7BAC"};
+const GROUP_COL = {chest:"#FF6B6B", triceps:"#9B8CF8", back:"#5AA7F0", biceps:"#C08BF8",
+  shoulders:"#FFB020", quads:"#2CE08B", hamstrings:"#FF7BAC", calves:"#64D2FF",
+  abs:"#FFD60A", other:"#8A93A3"};
+const MAJOR_COL = {Chest:"#FF6B6B", Back:"#5AA7F0", Delts:"#FFB020", Arms:"#B085F5",
+  Quads:"#2CE08B", Hams:"#FF7BAC", Calves:"#64D2FF", Core:"#FFD60A"};
 const MUSC = {
   bench:{p:["chest"],s:["shoulders","triceps"]}, incbb:{p:["chest"],s:["shoulders","triceps"]},
   incdb:{p:["chest"],s:["shoulders","triceps"]}, flatdb:{p:["chest"],s:["shoulders","triceps"]},
@@ -519,13 +553,55 @@ S.coach.forEach(x => { x.pending = false; if (x.a === "") x.a = "(interrupted)";
 const UNI_RE = /\b(single|one|1)[ -]?(arm|leg|hand)\b|unilateral|per side|each side|alternat/i;
 for (const [cid, c] of Object.entries(S.custom||{}))
   if (c.uni === undefined && UNI_RE.test(c.n||"") && S.uniO[cid] === undefined) c.uni = 1;
+/* classify custom lifts from the name: find a library "parent" (→ base, proper muscle credit)
+   and a sub-region, so a custom never shows up as "unclassified". Runs at creation and at
+   load (repairs customs made before this existed). Manual picks always win. */
+const SUB_GUESS = {
+  chest:[[/incline|low.?to.?high|upper/,"chest_up"],[/decline|dip|flat|fly|flye|press|pec|crossover|push.?up/,"chest_low"]],
+  shoulders:[[/lateral|side.?raise/,"delt_side"],[/rear|reverse|face.?pull/,"delt_rear"],[/press|front|arnold|upright/,"delt_front"]],
+  triceps:[[/overhead|skull|french|behind/,"tri_long"],[/push.?down|kick.?back|press|dip|extension/,"tri_lat"]],
+  biceps:[[/hammer|brachialis|reverse|neutral/,"bi_brach"],[/curl/,"bi_curl"]],
+  back:[[/row|shrug|rear.?delt/,"back_mid"],[/pull.?down|pull.?up|pull.?over|chin|straight.?arm|lat/,"back_lat"]],
+  quads:[[/extension|sissy/,"quad_iso"],[/squat|press|lunge|step.?up|split/,"quad_comp"]],
+  hamstrings:[[/curl/,"ham_curl"],[/deadlift|rdl|hinge|good.?morning|hyper|pull.?through|back.?ext/,"ham_hinge"]],
+  calves:[[/seat/,"calf_seat"],[/calf|raise/,"calf_stand"]],
+  abs:[[/crunch|sit.?up|roll.?out|pallof|twist|plank/,"abs_crunch"],[/raise|hanging|toes|v.?up/,"abs_low"]],
+};
+const normEx = s => String(s).toLowerCase().replace(/[^a-z0-9 ]+/g," ").split(/\s+/)
+  .map(w => w.length > 3 && w.endsWith("s") && !w.endsWith("ss") ? w.slice(0,-1) : w)
+  .filter(Boolean);
+function classifyCustom(name, g){
+  const toks = normEx(name);
+  let base = null, bScore = 0;
+  for (const [id, ex] of Object.entries(EX)){
+    if (ex.g !== g) continue;
+    const et = normEx(ex.n).filter(w => !/^(db|dumbbell|barbell|bb|ez|bar)$/.test(w));
+    if (et.length && et.every(w => toks.includes(w)) && et.length > bScore){ base = id; bScore = et.length; }
+  }
+  let sub = base ? EX[base].sub : null;
+  if (!sub){
+    const nm = toks.join(" ");
+    for (const [re, k] of SUB_GUESS[g] || []) if (re.test(nm)){ sub = k; break; }
+  }
+  return {base, sub: sub || null};
+}
+for (const [cid, c] of Object.entries(S.custom||{})){
+  if (c.sub || !SUB_GUESS[c.g]) continue;
+  if (c.base){ if (EX[c.base] && EX[c.base].sub) c.sub = EX[c.base].sub; continue; }
+  const cl = classifyCustom(c.n||"", c.g);
+  if (cl.base) c.base = cl.base;
+  if (cl.sub) c.sub = cl.sub;
+}
 for (const d of Object.values(S.drafts||{}))
   for (const e of d.exercises||[])
     for (const s of e.sets||[]){ if (s.done === undefined) s.done = +s.r > 0; if (s.warm === undefined) s.warm = false; }
 const save = () => { if (!storeOK) return;
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){ storeOK = false; } };
 
-let tab = "home";
+/* deep-link: #trends / #trends.insights etc. picks the starting tab (handy for testing too) */
+const _hash = location.hash.slice(1).split(".");
+let tab = ["home","history","trends","coach","more"].includes(_hash[0]) ? _hash[0] : "home";
+if (_hash[1] && ["body","str","ins","lab"].includes(_hash[1])) S.trendTab = _hash[1];
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const todayStr = () => { const d = new Date();
@@ -687,8 +763,8 @@ function regionVolume(a, b){
   return {per, contrib};
 }
 const heatFill = v => !v ? "var(--bg-2)"
-  : v <= 5 ? "hsl(160 45% 22%)" : v <= 10 ? "hsl(158 55% 31%)"
-  : v <= 15 ? "hsl(155 66% 42%)" : "hsl(152 76% 55%)";
+  : v <= 5 ? "hsl(174 48% 26%)" : v <= 10 ? "hsl(150 55% 38%)"
+  : v <= 15 ? "hsl(80 62% 48%)" : "hsl(38 95% 55%)";
 function weeklySessions(ws0){
   const end = addDays(ws0, 6);
   return S.workouts.filter(w => w.date >= ws0 && w.date <= end).length;
@@ -980,7 +1056,8 @@ function openScoreModal(id){
     + row("Bonus", rt.parts.bonus, 10,
         "PRs (+2.5 each, up to 3) and cardio done (+2.5).")
     + (rt.muscles && rt.muscles.length ? '<div class="mgroup">By muscle</div>'
-        + rt.muscles.map(m => row(m.nm, m.score, 100, m.detail + (m.subs ? '<br>' + m.subs : ''))).join("") : "")
+        + rt.muscles.map(m => row('<i class="mdot" style="background:'+(MAJOR_COL[m.nm]||"#8A93A3")+';color:'+(MAJOR_COL[m.nm]||"#8A93A3")+'"></i>'+m.nm,
+            m.score, 100, m.detail + (m.subs ? '<br>' + m.subs : ''))).join("") : "")
     + (rt.notes.length ? '<div class="mgroup">Notes</div>'
         + rt.notes.map(n => '<p class="hint" style="margin-top:6px">• '+esc(n)+'</p>').join("") : "")
     + '<div class="btnrow"><button data-act="modal-close">Close</button></div>');
@@ -1132,17 +1209,23 @@ function ring2SVG(p, center, cap, col){
       + ' style="filter:drop-shadow(0 0 6px rgba(44,224,139,.3))"/>' : '')
     + '</svg><div class="ring-center">'+center+(cap ? '<span class="cap">'+cap+'</span>' : '')+'</div></div>';
 }
-const FRESH_REG = {Chest:["chest"], Back:["lats","upper_back"], Delts:["shoulders"], Arms:["biceps","triceps"],
-  Quads:["quads"], Hams:["hamstrings"], Calves:["calves"], Core:["core"]};
+const FRESH_REG = {Chest:["chest"], Back:["lats","upper_back"], Delts:["shoulders"],
+  Arms:["biceps","triceps","forearms"], Quads:["quads"], Hams:["hamstrings","glutes"],
+  Calves:["calves"], Core:["core","lower_back"]};
 function freshSVG(id){ return bodySVG().replace(/heatmap/g, id); }
 function paintFresh(id){
   const svg = document.getElementById(id); if (!svg) return;
-  const fill = {};
+  const fill = {}, glow = {};
   for (const f of freshness())
-    for (const r of FRESH_REG[f.nm] || [])
-      fill[r] = f.days === null ? "var(--bg-2)" : f.days <= 1 ? "rgba(255,214,10,.5)" : "rgba(44,224,139,.45)";
-  for (const el of svg.querySelectorAll("[data-region]"))
+    for (const r of FRESH_REG[f.nm] || []){
+      fill[r] = f.days === null ? "var(--bg-2)" : f.days <= 1 ? "rgba(255,214,10,.55)" : "rgba(44,224,139,.5)";
+      glow[r] = f.days === null ? "" : f.days <= 1
+        ? "drop-shadow(0 0 4px rgba(255,214,10,.45))" : "drop-shadow(0 0 4px rgba(44,224,139,.4))";
+    }
+  for (const el of svg.querySelectorAll("[data-region]")){
     el.setAttribute("fill", fill[el.dataset.region] || "var(--bg-2)");
+    el.style.filter = glow[el.dataset.region] || "";
+  }
 }
 function weekBulletHTML(){
   const wk = weeklyStats(), cur = wk.length ? wk[wk.length-1] : {sets:0};
@@ -1267,13 +1350,13 @@ function renderHome(){
   if (ciPending) html += checkinHTML(today);
   html += '<div class="bento">';
   html += '<div class="card hero span2">'+(isDone ? scoreHeroInner(doneW) : todayHeroInner(today))+'</div>';
-  html += '<div class="card tap" data-act="goto-trends"><span class="lbl">Trend weight</span>'
+  html += '<div class="card tap tint" style="--tint:rgba(100,210,255,.10)" data-act="goto-trends"><span class="lbl">Trend weight</span>'
     + (tr.length ? '<div class="tile-num num"><span class="grad-ink">'+tr[tr.length-1].t.toFixed(1)+'</span><small> lb</small></div>'
       + (rate !== null ? '<span class="delta-chip num '+(rate <= -0.4 && rate >= -1.1 ? "up" : rate > 0.15 ? "dn" : "wr")+'">'+(rate>0?"▲ +":"▼ ")+Math.abs(rate).toFixed(1)+' lb/wk</span>' : '')
       + sparkSVG(tr)
       + (impliedTDEE() ? '<div class="cap num" style="margin-top:8px">maintenance ≈ '+impliedTDEE().toLocaleString()+'</div>' : '')
       : '<div class="hint" style="margin-top:8px">Weigh in a few mornings and your trend appears here.</div>')+'</div>';
-  html += '<div class="card tap" data-act="goto-insights"><span class="lbl">This week</span>'
+  html += '<div class="card tap tint" style="--tint:rgba(44,224,139,.10)" data-act="goto-insights"><span class="lbl">This week</span>'
     + ring2SVG(sess/6, '<span class="num">'+sess+'<small style="font-size:10px;color:var(--text-3)">/6</small></span>', "sessions")
     + weekStripHTML()
     + (st ? '<div class="cap num" style="text-align:center;margin-top:8px">'+st+'-wk streak at 5+</div>' : '')
@@ -1282,13 +1365,13 @@ function renderHome(){
     + '<div class="freshleg"><span><i style="background:rgba(44,224,139,.7)"></i>Fresh</span>'
     + '<span><i style="background:rgba(255,214,10,.7)"></i>Recovering</span>'
     + '<span><i style="background:var(--bg-3)"></i>Quiet</span></div></div>';
-  html += '<div class="card tap" data-act="goto-trends"><span class="lbl">Volume</span>'+weekBulletHTML()
+  html += '<div class="card tap tint" style="--tint:rgba(255,176,32,.10)" data-act="goto-trends"><span class="lbl">Volume</span>'+weekBulletHTML()
     + '<div class="cap" style="margin-top:8px">vs your 4-week typical</div></div>';
-  html += '<div class="card tap" data-act="goto-insights"><span class="lbl">PRs · 28 days</span>'
-    + '<div class="tile-num num"><span class="wr">'+pr.n+'</span></div>'
+  html += '<div class="card tap tint" style="--tint:rgba(255,214,10,.11)" data-act="goto-insights"><span class="lbl">PRs · 28 days</span>'
+    + '<div class="tile-num num"><span class="gold-ink">'+pr.n+'</span></div>'
     + (pr.last ? '<div class="cap" style="margin-top:6px">latest — '+esc(pr.last.name)+'</div>' : '<div class="cap" style="margin-top:6px">they\'re coming</div>')+'</div>';
   const hl = highlights().slice(0,2);
-  if (hl.length) html += '<div class="card span2 tap" data-act="goto-insights"><span class="lbl">Highlights</span>'+highlightsHTML(hl)
+  if (hl.length) html += '<div class="card span2 tap tint" style="--tint:rgba(139,124,246,.11)" data-act="goto-insights"><span class="lbl">Highlights</span>'+highlightsHTML(hl)
     + '<div class="cap" style="margin-top:9px">More in Trends → Insights ›</div></div>';
   html += '</div>';
   if (!ciPending) html += checkinHTML(today);
@@ -1748,7 +1831,7 @@ function renderTrends(){
   html += S.trendTab === "body" ? trendsBody() : S.trendTab === "str" ? trendsStrength()
     : S.trendTab === "lab" ? trendsLab() : trendsInsights();
   $("#view").innerHTML = html;
-  if (S.trendTab === "ins") paintHeat();
+  if ($("#heatmap")) paintHeat();
 }
 function rangeButtons(){
   return '<div class="ranges">'+[30,90,0].map(r =>
@@ -1842,46 +1925,83 @@ function trendsStrength(){
 
 /* ===== body silhouette heat map ===== */
 function bodySVG(){
-  const F = 110, B = 330; // center x of front/back figures
-  const limb = (cx,y,w,h,r,reg) => '<rect x="'+(cx-w/2)+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="'+r+'" data-region="'+reg+'"/>';
-  const idle = (cx,y,w,h,r) => '<rect x="'+(cx-w/2)+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="'+r+'" class="sil"/>';
+  /* anatomical muscle map — two mirrored-half figures (front / back). Every muscle is a
+     path pair mirrored across the figure's centerline (x=110 local); the back figure is
+     the same skeleton in a <g translate(220)>. Paint functions only ever set fill on
+     [data-region], so all styling lives here. */
+  const P = (d, reg) => '<path d="'+d+'" data-region="'+reg+'"/>'
+    + '<path d="'+d+'" data-region="'+reg+'" transform="translate(220,0) scale(-1,1)"/>';
+  const SIL = d => '<path d="'+d+'" class="sil"/>'
+    + '<path d="'+d+'" class="sil" transform="translate(220,0) scale(-1,1)"/>';
+  /* shared half-body outline (neck → arm → hand → torso → leg → foot → centerline) */
+  const OUTLINE = "M110 34 L119 35 C121 44 127 47 138 51 C149 54 155 61 155 70 C155 80 151 89 149 97 "
+    + "C148 106 147 112 148 118 C150 128 148 141 143 155 C141 161 139 166 137 170 C140 176 139 183 135 186 "
+    + "C131 188 128 184 128 178 C128 172 127 166 126 160 C129 146 131 132 130 120 C129 112 131 104 133 97 "
+    + "C134 94 135 92 136 89 C133 100 132 112 133 124 C134 136 137 144 139 152 C142 162 143 176 141 192 "
+    + "C139 210 137 220 136 228 C137 238 138 246 137 254 C136 268 132 280 129 288 C129 294 130 298 134 301 "
+    + "L118 302 C115 296 115 292 116 286 C118 274 118 262 117 250 C116 240 116 232 117 226 C118 214 118 200 117 186 "
+    + "C116 176 114 168 111 163 L110 163 Z";
+  const HEAD = '<ellipse cx="110" cy="21" rx="11.5" ry="13.5" class="sil"/>'
+    + '<rect x="103.5" y="27" width="13" height="10" rx="3" class="sil"/>';
+  const label = t => '<text x="110" y="322" text-anchor="middle" font-size="11" fill="var(--text-3)" font-weight="600" letter-spacing="1.5">'+t+'</text>';
   let s = '<svg viewBox="0 0 440 330" style="width:100%;max-width:360px;margin:0 auto;display:block" id="heatmap">';
-  s += '<style>#heatmap .sil{fill:var(--bg-2)} #heatmap rect,#heatmap circle,#heatmap polygon{stroke:rgba(255,255,255,.07);stroke-width:1}</style>';
-  /* ---- front ---- */
-  s += '<circle cx="'+F+'" cy="34" r="16" class="sil"/>' + idle(F,52,16,10,4);
-  s += '<circle cx="'+(F-36)+'" cy="80" r="13" data-region="shoulders"/>'
-    +  '<circle cx="'+(F+36)+'" cy="80" r="13" data-region="shoulders"/>';
-  s += limb(F,66,50,36,9,"chest");
-  s += limb(F,104,42,48,9,"core");
-  s += limb(F-46,95,14,30,7,"biceps") + limb(F+46,95,14,30,7,"biceps");
-  s += limb(F-49,128,12,34,6,"forearms") + limb(F+49,128,12,34,6,"forearms");
-  s += idle(F,154,46,13,6);
-  s += limb(F-12,169,21,58,9,"quads") + limb(F+12,169,21,58,9,"quads");
-  s += limb(F-13,231,16,46,8,"calves") + limb(F+13,231,16,46,8,"calves");
-  s += idle(F-13,280,18,8,4) + idle(F+13,280,18,8,4);
-  s += '<text x="'+F+'" y="316" text-anchor="middle" font-size="11" fill="var(--text-3)" font-weight="600" letter-spacing="1">FRONT</text>';
-  /* ---- back ---- */
-  s += '<circle cx="'+B+'" cy="34" r="16" class="sil"/>' + idle(B,52,16,10,4);
-  s += limb(B,62,52,20,7,"upper_back");
-  s += '<circle cx="'+(B-36)+'" cy="80" r="13" data-region="shoulders"/>'
-    +  '<circle cx="'+(B+36)+'" cy="80" r="13" data-region="shoulders"/>';
-  s += '<polygon points="'+(B-23)+',84 '+(B+23)+',84 '+(B+15)+',130 '+(B-15)+',130" data-region="lats"/>';
-  s += limb(B-46,95,14,30,7,"triceps") + limb(B+46,95,14,30,7,"triceps");
-  s += limb(B-49,128,12,34,6,"forearms") + limb(B+49,128,12,34,6,"forearms");
-  s += limb(B,132,30,20,5,"lower_back");
-  s += limb(B,155,46,22,10,"glutes");
-  s += limb(B-12,180,21,52,9,"hamstrings") + limb(B+12,180,21,52,9,"hamstrings");
-  s += limb(B-13,235,16,46,8,"calves") + limb(B+13,235,16,46,8,"calves");
-  s += idle(B-13,284,18,8,4) + idle(B+13,284,18,8,4);
-  s += '<text x="'+B+'" y="316" text-anchor="middle" font-size="11" fill="var(--text-3)" font-weight="600" letter-spacing="1">BACK</text>';
+  s += '<style>#heatmap .sil{fill:#171A20}'
+    + '#heatmap [data-region]{stroke:rgba(10,11,13,.85);stroke-width:1.1;stroke-linejoin:round;transition:fill .35s}'
+    + '</style>';
+  /* ================= FRONT ================= */
+  s += '<g>' + HEAD + SIL(OUTLINE);
+  // delts
+  s += P("M137 53 C146 55 153 62 153 71 C153 79 150 85 147 88 C143 84 139 76 137 68 C136 62 136 57 137 53 Z","shoulders");
+  // pecs
+  s += P("M111 58 C120 56 128 55 135 55 C137 62 137 72 135 80 C130 88 121 91 114 90 C111 88 110.5 84 110.5 78 L110.5 60 Z","chest");
+  // biceps
+  s += P("M137 91 C141 90 145 92 146 98 C147 106 146 112 144 117 C141 120 137 119 136 114 C135 106 135 97 137 91 Z","biceps");
+  // forearms
+  s += P("M132 122 C137 120 141 122 142 128 C143 138 140 148 136 156 C134 160 131 160 130 156 C128 146 129 132 132 122 Z","forearms");
+  // abs — rectus segments + oblique, all core
+  s += P("M111.5 96 C115 95 119 96 120.5 98 L120.5 109 C117 110 113 110 111.5 109 Z","core");
+  s += P("M111.5 112 C115 111 119 112 120.5 114 L120.5 125 C117 126 113 126 111.5 125 Z","core");
+  s += P("M111.5 128 C115 127 119 128 121 130 C122 136 121 143 119 148 C116 149 113 149 111.5 148 Z","core");
+  s += P("M123 98 C127 99 130 102 130.5 108 C131 118 130 128 128 136 C126 140 123.5 139 123 134 C122 122 122 108 123 98 Z","core");
+  // quads — outer sweep + inner teardrop
+  s += P("M139 158 C144 162 146 174 145 188 C144 204 141 216 137 224 C133 228 129 226 128 218 C127 204 128 186 130 172 C132 163 135 158 139 158 Z","quads");
+  s += P("M118 172 C122 170 125 174 126 184 C127 198 126 212 122 222 C119 227 115 224 114 215 C113 200 114 183 118 172 Z","quads");
+  // front calf (tibialis)
+  s += P("M121 234 C125 232 128 236 128 244 C128 258 126 272 123 282 C121 286 118 284 118 276 C118 260 118 244 121 234 Z","calves");
+  s += label("FRONT") + '</g>';
+  /* ================= BACK ================= */
+  s += '<g transform="translate(220,0)">' + HEAD + SIL(OUTLINE);
+  // traps
+  s += P("M110.5 42 C117 44 126 48 133 52 C128 58 122 64 117 74 C114 80 112 84 110.5 86 Z","upper_back");
+  // rear delts
+  s += P("M137 53 C146 55 153 62 153 71 C153 79 150 85 147 88 C143 84 139 76 137 68 C136 62 136 57 137 53 Z","shoulders");
+  // lats
+  s += P("M132 84 C136 88 137 94 136 100 C134 114 128 126 119 134 C115 137 112 138 110.5 138 L110.5 96 C118 94 126 90 132 84 Z","lats");
+  // triceps
+  s += P("M137 90 C142 89 146 92 146 99 C146 108 144 114 141 118 C138 121 135 119 135 113 C134 104 135 95 137 90 Z","triceps");
+  // forearms
+  s += P("M132 122 C137 120 141 122 142 128 C143 138 140 148 136 156 C134 160 131 160 130 156 C128 146 129 132 132 122 Z","forearms");
+  // erectors
+  s += P("M110.5 118 C115 118 118 122 118 130 C118 140 116 148 113 152 C112 153 111 153 110.5 153 Z","lower_back");
+  // glutes
+  s += P("M111 148 C120 146 128 150 130 158 C132 166 129 174 122 177 C115 179 111 176 110.5 170 L110.5 152 Z","glutes");
+  // hamstrings
+  s += P("M116 182 C122 180 128 182 131 188 C133 198 132 212 128 224 C125 230 120 230 118 224 C115 212 114 196 116 182 Z","hamstrings");
+  // calves (gastrocnemius)
+  s += P("M119 232 C125 230 130 234 130 244 C130 256 127 268 123 276 C120 280 117 278 116 270 C115 258 116 240 119 232 Z","calves");
+  s += label("BACK") + '</g>';
   return s + '</svg>';
 }
 let heatData = null;
 function paintHeat(){
   const svg = $("#heatmap"); if (!svg) return;
   heatData = regionVolume(addDays(todayStr(),-6), todayStr());
-  for (const el of svg.querySelectorAll("[data-region]"))
-    el.setAttribute("fill", heatFill(heatData.per[el.dataset.region] || 0));
+  for (const el of svg.querySelectorAll("[data-region]")){
+    const v = heatData.per[el.dataset.region] || 0;
+    el.setAttribute("fill", heatFill(v));
+    el.style.filter = v > 15 ? "drop-shadow(0 0 5px rgba(255,170,50,.4))"
+      : v > 10 ? "drop-shadow(0 0 4px rgba(190,230,90,.3))" : "";
+  }
 }
 function trendsInsights(){
   const scores = liftScores(), bw = bodyweight();
@@ -1934,7 +2054,7 @@ function trendsInsights(){
           ? '<span>'+m.label+'</span><b class="num" style="color:'+(m.untrained ? "var(--warn)" : gradeColor(m.score))+'">'
             + (m.untrained ? 'untrained' : g+' <span class="cap">· '+(Math.round(m.wv*2)/2)+' sets/wk'
               + (m.avgP !== null ? ' · '+(m.avgP>0?'+':'')+m.avgP.toFixed(1)+'%' : '')+'</span>')+'</b>'
-          : '<div class="rowline"><b>'+m.label+'</b><span class="lvl num" style="color:'+gradeColor(m.score)+'">'+g+'</span></div>'
+          : '<div class="rowline"><b><i class="gdot" style="background:'+(REG_COL[m.r]||"#8A93A3")+'"></i>'+m.label+'</b><span class="lvl num" style="color:'+gradeColor(m.score)+'">'+g+'</span></div>'
             + '<div class="sub num">'+(Math.round(m.wv*2)/2)+' sets/wk'
             + (m.avgP !== null ? ' · e1RM '+(m.avgP>0?'+':'')+m.avgP.toFixed(1)+'% / 28d' : ' · no comparable history yet')+'</div>')
         + '</div>';
@@ -1951,7 +2071,7 @@ function trendsInsights(){
     const byG = {};
     for (const id of exIds) (byG[exInfo(id).g] = byG[exInfo(id).g] || []).push(id);
     for (const g of Object.keys(GROUPS).filter(k => byG[k])){
-      html += '<div class="mgroup">'+GROUPS[g]+'</div>';
+      html += '<div class="mgroup"><i class="gdot" style="background:'+GROUP_COL[g]+'"></i>'+GROUPS[g]+'</div>';
       for (const id of byG[g]){
         const p = exProgress(id), s = exScore(p);
         html += '<div class="recap-li"><span>'+esc(exInfo(id).n)+'</span>'
@@ -1978,8 +2098,8 @@ function trendsInsights(){
   for (const [r, label] of Object.entries(REGIONS)){
     const v = per[r] || 0;
     const pct = Math.min(100, v/25*100);
-    html += '<div class="vol-row"><span class="nm">'+label+'</span>'
-      + '<span class="bar'+(v>0 && v<10?" low":"")+'"><i style="width:'+pct.toFixed(0)+'%"></i></span>'
+    html += '<div class="vol-row"><span class="nm"><i class="gdot" style="background:'+REG_COL[r]+'"></i>'+label+'</span>'
+      + '<span class="bar'+(v>0 && v<10?" low":"")+'"><i style="width:'+pct.toFixed(0)+'%;background:'+REG_COL[r]+'"></i></span>'
       + '<span class="v num">'+(v ? (Math.round(v*2)/2) : 0)+'</span></div>';
   }
   html += '</div>';
@@ -2342,7 +2462,7 @@ function muscleReport(){
     const wv = (per[r]||0)/(days/7);
     if (!wv) continue;
     const avgP = avgPctFor(ids28.filter(id => muscOf(id).p.includes(r)));
-    rows.push({label, wv, avgP, score:volScore(wv,false)+progScore(avgP), sub:false});
+    rows.push({label, r, wv, avgP, score:volScore(wv,false)+progScore(avgP), sub:false});
     for (const [key, subLabel] of (MUSC_SUBS[r]||[])){
       const sv = subVolume(key, days)/(days/7);
       const subIds = ids28.filter(id => exInfo(id).sub === key);
@@ -2772,8 +2892,26 @@ function renderMore(){
 }
 
 /* ================= modal ================= */
-function openModal(html){ $("#modal").innerHTML = html; $("#ovl").classList.add("show"); }
-function closeModal(){ $("#ovl").classList.remove("show"); }
+/* body scroll-lock while a sheet is open — otherwise scrolling the sheet can pan the page behind it */
+let modScrollY = 0;
+function openModal(html){
+  $("#modal").innerHTML = html;
+  if (!document.body.classList.contains("mlock")){
+    modScrollY = window.scrollY || 0;
+    document.body.style.top = -modScrollY + "px";
+    document.body.classList.add("mlock");
+  }
+  $("#modal").scrollTop = 0;
+  $("#ovl").classList.add("show");
+}
+function closeModal(){
+  $("#ovl").classList.remove("show");
+  if (document.body.classList.contains("mlock")){
+    document.body.classList.remove("mlock");
+    document.body.style.top = "";
+    window.scrollTo(0, modScrollY);
+  }
+}
 function exercisePicker(act, ei, prio){
   const q = ($("#exsearch") && $("#exsearch").value || "").toLowerCase();
   const all = Object.entries(EX).concat(Object.entries(S.custom));
@@ -2784,7 +2922,7 @@ function exercisePicker(act, ei, prio){
   const pr = (prio||[]).filter(g => order.includes(g));
   for (const g of [...pr].reverse()){ order.splice(order.indexOf(g), 1); order.unshift(g); }
   return order.map(g =>
-    '<div class="mgroup">'+GROUPS[g]+(pr.includes(g) ? ' <span style="color:var(--accent)">· today</span>' : '')+'</div>'
+    '<div class="mgroup"><i class="gdot" style="background:'+GROUP_COL[g]+'"></i>'+GROUPS[g]+(pr.includes(g) ? ' <span style="color:var(--accent)">· today</span>' : '')+'</div>'
     + groups[g].map(([id,e]) =>
       '<button class="pick" data-act="'+act+'" data-exid="'+id+'"'+(ei!=null?' data-ei="'+ei+'"':"")+'>'
       + esc(e.n)+'<small>'+(e.bw?"BW":"+"+e.inc+" lb")+'</small></button>').join("")
@@ -2806,12 +2944,20 @@ function openAddModal(swapEi){
     + '<input id="exsearch" placeholder="Search…" autocomplete="off">'
     + '<div id="exlist">'+exercisePicker(act, swapEi, fg)+'</div>'
     + '<div class="mgroup">Create your own</div>'
-    + '<div class="rowline"><input id="newexname" placeholder="Name" class="grow">'
-    + '<select id="newexgroup" style="width:130px">'+Object.entries(GROUPS).map(([k,v]) => '<option value="'+k+'">'+v+'</option>').join("")+'</select></div>'
+    + '<input id="newexname" placeholder="Name — e.g. One-Arm Cable Curl" style="margin-top:2px">'
+    + '<div class="rowline" style="margin-top:8px"><select id="newexgroup" class="grow">'
+    + Object.entries(GROUPS).map(([k,v]) => '<option value="'+k+'">'+v+'</option>').join("")+'</select>'
+    + '<select id="newexsub" class="grow"></select></div>'
     + '<div class="btnrow"><button data-act="create-ex"'+(swapEi!=null?' data-ei="'+swapEi+'"':"")+'>Create</button>'
     + '<button data-act="modal-close">Cancel</button></div>');
   const si = $("#exsearch");
   si.addEventListener("input", () => { $("#exlist").innerHTML = exercisePicker(act, swapEi, fg); });
+  const subSel = () => { const g = $("#newexgroup").value;
+    $("#newexsub").innerHTML = '<option value="">Region — auto</option>'
+      + (GROUP_SUBS[g]||[]).map(k => '<option value="'+k+'">'+SUB_LBL[k]+'</option>').join("");
+    $("#newexsub").disabled = !(GROUP_SUBS[g]||[]).length; };
+  subSel();
+  $("#newexgroup").addEventListener("change", subSel);
 }
 function openExMenu(ei){
   const e = curDraft().exercises[ei];
@@ -2822,6 +2968,8 @@ function openExMenu(ei){
     + '<button class="menu-item" data-act="uni-toggle" data-ei="'+ei+'">'
     + (isUni(e.id) ? '✓ One side at a time — turn off' : 'One side at a time (1-arm / 1-leg)')+'</button>'
     + '<button class="menu-item" data-act="variant-open" data-ei="'+ei+'">New variant — different bar, grip or setup</button>'
+    + (S.custom[e.id] ? '<button class="menu-item" data-act="classify-open" data-ei="'+ei+'">Muscle focus — '
+        + (GROUPS[exInfo(e.id).g]||"?")+(exInfo(e.id).sub && SUB_LBL[exInfo(e.id).sub] ? ' · '+SUB_LBL[exInfo(e.id).sub] : '')+'</button>' : '')
     + '<button class="menu-item" data-act="swap" data-ei="'+ei+'">Replace exercise</button>'
     + '<button class="menu-item" data-act="up" data-ei="'+ei+'">Move up</button>'
     + '<button class="menu-item" data-act="down" data-ei="'+ei+'">Move down</button>'
@@ -2843,6 +2991,23 @@ function openVariantModal(ei){
     if (!$("#varuni").dataset.touched && UNI_RE.test($("#varname").value)) $("#varuni").checked = true;
   });
   $("#varname").focus();
+}
+function openClassifyModal(ei){
+  const e = curDraft().exercises[ei], c = S.custom[e.id];
+  if (!c) return;
+  openModal('<h3>Muscle focus — '+esc(c.n)+'</h3>'
+    + '<p class="hint">What this lift counts for — drives the freshness map, weekly sets and By-muscle grades.</p>'
+    + '<div class="rowline" style="margin-top:12px"><select id="clsg" class="grow">'
+    + Object.entries(GROUPS).map(([k,v]) => '<option value="'+k+'"'+(k===c.g?" selected":"")+'>'+v+'</option>').join("")
+    + '</select><select id="clss" class="grow"></select></div>'
+    + '<div class="btnrow"><button class="primary" data-act="classify-save" data-ei="'+ei+'">Save</button>'
+    + '<button data-act="modal-close">Cancel</button></div>');
+  const fill = () => { const g = $("#clsg").value, subs = GROUP_SUBS[g] || [];
+    $("#clss").innerHTML = '<option value="">Region — general</option>'
+      + subs.map(k => '<option value="'+k+'"'+(g===c.g && c.sub===k ? " selected" : "")+'>'+SUB_LBL[k]+'</option>').join("");
+    $("#clss").disabled = !subs.length; };
+  fill();
+  $("#clsg").addEventListener("change", fill);
 }
 function openExDetail(exId){
   const ex = exInfo(exId), hist = perfHistory(exId);
@@ -3082,13 +3247,33 @@ document.addEventListener("click", ev => {
     const name = ($("#newexname").value||"").trim();
     if (!name){ alert("Give it a name."); return; }
     const id = "c_" + name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
-    S.custom[id] = {n:name, g:$("#newexgroup").value, inc:5};
-    if (UNI_RE.test(name)) S.custom[id].uni = 1;
+    const g = $("#newexgroup").value, cl = classifyCustom(name, g);
+    const ent = {n:name, g, inc: cl.base ? (EX[cl.base].inc || 5) : 5};
+    if (cl.base){ ent.base = cl.base;               // library parent found → inherit its profile
+      if (EX[cl.base].rest) ent.rest = EX[cl.base].rest;
+      if (EX[cl.base].bw) ent.bw = 1;
+      if (EX[cl.base].bb) ent.bb = 1; }
+    ent.sub = ($("#newexsub") && $("#newexsub").value) || cl.sub || undefined;
+    if (!ent.sub) delete ent.sub;
+    if (UNI_RE.test(name)) ent.uni = 1;
+    S.custom[id] = ent;
     const sei = btn.dataset.ei;
     if (sei != null && sei !== ""){ const e = d.exercises[+sei]; e.id = id; e.sets = e.sets.map(() => ({w:"",r:"",done:false,warm:false})); }
     else { d.exercises.forEach(x => x.open = false);
       d.exercises.push({id, plan:null, note:"", open:true, sets:[{w:"",r:"",done:false,warm:false},{w:"",r:"",done:false,warm:false},{w:"",r:"",done:false,warm:false}]}); }
     save(); closeModal(); render();
+    showToast("Created <b>"+esc(name)+"</b> — counts for <b>"+(GROUPS[g]||"?")
+      + (ent.sub && SUB_LBL[ent.sub] ? " · "+SUB_LBL[ent.sub] : "")+"</b>"
+      + (cl.base ? " (matched to "+esc(EX[cl.base].n)+")" : "")+". Wrong? ⋯ → Muscle focus.");
+  }
+  else if (act === "classify-open"){ closeModal(); openClassifyModal(ei); }
+  else if (act === "classify-save"){
+    const c = S.custom[d.exercises[ei].id]; if (!c) return;
+    const g = $("#clsg").value, sub = $("#clss").value;
+    if (g !== c.g){ c.g = g; delete c.base; }
+    if (sub) c.sub = sub; else delete c.sub;
+    save(); closeModal(); render();
+    showToast("Saved — counts for <b>"+GROUPS[g]+(sub && SUB_LBL[sub] ? " · "+SUB_LBL[sub] : "")+"</b>");
   }
   else if (act === "variant-open"){ closeModal(); openVariantModal(ei); }
   else if (act === "variant-create"){
