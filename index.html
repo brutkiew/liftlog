@@ -15,7 +15,7 @@
   :root{
     /* surfaces — deep indigo-charcoal, not plain black */
     --bg-0:#0A0C13; --bg-1:#141826; --bg-2:#1D2333; --bg-3:#262E42;
-    --stroke:rgba(150,165,255,.10); --stroke-soft:rgba(150,165,255,.05);
+    --stroke:rgba(150,165,255,.13); --stroke-soft:rgba(150,165,255,.05);
     /* text */
     --text-1:#F4F5F7; --text-2:rgba(255,255,255,.62); --text-3:rgba(255,255,255,.38);
     /* accent + semantic */
@@ -30,17 +30,17 @@
     color-scheme:dark;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-  html{background:radial-gradient(130% 50% at 50% -10%,rgba(88,108,232,.17),transparent 60%),var(--bg-0)}
+  html{background:radial-gradient(130% 50% at 50% -10%,rgba(88,108,232,.24),transparent 60%),var(--bg-0)}
   body{color:var(--text-1);background:transparent;min-height:100vh;
     font:15px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI Variable Display","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
     -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
     padding-bottom:calc(92px + env(safe-area-inset-bottom))}
   /* aurora */
   body::before,body::after{content:"";position:fixed;z-index:-1;border-radius:50%;filter:blur(90px);pointer-events:none}
-  body::before{width:500px;height:500px;top:-160px;left:-140px;
-    background:radial-gradient(circle,rgba(23,185,160,.30),transparent 65%)}
-  body::after{width:560px;height:560px;bottom:-200px;right:-160px;
-    background:radial-gradient(circle,rgba(139,124,246,.26),transparent 65%)}
+  body::before{width:540px;height:540px;top:-160px;left:-150px;
+    background:radial-gradient(circle,rgba(23,185,160,.40),transparent 65%)}
+  body::after{width:600px;height:600px;bottom:-210px;right:-170px;
+    background:radial-gradient(circle,rgba(139,124,246,.36),transparent 65%)}
   @media (prefers-reduced-motion:no-preference){
     body::before{animation:drift1 26s ease-in-out infinite alternate}
     body::after{animation:drift2 32s ease-in-out infinite alternate}
@@ -49,7 +49,7 @@
   }
   main::before{content:"";position:fixed;z-index:-1;width:440px;height:440px;border-radius:50%;
     filter:blur(100px);pointer-events:none;top:30%;right:-180px;
-    background:radial-gradient(circle,rgba(255,123,172,.16),transparent 65%)}
+    background:radial-gradient(circle,rgba(255,123,172,.24),transparent 65%)}
   @media (prefers-reduced-motion:no-preference){
     main::before{animation:drift3 38s ease-in-out infinite alternate}
     @keyframes drift3{to{transform:translate(-70px,70px) scale(1.12)}}
@@ -97,14 +97,14 @@
   #tabs button[data-tab="more"].on{background:rgba(255,176,32,.12)}
   #tabs button[data-tab="more"].on .ic{color:#FFB020}
   /* ===== cards ===== */
-  .card{background:var(--bg-1);border:1px solid var(--stroke);border-radius:var(--r-card);
+  .card{background:linear-gradient(180deg,#171C30,#131726);border:1px solid var(--stroke);border-radius:var(--r-card);
     padding:18px;margin-bottom:12px;transition:transform .35s var(--ease)}
   .card.tap{cursor:pointer}
   .card.tap:active{transform:scale(.97)}
   .hero{border:1px solid transparent;
-    background:linear-gradient(var(--bg-1),var(--bg-1)) padding-box,
-      linear-gradient(135deg,rgba(44,224,139,.5),rgba(139,124,246,.45)) border-box;
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 10px 36px rgba(23,185,160,.08)}
+    background:linear-gradient(180deg,#171C30,#131726) padding-box,
+      linear-gradient(135deg,rgba(44,224,139,.55),rgba(139,124,246,.5)) border-box;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 10px 36px rgba(23,185,160,.10)}
   .hint{color:var(--text-2);font-size:13px;line-height:1.45}
   .cap{color:var(--text-3);font-size:13px}
   .lbl{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
@@ -1280,6 +1280,13 @@ function freshDays(){
   return {reg:Object.fromEntries(Object.entries(lastR).map(([r,d]) => [r, dd(d)])),
           sub:Object.fromEntries(Object.entries(lastS).map(([k,d]) => [k, dd(d)]))};
 }
+/* graded recovery ramp, hot → ready → dormant (mirrors the heat map's bucket idea) */
+const freshFill = d => d === null ? "var(--bg-2)"
+  : d <= 0 ? "hsl(18 88% 55%)"     // trained today
+  : d === 1 ? "hsl(42 95% 55%)"    // yesterday — recovering
+  : d === 2 ? "hsl(75 60% 50%)"    // almost ready
+  : d <= 7 ? "hsl(152 60% 45%)"    // ready
+  : "hsl(210 25% 34%)";            // 8+ days — due again
 function paintFresh(id){
   const svg = document.getElementById(id); if (!svg) return;
   freshD = freshDays();
@@ -1288,9 +1295,11 @@ function paintFresh(id){
     const days = sub !== undefined
       ? (freshD.sub[sub] !== undefined ? freshD.sub[sub] : null)
       : (freshD.reg[el.dataset.region] !== undefined ? freshD.reg[el.dataset.region] : null);
-    el.setAttribute("fill", days === null ? "var(--bg-2)" : days <= 1 ? "rgba(255,214,10,.55)" : "rgba(44,224,139,.5)");
-    el.style.filter = days === null ? "" : days <= 1
-      ? "drop-shadow(0 0 4px rgba(255,214,10,.45))" : "drop-shadow(0 0 4px rgba(44,224,139,.4))";
+    el.setAttribute("fill", freshFill(days));
+    el.style.filter = days === null ? ""
+      : days <= 1 ? "drop-shadow(0 0 5px rgba(255,150,60,.45))"
+      : days === 2 ? "drop-shadow(0 0 4px rgba(190,220,90,.3))"
+      : days <= 7 ? "drop-shadow(0 0 4px rgba(44,224,139,.3))" : "";
   }
 }
 function weekBulletHTML(){
@@ -1416,29 +1425,29 @@ function renderHome(){
   if (ciPending) html += checkinHTML(today);
   html += '<div class="bento">';
   html += '<div class="card hero span2">'+(isDone ? scoreHeroInner(doneW) : todayHeroInner(today))+'</div>';
-  html += '<div class="card tap tint" style="--tint:rgba(100,210,255,.10)" data-act="goto-trends"><span class="lbl">Trend weight</span>'
+  html += '<div class="card tap tint" style="--tint:rgba(100,210,255,.17)" data-act="goto-trends"><span class="lbl">Trend weight</span>'
     + (tr.length ? '<div class="tile-num num"><span class="grad-ink">'+tr[tr.length-1].t.toFixed(1)+'</span><small> lb</small></div>'
       + (rate !== null ? '<span class="delta-chip num '+(rate <= -0.4 && rate >= -1.1 ? "up" : rate > 0.15 ? "dn" : "wr")+'">'+(rate>0?"▲ +":"▼ ")+Math.abs(rate).toFixed(1)+' lb/wk</span>' : '')
       + sparkSVG(tr)
       + (impliedTDEE() ? '<div class="cap num" style="margin-top:8px">maintenance ≈ '+impliedTDEE().toLocaleString()+'</div>' : '')
       : '<div class="hint" style="margin-top:8px">Weigh in a few mornings and your trend appears here.</div>')+'</div>';
-  html += '<div class="card tap tint" style="--tint:rgba(44,224,139,.10)" data-act="goto-insights"><span class="lbl">This week</span>'
+  html += '<div class="card tap tint" style="--tint:rgba(44,224,139,.17)" data-act="goto-insights"><span class="lbl">This week</span>'
     + ring2SVG(sess/6, '<span class="num">'+sess+'<small style="font-size:10px;color:var(--text-3)">/6</small></span>', "sessions")
     + weekStripHTML()
     + (st ? '<div class="cap num" style="text-align:center;margin-top:8px">'+st+'-wk streak at 5+</div>' : '')
     + '</div>';
   html += '<div class="card span2"><span class="lbl">Muscle freshness</span>'+freshSVG("freshmap")
-    + '<div class="freshleg"><span><i style="background:rgba(44,224,139,.7)"></i>Fresh</span>'
-    + '<span><i style="background:rgba(255,214,10,.7)"></i>Recovering</span>'
-    + '<span><i style="background:var(--bg-3)"></i>Quiet</span></div>'
-    + '<div id="fresh-detail" class="num">tap a muscle</div></div>';
-  html += '<div class="card tap tint" style="--tint:rgba(255,176,32,.10)" data-act="goto-trends"><span class="lbl">Volume</span>'+weekBulletHTML()
+    + '<div class="freshleg">'
+    + [["Today",0],["1 day",1],["2 days",2],["Ready",4],["8+ days",9]].map(([l,d]) =>
+        '<span><i style="background:'+freshFill(d)+'"></i>'+l+'</span>').join("")
+    + '</div><div id="fresh-detail" class="num">tap a muscle</div></div>';
+  html += '<div class="card tap tint" style="--tint:rgba(255,176,32,.17)" data-act="goto-trends"><span class="lbl">Volume</span>'+weekBulletHTML()
     + '<div class="cap" style="margin-top:8px">vs your 4-week typical</div></div>';
-  html += '<div class="card tap tint" style="--tint:rgba(255,214,10,.11)" data-act="goto-insights"><span class="lbl">PRs · 28 days</span>'
+  html += '<div class="card tap tint" style="--tint:rgba(255,214,10,.17)" data-act="goto-insights"><span class="lbl">PRs · 28 days</span>'
     + '<div class="tile-num num"><span class="gold-ink">'+pr.n+'</span></div>'
     + (pr.last ? '<div class="cap" style="margin-top:6px">latest — '+esc(pr.last.name)+'</div>' : '<div class="cap" style="margin-top:6px">they\'re coming</div>')+'</div>';
   const hl = highlights().slice(0,2);
-  if (hl.length) html += '<div class="card span2 tap tint" style="--tint:rgba(139,124,246,.11)" data-act="goto-insights"><span class="lbl">Highlights</span>'+highlightsHTML(hl)
+  if (hl.length) html += '<div class="card span2 tap tint" style="--tint:rgba(139,124,246,.18)" data-act="goto-insights"><span class="lbl">Highlights</span>'+highlightsHTML(hl)
     + '<div class="cap" style="margin-top:9px">More in Trends → Insights ›</div></div>';
   html += '</div>';
   if (!ciPending) html += checkinHTML(today);
@@ -3267,8 +3276,11 @@ document.addEventListener("click", ev => {
         : (regionVolume(addDays(todayStr(),-6), todayStr()).per[r] || 0);
       const nm = REGIONS[r] + (sub !== undefined && SUB_LBL[sub] ? " · "+SUB_LBL[sub].toLowerCase() : "");
       const st = days === null ? "not trained yet"
-        : days <= 1 ? '<span class="wr">recovering</span> — trained '+(days === 0 ? "today" : "yesterday")
-        : '<span class="up">fresh</span> — last trained '+days+' days ago';
+        : days === 0 ? '<span style="color:hsl(18 88% 58%)">trained today</span>'
+        : days === 1 ? '<span class="wr">recovering</span> — trained yesterday'
+        : days === 2 ? '<span style="color:hsl(75 60% 55%)">almost ready</span> — trained 2 days ago'
+        : days <= 7 ? '<span class="up">ready</span> — last trained '+days+' days ago'
+        : '<span class="cap">due again</span> — '+days+' days since trained';
       el.innerHTML = "<b>"+nm+"</b> — "+st+" · "+(Math.round(sets*2)/2)+" hard sets this week";
     }
     return;
