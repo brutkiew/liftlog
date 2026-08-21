@@ -581,7 +581,7 @@ const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vib
 let S = {workouts:[], drafts:{}, custom:{}, templates:{}, coach:[], milestone:0, uniO:{},
   body:{weights:{}, kcals:{}},
   settings:Object.assign({}, DEF_SET),
-  progSel:null, editing:null, trendTab:"body", range:30, recapSeen:""};
+  progSel:null, editing:null, trendTab:"ins", range:30, recapSeen:""};
 let storeOK = true;
 try { const raw = localStorage.getItem(KEY); if (raw){
   const d = JSON.parse(raw);
@@ -1900,10 +1900,10 @@ function renderHistory(){
 /* ================= TRENDS ================= */
 function renderTrends(){
   let html = '<div class="seg">'
-    + '<button data-act="ttab" data-t="body" class="'+(S.trendTab==="body"?"on":"")+'">Body</button>'
-    + '<button data-act="ttab" data-t="str" class="'+(S.trendTab==="str"?"on":"")+'">Strength</button>'
     + '<button data-act="ttab" data-t="ins" class="'+(S.trendTab==="ins"?"on":"")+'">Insights</button>'
-    + '<button data-act="ttab" data-t="lab" class="'+(S.trendTab==="lab"?"on":"")+'">Lab</button></div>';
+    + '<button data-act="ttab" data-t="lab" class="'+(S.trendTab==="lab"?"on":"")+'">Lab</button>'
+    + '<button data-act="ttab" data-t="body" class="'+(S.trendTab==="body"?"on":"")+'">Body</button>'
+    + '<button data-act="ttab" data-t="str" class="'+(S.trendTab==="str"?"on":"")+'">Strength</button></div>';
   html += S.trendTab === "body" ? trendsBody() : S.trendTab === "str" ? trendsStrength()
     : S.trendTab === "lab" ? trendsLab() : trendsInsights();
   $("#view").innerHTML = html;
@@ -1968,11 +1968,91 @@ function trendsBody(){
   return html;
 }
 
+/* overall strength: index graph (with muscle-group chips), pound-for-pound, your body
+   stats, and the BW-relative benchmark scorecard */
+function strengthOverviewHTML(){
+  const lc = v => v > 0.05 ? "up" : v < -0.05 ? "dn" : "fl";
+  const ls = v => (v > 0 ? "+" : "")+v.toFixed(1);
+  const GROUPS_L = [["","All"],["chest","Chest"],["back","Back"],["shoulders","Delts"],["arms","Arms"],["quads","Quads"],["hamstrings","Hams"]];
+  let html = '<div class="chips">'+GROUPS_L.map(([k,l]) =>
+    '<button data-act="lab-group" data-g="'+k+'"'
+    + (labGroup === k ? ' style="color:var(--accent);border-color:rgba(44,224,139,.4);background:var(--accent-dim)"' : '')
+    + '>'+l+'</button>').join("")+'</div>';
+
+  const si = strengthIndex(labGroup || null);
+  if (si.length >= 2){
+    const cur = si[si.length-1].val;
+    const d4 = cur - si[Math.max(0, si.length-5)].val, all = cur - 100;
+    html += '<div class="card hero"><span class="lbl">Overall strength'
+      + (labGroup ? ' · '+GROUPS_L.find(g => g[0] === labGroup)[1] : '')+'</span>'
+      + '<div class="xl grad-ink num" style="margin-top:6px">'+cur.toFixed(1)+'</div>'
+      + '<div class="cap">100 = your first logged week · weekly best e1RM per lift, averaged</div>'
+      + '<div class="rowline num" style="margin-top:10px;gap:16px;font-size:13.5px;font-weight:600">'
+      + '<span class="'+lc(d4)+'">'+ls(d4)+' last 4 wk</span>'
+      + '<span class="'+lc(all)+'">'+ls(all)+' all-time</span></div>'
+      + '<div class="chartwrap" style="margin-top:8px">'
+      + e1rmChart(si.map(p => ({date:p.d, val:+p.val.toFixed(1), lbl:p.n+" lifts tracked"})))
+      + '<div id="ctip"></div></div></div>';
+  } else html += '<div class="card hint">'+(labGroup ? 'Not enough logged sessions for this muscle group yet.' : 'Two weeks of logs and your overall strength graph appears — one line for "am I actually getting stronger."')+'</div>';
+
+  const rs = relStrength();
+  if (!labGroup && rs.length >= 2){
+    const cur = rs[rs.length-1].val, d = cur - rs[0].val;
+    html += '<div class="card"><span class="lbl">Relative strength · pound-for-pound</span>'
+      + '<div class="stat num" style="margin-top:6px">'+cur.toFixed(1)
+      + ' <small class="'+lc(d)+'" style="font-size:13px">'+ls(d)+' all-time</small></div>'
+      + '<div class="cap" style="margin:2px 0 6px">strength index corrected for bodyweight change — on a cut, THIS is the win condition</div>'
+      + '<div class="chartwrap">'+e1rmChart(rs.map(p => ({date:p.d, val:+p.val.toFixed(1), lbl:""})))+'</div></div>';
+  }
+
+  // your numbers, the denominator behind every grade here
+  const bw = bodyweight(), bf = +S.settings.bodyFat;
+  const cell = (l,v) => '<div style="min-width:72px"><span class="lbl">'+l+'</span><div class="num" style="font-weight:700;margin-top:3px">'+v+'</div></div>';
+  let youBits = cell("Weight", Math.round(bw)+" lb") + cell("Height", esc(S.settings.height||"—")) + cell("Age", S.settings.age||"—");
+  if (bf > 0 && bf < 60){
+    const kg = bw*0.45359, lbm = kg*(1-bf/100), h = heightCm()/100;
+    const norm = lbm/(h*h) + 6.1*(1.8 - h);
+    youBits += cell("Body fat", bf+"%") + cell("Lean mass", (lbm/0.45359).toFixed(0)+" lb") + cell("FFMI", norm.toFixed(1));
+  }
+  html += '<div class="card"><span class="lbl">You</span>'
+    + '<div class="rowline" style="flex-wrap:wrap;gap:12px 18px;margin-top:9px">'+youBits+'</div>'
+    + (bf > 0 ? '' : '<p class="cap" style="margin-top:9px">Set Body fat % in Settings to unlock lean mass + FFMI here.</p>')+'</div>';
+
+  const scores = liftScores();
+  if (scores.length){
+    const med = [...scores].sort((a,b) => a.lv.score - b.lv.score)[Math.floor(scores.length/2)];
+    const overall = med.lv.idx < 0 ? "Getting started" : LVLS[med.lv.idx];
+    html += '<div class="card hero"><span class="lbl">Strength scorecard · men at '+Math.round(bw)+' lb'
+      + (S.settings.height ? ' · '+esc(S.settings.height) : '')+'</span>'
+      + '<div class="xl grad-ink" style="margin-top:6px">'+overall+'</div>'
+      + '<div class="cap" style="margin-top:2px">overall across '+scores.length+' benchmark lift'+(scores.length>1?"s":"")+'</div>';
+    for (const sc of scores){
+      const label = sc.lv.idx < 0 ? "Beginner" : LVLS[sc.lv.idx];
+      html += '<div class="lift-row"><div class="rowline"><b>'+esc(sc.name)+'</b>'
+        + '<span class="lvl" style="color:'+(sc.lv.idx>=2?"var(--accent)":sc.lv.idx>=1?"var(--text-2)":"var(--warn)")+'">'+label+'</span></div>'
+        + '<div class="sub num">e1RM '+sc.e1+(sc.bwTotal?" lb added":" lb")+' · '+sc.ratio.toFixed(2)+'×BW'
+        + (sc.nextLb !== null ? ' · next level ~'+sc.nextLb+(sc.bwTotal?" added":"")+' lb' : ' · maxed the chart')+'</div>'
+        + '<div class="lbar">'+[0,1,2,3,4].map(i => {
+            const fill = Math.max(0, Math.min(1, sc.lv.score - i));
+            return '<span><i style="transform:scaleX('+fill.toFixed(2)+')"></i></span>'; }).join("")+'</div></div>';
+    }
+    html += '<p class="cap" style="margin-top:14px">Community-average standards for your bodyweight — orientation, not gospel. Dumbbell and machine work counts through volume in Insights.</p></div>';
+
+    const weakest = scores[scores.length-1];
+    html += '<div class="card focus-card"><span class="lbl">Where to focus</span>'
+      + '<p class="hint" style="margin-top:8px"><b style="color:var(--text-1)">'+esc(weakest.name)+'</b> is your furthest-back benchmark ('
+      + (weakest.lv.idx < 0 ? "Beginner" : LVLS[weakest.lv.idx])
+      + (weakest.nextLb !== null ? ' — ~'+Math.max(1, Math.round(weakest.nextLb - weakest.e1))+' lb of e1RM to the next level' : '')+'). Keep it first in its session; add a set there before adding anywhere else.</p></div>';
+  }
+  return html;
+}
+
 function trendsStrength(){
+  if (!S.workouts.length) return '<div class="card hint">Finish a workout or two first.</div>';
   const ids = [...new Set(S.workouts.flatMap(w => w.exercises.map(e => e.id)))]
     .filter(id => perfHistory(id).length)
     .sort((a,b) => exInfo(a).n.localeCompare(exInfo(b).n));
-  if (!ids.length) return '<div class="card hint">Finish a workout or two first.</div>';
+  if (!ids.length) return strengthOverviewHTML() || '<div class="card hint">Finish a workout or two first.</div>';
   if (!S.progSel || !ids.includes(S.progSel)) S.progSel = ids[0];
   const ex = exInfo(S.progSel);
   const hist = perfHistory(S.progSel).reverse();
@@ -1981,7 +2061,9 @@ function trendsStrength(){
   const isReps = ex.bw && hist.every(h => h.sets.every(s => !+s.w));
   const best = pts.reduce((a,b) => b.val >= a.val ? b : a);
   const delta = pts[pts.length-1].val - pts[0].val;
-  let html = '<div class="card" style="padding:12px"><select id="prog-sel">'
+  let html = strengthOverviewHTML();
+  html += '<h2>Lift by lift</h2>';
+  html += '<div class="card" style="padding:12px"><select id="prog-sel">'
     + ids.map(id => '<option value="'+id+'"'+(id===S.progSel?" selected":"")+'>'+esc(exInfo(id).n)+'</option>').join("")+'</select></div>';
   html += '<div class="card"><span class="lbl">'+esc(ex.n)+' — '+(isReps?"best reps":"est. 1RM")+'</span>'
     + '<div class="chartwrap" style="margin-top:8px">'+e1rmChart(pts)+'<div id="ctip"></div></div></div>';
@@ -2101,43 +2183,15 @@ function paintHeat(){
   }
 }
 function trendsInsights(){
-  const scores = liftScores(), bw = bodyweight();
   let html = "";
   const hasData = S.workouts.length > 0;
   if (!hasData)
-    return '<div class="card hint">Log a few workouts (the barbell lifts especially) and your scorecard, muscle map and recap build themselves.</div>';
+    return '<div class="card hint">Log a few workouts and your muscle map, report cards and recap build themselves.</div>';
 
   // highlights
   const hl = highlights();
   if (hl.length)
     html += '<div class="card"><span class="lbl">Highlights</span>'+highlightsHTML(hl)+'</div>';
-
-  // scorecard
-  if (scores.length){
-    const med = [...scores].sort((a,b) => a.lv.score - b.lv.score)[Math.floor(scores.length/2)];
-    const overall = med.lv.idx < 0 ? "Getting started" : LVLS[med.lv.idx];
-    html += '<div class="card hero"><span class="lbl">Strength scorecard · men at '+Math.round(bw)+' lb'
-      + (S.settings.height ? ' · '+esc(S.settings.height) : '')+'</span>'
-      + '<div class="xl grad-ink" style="margin-top:6px">'+overall+'</div>'
-      + '<div class="cap" style="margin-top:2px">overall across '+scores.length+' benchmark lift'+(scores.length>1?"s":"")+'</div>';
-    for (const sc of scores){
-      const label = sc.lv.idx < 0 ? "Beginner" : LVLS[sc.lv.idx];
-      html += '<div class="lift-row"><div class="rowline"><b>'+esc(sc.name)+'</b>'
-        + '<span class="lvl" style="color:'+(sc.lv.idx>=2?"var(--accent)":sc.lv.idx>=1?"var(--text-2)":"var(--warn)")+'">'+label+'</span></div>'
-        + '<div class="sub num">e1RM '+sc.e1+(sc.bwTotal?" lb added":" lb")+' · '+sc.ratio.toFixed(2)+'×BW'
-        + (sc.nextLb !== null ? ' · next level ~'+sc.nextLb+(sc.bwTotal?" added":"")+' lb' : ' · maxed the chart')+'</div>'
-        + '<div class="lbar">'+[0,1,2,3,4].map(i => {
-            const fill = Math.max(0, Math.min(1, sc.lv.score - i));
-            return '<span><i style="transform:scaleX('+fill.toFixed(2)+')"></i></span>'; }).join("")+'</div></div>';
-    }
-    html += '<p class="cap" style="margin-top:14px">Community-average standards for your bodyweight — orientation, not gospel. Dumbbell and machine work counts through volume below.</p></div>';
-
-    const weakest = scores[scores.length-1];
-    html += '<div class="card focus-card"><span class="lbl">Where to focus</span>'
-      + '<p class="hint" style="margin-top:8px"><b style="color:var(--text-1)">'+esc(weakest.name)+'</b> is your furthest-back benchmark ('
-      + (weakest.lv.idx < 0 ? "Beginner" : LVLS[weakest.lv.idx])
-      + (weakest.nextLb !== null ? ' — ~'+Math.max(1, Math.round(weakest.nextLb - weakest.e1))+' lb of e1RM to the next level' : '')+'). Keep it first in its session; add a set there before adding anywhere else.</p></div>';
-  }
 
   // muscle report card
   const mrep = muscleReport();
@@ -2576,40 +2630,8 @@ function highlightsHTML(list){
 }
 function trendsLab(){
   if (!S.workouts.length) return '<div class="card hint">Log some workouts and the lab lights up.</div>';
-  const lc = v => v > 0.05 ? "up" : v < -0.05 ? "dn" : "fl";
-  const ls = v => (v > 0 ? "+" : "")+v.toFixed(1);
   const li = (l,v,suf) => '<div class="recap-li"><span>'+l+'</span><b class="num">'+(+v).toLocaleString()+(suf||' kcal')+'</b></div>';
-  const GROUPS_L = [["","All"],["chest","Chest"],["back","Back"],["shoulders","Delts"],["arms","Arms"],["quads","Quads"],["hamstrings","Hams"]];
-  let html = '<div class="chips">'+GROUPS_L.map(([k,l]) =>
-    '<button data-act="lab-group" data-g="'+k+'"'
-    + (labGroup === k ? ' style="color:var(--accent);border-color:rgba(44,224,139,.4);background:var(--accent-dim)"' : '')
-    + '>'+l+'</button>').join("")+'</div>';
-
-  const si = strengthIndex(labGroup || null);
-  if (si.length >= 2){
-    const cur = si[si.length-1].val;
-    const d4 = cur - si[Math.max(0, si.length-5)].val, all = cur - 100;
-    html += '<div class="card hero"><span class="lbl">Strength index'
-      + (labGroup ? ' · '+GROUPS_L.find(g => g[0] === labGroup)[1] : '')+'</span>'
-      + '<div class="xl grad-ink num" style="margin-top:6px">'+cur.toFixed(1)+'</div>'
-      + '<div class="cap">100 = your first logged week · weekly best e1RM per lift, averaged</div>'
-      + '<div class="rowline num" style="margin-top:10px;gap:16px;font-size:13.5px;font-weight:600">'
-      + '<span class="'+lc(d4)+'">'+ls(d4)+' last 4 wk</span>'
-      + '<span class="'+lc(all)+'">'+ls(all)+' all-time</span></div>'
-      + '<div class="chartwrap" style="margin-top:8px">'
-      + e1rmChart(si.map(p => ({date:p.d, val:+p.val.toFixed(1), lbl:p.n+" lifts tracked"})))
-      + '<div id="ctip"></div></div></div>';
-  } else html += '<div class="card hint">'+(labGroup ? 'Not enough logged sessions for this muscle group yet.' : 'Two weeks of logs and your strength index appears — one number for "am I actually getting stronger."')+'</div>';
-
-  const rs = relStrength();
-  if (!labGroup && rs.length >= 2){
-    const cur = rs[rs.length-1].val, d = cur - rs[0].val;
-    html += '<div class="card"><span class="lbl">Relative strength · pound-for-pound</span>'
-      + '<div class="stat num" style="margin-top:6px">'+cur.toFixed(1)
-      + ' <small class="'+lc(d)+'" style="font-size:13px">'+ls(d)+' all-time</small></div>'
-      + '<div class="cap" style="margin:2px 0 6px">strength index corrected for bodyweight change — on a cut, THIS is the win condition</div>'
-      + '<div class="chartwrap">'+e1rmChart(rs.map(p => ({date:p.d, val:+p.val.toFixed(1), lbl:""})))+'</div></div>';
-  }
+  let html = "";
 
   const wk = weeklyStats();
   if (wk.length >= 2){
@@ -2790,8 +2812,16 @@ function kcalChart(ks){
     + '" fill="none" stroke="#2CE08B" stroke-width="2" opacity=".8"/>' : "";
   const tl = '<line x1="'+L+'" y1="'+Y(target)+'" x2="'+(W-R)+'" y2="'+Y(target)+'" stroke="rgba(255,255,255,.38)" stroke-dasharray="5 4"/>'
     + '<text x="'+(W-R)+'" y="'+(Y(target)-4)+'" text-anchor="end" font-size="10" fill="rgba(255,255,255,.62)">target</text>';
-  const xlab = [k2[0].d, k2[k2.length-1].d].filter((v,i,a)=>a.indexOf(v)===i).map(dsx =>
-    '<text x="'+X(dsx).toFixed(1)+'" y="'+(H-7)+'" text-anchor="middle" font-size="10" fill="rgba(255,255,255,.38)">'+fmtShort(dsx)+'</text>').join("");
+  /* date labels: skip any that would collide (clustered logs used to overlap) */
+  const xR2 = X(k2[k2.length-1].d), xL2 = X(k2[0].d);
+  let labDs = xR2 - xL2 < 48 ? [k2[k2.length-1].d] : [k2[0].d, k2[k2.length-1].d];
+  if (k2.length > 2 && xR2 - xL2 >= 150){
+    const mid = k2[Math.floor(k2.length/2)].d, xm = X(mid);
+    if (xm - xL2 >= 48 && xR2 - xm >= 48) labDs = [k2[0].d, mid, k2[k2.length-1].d];
+  }
+  const xlab = [...new Set(labDs)].map(dsx => {
+    const lx = Math.max(L+14, Math.min(W-16, X(dsx)));
+    return '<text x="'+lx.toFixed(1)+'" y="'+(H-7)+'" text-anchor="middle" font-size="10" fill="rgba(255,255,255,.38)">'+fmtShort(dsx)+'</text>'; }).join("");
   return '<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="daily calories">'+g+bars+avgPath+tl+xlab+'</svg>';
 }
 function e1rmChart(pts){
