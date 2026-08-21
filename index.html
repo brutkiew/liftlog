@@ -1513,9 +1513,10 @@ function scoreHeroInner(done){
     + (rt ? '<div class="cap" style="margin-top:5px;cursor:pointer" data-act="score-why" data-id="'+done.id+'">Why this grade ›</div>' : '')
     + '</div></div>'
     + (tp ? '<div class="hint" style="margin-top:10px"><span class="ok-dot"></span>Tomorrow — '
-        + esc((sesDef(tmr.session)||{}).name || "Custom")+(tmr.exercises.length ? ' · '+tmr.exercises.length+' exercises' : '')+'</div>' : '')
+        + esc((sesDef(tmr.session)||{}).name || tmr.bname || "Custom")+(tmr.exercises.length ? ' · '+tmr.exercises.length+' exercises' : '')+'</div>' : '')
     + '<div class="btnrow"><button class="primary" data-act="plan-tomorrow">'+(tp ? "Edit tomorrow's plan" : "Plan tomorrow")+'</button>'
-    + '<button data-act="reopen" data-date="'+todayStr()+'">Reopen &amp; edit</button></div>';
+    + '<button data-act="reopen" data-date="'+todayStr()+'">Reopen &amp; edit</button></div>'
+    + '<button class="ghost" data-act="builder-open" style="width:100%;margin-top:8px;font-size:13px">Target builder — build tomorrow around what\'s fresh →</button>';
 }
 function checkinHTML(today){
   const wToday = S.body.weights[today], kYest = S.body.kcals[addDays(today,-1)];
@@ -1726,7 +1727,9 @@ function renderWorkout(d){
       + '<div class="rowline" style="margin-top:10px">'
       + '<input id="plan-date" type="date" value="'+d.date+'" min="'+addDays(todayStr(), 1)+'" style="flex:1">'
       + '<select id="plan-ses" style="flex:1.2">'+sessionOptions(d.session)+'</select>'
-      + '</div></div>';
+      + '</div>'
+      + '<button class="ghost" data-act="builder-open" data-for="'+d.date+'" style="width:100%;margin-top:8px;font-size:13px">Or let the Target builder fill this day →</button>'
+      + '</div>';
 
   d.exercises.forEach((e, i) => {
     const a = analyze(e.id, e.plan);
@@ -3359,7 +3362,7 @@ function openPastModal(){
 }
 
 /* ================= target builder ================= */
-let bSel = [], bSize = 6, bMyth = null;
+let bSel = [], bSize = 6, bMyth = null, bFor = null;
 function tgtDays(k){
   if (!freshD) freshD = freshDays();
   if (k.startsWith("g:")){
@@ -3371,8 +3374,13 @@ function tgtDays(k){
   return freshD.sub[k] !== undefined ? freshD.sub[k] : null;
 }
 const tgtLabel = k => k.startsWith("g:") ? "All "+(GROUPS[k.slice(2)]||"") : (TGT_LBL[k]||k);
-function openBuilderModal(){
+function openBuilderModal(fixedDate){
   bSel = []; bMyth = null; freshD = freshDays();
+  /* where the built session lands: an explicit date (from the planning editor) wins;
+     otherwise tomorrow once today's session is already logged; otherwise user's choice */
+  bFor = fixedDate || null;
+  const doneToday = S.workouts.some(w => w.date === todayStr());
+  if (!bFor && doneToday) bFor = addDays(todayStr(), 1);
   const chip = (k, label) => '<button class="tchip" data-act="tsel" data-k="'+k+'">'
     + '<i class="fdot" style="background:'+freshFill(tgtDays(k))+'"></i>'+label+'</button>';
   let h = '<h3>Target builder</h3>'
@@ -3390,8 +3398,12 @@ function openBuilderModal(){
   h += '<div class="mgroup">Session size</div><div class="stabs" id="bsz">'
     + [[4,"Quick · 4"],[6,"Focused · 6"],[8,"Full · 8"]].map(([n,l]) =>
       '<button data-act="bsize" data-n="'+n+'" class="'+(bSize===n?"on":"")+'">'+l+'</button>').join("")+'</div>';
-  h += '<label class="rowline" style="gap:8px;margin-top:14px"><input type="checkbox" id="btmr" style="width:20px;height:20px">'
-    + '<span style="font-size:14px">Build it for tomorrow instead</span></label>';
+  h += bFor
+    ? '<p class="hint" style="margin-top:14px"><span class="ok-dot"></span>Building for <b style="color:var(--text-1)">'
+      + (bFor === addDays(todayStr(), 1) ? "tomorrow" : fmtDate(bFor))+'</b>'
+      + (!fixedDate && doneToday ? " — today's session is already in the books." : ".")+'</p>'
+    : '<label class="rowline" style="gap:8px;margin-top:14px"><input type="checkbox" id="btmr" style="width:20px;height:20px">'
+      + '<span style="font-size:14px">Build it for tomorrow instead</span></label>';
   h += '<div class="btnrow"><button class="primary" data-act="builder-go">Build the session</button>'
     + '<button data-act="modal-close">Cancel</button></div>';
   openModal(h);
@@ -3406,7 +3418,7 @@ function updateBNotes(){
     const evb = info ? (info.ev === 2 ? ' <span class="evb p">PROVEN</span>' : info.ev === 1 ? ' <span class="evb l">LIKELY</span>' : ' <span class="evb o">OPTIONAL</span>') : "";
     h += '<p class="hint" style="margin-top:10px"><b style="color:var(--text-1)">'+tgtLabel(k)+'</b>'+evb
       + ' — '+(info ? info.note : 'everything for the muscle: stretch-loaded primary + complement.')
-      + (d !== null && d <= 1 ? ' <span class="wr">Trained '+(d === 0 ? "today" : "yesterday")+' — consider building for tomorrow, or keep it light.</span>' : '')+'</p>';
+      + (d !== null && d <= 1 ? ' <span class="wr">Trained '+(d === 0 ? "today" : "yesterday")+' — still recovering; go light or pick another target.</span>' : '')+'</p>';
   }
   el.innerHTML = h;
 }
@@ -3706,7 +3718,7 @@ document.addEventListener("click", ev => {
   }
   else if (act === "swap"){ openAddModal(ei); }
   else if (act === "add-ex"){ openAddModal(null); }
-  else if (act === "builder-open"){ openBuilderModal(); }
+  else if (act === "builder-open"){ openBuilderModal(btn.dataset.for || null); }
   else if (act === "tsel"){
     const k = btn.dataset.k;
     if (bSel.includes(k)) bSel = bSel.filter(x => x !== k);
@@ -3729,19 +3741,20 @@ document.addEventListener("click", ev => {
   }
   else if (act === "builder-go"){
     if (!bSel.length){ showToast("Pick at least one target first."); return; }
-    const tomorrow = $("#btmr") && $("#btmr").checked;
-    const bdate = tomorrow ? addDays(todayStr(), 1) : todayStr();
+    const bdate = bFor || (($("#btmr") && $("#btmr").checked) ? addDays(todayStr(), 1) : todayStr());
+    const future = bdate > todayStr();
     if (draftHasData(S.drafts[bdate])
-        && !confirm((tomorrow ? "Tomorrow" : "Today")+" already has a workout in progress — replace it?")) return;
+        && !confirm(fmtDate(bdate)+" already has logged sets — replace them?")) return;
     const built = buildWorkout(bSel, bSize);
     if (!built.list.length){ showToast("Couldn't find lifts for that pick — try different targets."); return; }
-    S.drafts[bdate] = {date:bdate, session:null, bname:built.name, active:false, startedAt:null, timer:null,
-      planned: tomorrow ? true : undefined,
+    S.drafts[bdate] = {date:bdate, session:null, bname:built.name, startedAt:null, timer:null,
+      planned: future ? true : undefined, active: future,
       exercises: built.list.map((x,i) => ({id:x.id, plan:x.plan, note:"", open:i===0, sets:setsFor(x.id, x.plan.n)})),
       cardio:{on:true, min:20}, note:""};
+    if (future) S.editing = bdate;
     save(); closeModal(); tab = "home"; render();
     showToast("Built <b>"+built.list.length+" lifts</b> — "+esc(built.name.replace("Target: ",""))
-      + (tomorrow ? ". Waiting on Home tomorrow." : ". Review it, swap anything, then Start."));
+      + (future ? ". Look it over, then tap Done." : ". Review it, swap anything, then Start."));
   }
   else if (act === "modal-add"){
     d.exercises.forEach(x => x.open = false);
