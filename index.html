@@ -495,34 +495,77 @@ const GROUP_COL = {chest:"#FF6B6B", triceps:"#9B8CF8", back:"#5AA7F0", biceps:"#
   abs:"#FFD60A", other:"#8A93A3"};
 const MAJOR_COL = {Chest:"#FF6B6B", Back:"#5AA7F0", Delts:"#FFB020", Arms:"#B085F5",
   Quads:"#2CE08B", Hams:"#FF7BAC", Calves:"#64D2FF", Core:"#FFD60A"};
+/* Credit tiers, EMG/biomechanics-based:
+     p = prime movers (1.0 set credit)     s = strong synergists (0.5)
+     t = stabilizers & minor synergists (0.25) — muscles with meaningful documented
+         involvement (isometric bracing, grip, balance), not every trace activation.
+   Notes behind the t/s choices:
+   - DB presses add biceps (long head stabilizes the shoulder — Saeterbakken free-weight
+     vs machine EMG work); all pressing gets forearms grip credit, standing/arched work
+     gets core.
+   - Rows earn shoulders (rear delts fire hard in rowing — comparable to isolation work,
+     hence 0.5); hinged rows also load lower back, hamstrings, glutes, grip isometrically.
+   - Pushdowns/extensions get core + lats: the trunk and lats brace against the cable
+     (his upper-abs-during-pushdowns intuition — credited at region level).
+   - Straight-arm work (sapd, pullover) hits the triceps long head (shoulder extension).
+   - Overhead pressing/raises get upper_back (traps upwardly rotate the scapula).
+   - Squat patterns add hamstrings (co-contraction) + calves (ankle stability); single-leg
+     work (bss, lunge) adds core for balance; RDL adds grip/traps/core isometrics.
+   - Leg curls add calves (gastrocnemius crosses the knee).
+   - Hanging leg raises add grip, lats (hang) and quads (rectus femoris hip flexion). */
 const MUSC = {
-  bench:{p:["chest"],s:["shoulders","triceps"]}, incbb:{p:["chest"],s:["shoulders","triceps"]},
-  incdb:{p:["chest"],s:["shoulders","triceps"]}, flatdb:{p:["chest"],s:["shoulders","triceps"]},
-  dip:{p:["chest"],s:["triceps"]}, cfly:{p:["chest"],s:[]}, l2h:{p:["chest"],s:[]},
-  pec:{p:["chest"],s:[]}, machchest:{p:["chest"],s:["triceps"]},
-  ohext:{p:["triceps"],s:[]}, dbohext:{p:["triceps"],s:[]}, ropeoh:{p:["triceps"],s:[]},
-  pushdown:{p:["triceps"],s:[]}, rope:{p:["triceps"],s:[]},
-  cgbp:{p:["triceps"],s:["chest"]}, jm:{p:["triceps"],s:[]}, skull:{p:["triceps"],s:[]},
-  pullup:{p:["lats"],s:["biceps","forearms"]}, latpd:{p:["lats"],s:["biceps"]},
-  ngpd:{p:["lats"],s:["biceps"]}, sapd:{p:["lats"],s:[]}, pullover:{p:["lats"],s:["chest"]},
-  bbrow:{p:["upper_back"],s:["lats","biceps"]}, tbar:{p:["upper_back"],s:["lats","biceps"]},
-  csrow:{p:["upper_back"],s:["lats","biceps"]}, dbrow:{p:["lats"],s:["upper_back","biceps"]},
-  cablerow:{p:["upper_back"],s:["lats","biceps"]},
+  bench:{p:["chest"],s:["shoulders","triceps"],t:["forearms","core"]},
+  incbb:{p:["chest"],s:["shoulders","triceps"],t:["forearms","core"]},
+  incdb:{p:["chest"],s:["shoulders","triceps"],t:["forearms","core","biceps"]},
+  flatdb:{p:["chest"],s:["shoulders","triceps"],t:["forearms","core","biceps"]},
+  dip:{p:["chest"],s:["triceps","shoulders"],t:["core"]},
+  cfly:{p:["chest"],s:["shoulders"],t:["biceps","core"]},
+  l2h:{p:["chest"],s:["shoulders"],t:["biceps","core"]},
+  pec:{p:["chest"],s:["shoulders"],t:["biceps"]},
+  machchest:{p:["chest"],s:["triceps","shoulders"]},
+  ohext:{p:["triceps"],s:[],t:["core","shoulders","forearms"]},
+  dbohext:{p:["triceps"],s:[],t:["core","shoulders","forearms"]},
+  ropeoh:{p:["triceps"],s:[],t:["core","shoulders","forearms"]},
+  pushdown:{p:["triceps"],s:[],t:["core","lats","forearms"]},
+  rope:{p:["triceps"],s:[],t:["core","lats","forearms"]},
+  cgbp:{p:["triceps"],s:["chest","shoulders"],t:["forearms","core"]},
+  jm:{p:["triceps"],s:["chest"],t:["forearms"]},
+  skull:{p:["triceps"],s:[],t:["forearms"]},
+  pullup:{p:["lats"],s:["biceps","forearms"],t:["core","upper_back"]},
+  latpd:{p:["lats"],s:["biceps"],t:["forearms","upper_back"]},
+  ngpd:{p:["lats"],s:["biceps"],t:["forearms","upper_back"]},
+  sapd:{p:["lats"],s:[],t:["triceps","core"]},
+  pullover:{p:["lats"],s:["chest"],t:["triceps","core"]},
+  bbrow:{p:["upper_back"],s:["lats","biceps","shoulders"],t:["lower_back","hamstrings","glutes","forearms","core"]},
+  tbar:{p:["upper_back"],s:["lats","biceps","shoulders"],t:["lower_back","hamstrings","glutes","forearms","core"]},
+  csrow:{p:["upper_back"],s:["lats","biceps","shoulders"],t:["forearms"]},
+  dbrow:{p:["lats"],s:["upper_back","biceps","shoulders"],t:["forearms","core","lower_back"]},
+  cablerow:{p:["upper_back"],s:["lats","biceps","shoulders"],t:["lower_back","forearms","core"]},
   ezcurl:{p:["biceps"],s:["forearms"]}, bbcurl:{p:["biceps"],s:["forearms"]},
-  incurl:{p:["biceps"],s:[]}, hammer:{p:["biceps"],s:["forearms"]},
-  cablecurl:{p:["biceps"],s:[]}, preacher:{p:["biceps"],s:[]},
-  dbohp:{p:["shoulders"],s:["triceps"]}, machohp:{p:["shoulders"],s:["triceps"]},
-  smithohp:{p:["shoulders"],s:["triceps"]},
-  arnold:{p:["shoulders"],s:["triceps"]}, bbohp:{p:["shoulders"],s:["triceps","core"]},
-  latraise:{p:["shoulders"],s:[]}, clat:{p:["shoulders"],s:[]}, cfront:{p:["shoulders"],s:[]},
-  rpd:{p:["shoulders"],s:["upper_back"]}, sarpd:{p:["shoulders"],s:["upper_back"]},
-  facepull:{p:["shoulders"],s:["upper_back"]},
-  squat:{p:["quads"],s:["glutes","lower_back","core"]}, legpress:{p:["quads"],s:["glutes"]},
-  hack:{p:["quads"],s:["glutes"]}, legext:{p:["quads"],s:[]},
-  bss:{p:["quads"],s:["glutes"]}, lunge:{p:["quads"],s:["glutes"]},
-  rdl:{p:["hamstrings"],s:["glutes","lower_back"]}, legcurl:{p:["hamstrings"],s:[]},
+  incurl:{p:["biceps"],s:[],t:["forearms"]}, hammer:{p:["biceps"],s:["forearms"]},
+  cablecurl:{p:["biceps"],s:[],t:["forearms"]}, preacher:{p:["biceps"],s:[],t:["forearms"]},
+  dbohp:{p:["shoulders"],s:["triceps"],t:["upper_back","forearms"]},
+  machohp:{p:["shoulders"],s:["triceps"],t:["upper_back"]},
+  smithohp:{p:["shoulders"],s:["triceps"],t:["upper_back"]},
+  arnold:{p:["shoulders"],s:["triceps"],t:["upper_back","forearms"]},
+  bbohp:{p:["shoulders"],s:["triceps","core"],t:["upper_back","forearms","glutes"]},
+  latraise:{p:["shoulders"],s:[],t:["upper_back","forearms"]},
+  clat:{p:["shoulders"],s:[],t:["upper_back","forearms"]},
+  cfront:{p:["shoulders"],s:[],t:["upper_back"]},
+  rpd:{p:["shoulders"],s:["upper_back"]},
+  sarpd:{p:["shoulders"],s:["upper_back"],t:["core"]},
+  facepull:{p:["shoulders"],s:["upper_back"],t:["biceps","forearms"]},
+  squat:{p:["quads"],s:["glutes","lower_back","core"],t:["hamstrings","calves"]},
+  legpress:{p:["quads"],s:["glutes"],t:["hamstrings","calves"]},
+  hack:{p:["quads"],s:["glutes"],t:["hamstrings","calves"]},
+  legext:{p:["quads"],s:[]},
+  bss:{p:["quads"],s:["glutes"],t:["hamstrings","calves","core"]},
+  lunge:{p:["quads"],s:["glutes"],t:["hamstrings","calves","core"]},
+  rdl:{p:["hamstrings"],s:["glutes","lower_back"],t:["forearms","upper_back","core"]},
+  legcurl:{p:["hamstrings"],s:[],t:["calves"]},
   scalf:{p:["calves"],s:[]}, seatcalf:{p:["calves"],s:[]},
-  hlr:{p:["core"],s:[]}, cablecrunch:{p:["core"],s:[]},
+  hlr:{p:["core"],s:[],t:["forearms","lats","quads"]},
+  cablecrunch:{p:["core"],s:[]},
 };
 const GROUP_M = {chest:{p:["chest"],s:["triceps"]}, triceps:{p:["triceps"],s:[]},
   back:{p:["lats"],s:["upper_back","biceps"]}, biceps:{p:["biceps"],s:["forearms"]},
@@ -758,6 +801,8 @@ function regionVolume(a, b){
         (contrib[r] = contrib[r]||{})[nm] = (contrib[r][nm]||0) + n; }
       for (const r of m.s){ per[r] = (per[r]||0) + n*0.5;
         (contrib[r] = contrib[r]||{})[nm] = (contrib[r][nm]||0) + n*0.5; }
+      for (const r of (m.t||[])){ per[r] = (per[r]||0) + n*0.25;
+        (contrib[r] = contrib[r]||{})[nm] = (contrib[r][nm]||0) + n*0.25; }
     }
   }
   return {per, contrib};
@@ -1213,18 +1258,39 @@ const FRESH_REG = {Chest:["chest"], Back:["lats","upper_back"], Delts:["shoulder
   Arms:["biceps","triceps","forearms"], Quads:["quads"], Hams:["hamstrings","glutes"],
   Calves:["calves"], Core:["core","lower_back"]};
 function freshSVG(id){ return bodySVG().replace(/heatmap/g, id); }
+/* freshness at the same granularity as the heat map: days since each region / sub-region
+   last got a real dose (≥2 credited sets; p 1.0 / s 0.5 / t 0.25, subs by their own sets) */
+let freshD = null;
+function freshDays(){
+  const lastR = {}, lastS = {};
+  for (const w of S.workouts){
+    const cr = {}, cs = {};
+    for (const e of w.exercises){
+      const n = workSets(e.sets).length; if (!n) continue;
+      const m = muscOf(e.id);
+      for (const r of m.p) cr[r] = (cr[r]||0) + n;
+      for (const r of m.s) cr[r] = (cr[r]||0) + n*0.5;
+      for (const r of (m.t||[])) cr[r] = (cr[r]||0) + n*0.25;
+      const sb = exInfo(e.id).sub; if (sb) cs[sb] = (cs[sb]||0) + n;
+    }
+    for (const [r,c] of Object.entries(cr)) if (c >= 2 && (!lastR[r] || w.date > lastR[r])) lastR[r] = w.date;
+    for (const [k,c] of Object.entries(cs)) if (c >= 2 && (!lastS[k] || w.date > lastS[k])) lastS[k] = w.date;
+  }
+  const dd = d => Math.round((new Date(todayStr()+"T12:00:00") - new Date(d+"T12:00:00"))/864e5);
+  return {reg:Object.fromEntries(Object.entries(lastR).map(([r,d]) => [r, dd(d)])),
+          sub:Object.fromEntries(Object.entries(lastS).map(([k,d]) => [k, dd(d)]))};
+}
 function paintFresh(id){
   const svg = document.getElementById(id); if (!svg) return;
-  const fill = {}, glow = {};
-  for (const f of freshness())
-    for (const r of FRESH_REG[f.nm] || []){
-      fill[r] = f.days === null ? "var(--bg-2)" : f.days <= 1 ? "rgba(255,214,10,.55)" : "rgba(44,224,139,.5)";
-      glow[r] = f.days === null ? "" : f.days <= 1
-        ? "drop-shadow(0 0 4px rgba(255,214,10,.45))" : "drop-shadow(0 0 4px rgba(44,224,139,.4))";
-    }
+  freshD = freshDays();
   for (const el of svg.querySelectorAll("[data-region]")){
-    el.setAttribute("fill", fill[el.dataset.region] || "var(--bg-2)");
-    el.style.filter = glow[el.dataset.region] || "";
+    const sub = el.dataset.sub;
+    const days = sub !== undefined
+      ? (freshD.sub[sub] !== undefined ? freshD.sub[sub] : null)
+      : (freshD.reg[el.dataset.region] !== undefined ? freshD.reg[el.dataset.region] : null);
+    el.setAttribute("fill", days === null ? "var(--bg-2)" : days <= 1 ? "rgba(255,214,10,.55)" : "rgba(44,224,139,.5)");
+    el.style.filter = days === null ? "" : days <= 1
+      ? "drop-shadow(0 0 4px rgba(255,214,10,.45))" : "drop-shadow(0 0 4px rgba(44,224,139,.4))";
   }
 }
 function weekBulletHTML(){
@@ -2169,6 +2235,7 @@ function freshness(){
       const n = workSets(e.sets).length; if (!n) continue;
       for (const r of muscOf(e.id).p) cred[r] = (cred[r]||0) + n;
       for (const r of muscOf(e.id).s) cred[r] = (cred[r]||0) + n*0.5;
+      for (const r of (muscOf(e.id).t||[])) cred[r] = (cred[r]||0) + n*0.25;
     }
     for (const [nm, regs] of majors){
       const c = regs.reduce((a,r) => a + (cred[r]||0), 0);
@@ -3187,19 +3254,22 @@ document.addEventListener("click", ev => {
     if (svg) reg = regionAtPoint(svg, ev.clientX, ev.clientY);
   }
   if (reg && reg.closest("#freshmap")){
-    const inv = {};
-    for (const [nm, regs] of Object.entries(FRESH_REG)) for (const r of regs) inv[r] = nm;
-    const major = inv[reg.dataset.region];
-    const f = major && freshness().find(x => x.nm === major);
+    const r = reg.dataset.region, sub = reg.dataset.sub;
+    markSel(reg.closest("svg"), sub !== undefined
+      ? p => p.dataset.sub === sub : p => p.dataset.region === r);
     const el = $("#fresh-detail");
-    if (major) markSel(reg.closest("svg"), p => (FRESH_REG[major]||[]).includes(p.dataset.region));
-    if (el && f){
-      const {per} = regionVolume(addDays(todayStr(),-6), todayStr());
-      const sets = (FRESH_REG[major]||[]).reduce((a,r) => a + (per[r]||0), 0);
-      const st = f.days === null ? "not trained yet"
-        : f.days <= 1 ? '<span class="wr">recovering</span> — trained '+(f.days === 0 ? "today" : "yesterday")
-        : '<span class="up">fresh</span> — last trained '+f.days+' days ago';
-      el.innerHTML = "<b>"+major+"</b> — "+st+" · "+(Math.round(sets*2)/2)+" hard sets this week";
+    if (el){
+      if (!freshD) freshD = freshDays();
+      const days = sub !== undefined
+        ? (freshD.sub[sub] !== undefined ? freshD.sub[sub] : null)
+        : (freshD.reg[r] !== undefined ? freshD.reg[r] : null);
+      const sets = sub !== undefined ? subVolume(sub, 7)
+        : (regionVolume(addDays(todayStr(),-6), todayStr()).per[r] || 0);
+      const nm = REGIONS[r] + (sub !== undefined && SUB_LBL[sub] ? " · "+SUB_LBL[sub].toLowerCase() : "");
+      const st = days === null ? "not trained yet"
+        : days <= 1 ? '<span class="wr">recovering</span> — trained '+(days === 0 ? "today" : "yesterday")
+        : '<span class="up">fresh</span> — last trained '+days+' days ago';
+      el.innerHTML = "<b>"+nm+"</b> — "+st+" · "+(Math.round(sets*2)/2)+" hard sets this week";
     }
     return;
   }
