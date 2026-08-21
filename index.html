@@ -295,8 +295,8 @@
   .heat-legend{display:flex;gap:12px;justify-content:center;margin-top:10px;flex-wrap:wrap}
   .heat-legend span{display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--text-3);font-weight:600}
   .heat-legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
-  #heat-detail{margin-top:10px;font-size:13px;color:var(--text-2);text-align:center;min-height:20px}
-  #heat-detail b{color:var(--text-1)}
+  #heat-detail,#fresh-detail{margin-top:10px;font-size:13px;color:var(--text-2);text-align:center;min-height:20px}
+  #heat-detail b,#fresh-detail b{color:var(--text-1)}
   [data-region]{cursor:pointer;transition:opacity .2s}
   [data-region]:active{opacity:.7}
   /* consistency calendar */
@@ -1364,7 +1364,8 @@ function renderHome(){
   html += '<div class="card span2"><span class="lbl">Muscle freshness</span>'+freshSVG("freshmap")
     + '<div class="freshleg"><span><i style="background:rgba(44,224,139,.7)"></i>Fresh</span>'
     + '<span><i style="background:rgba(255,214,10,.7)"></i>Recovering</span>'
-    + '<span><i style="background:var(--bg-3)"></i>Quiet</span></div></div>';
+    + '<span><i style="background:var(--bg-3)"></i>Quiet</span></div>'
+    + '<div id="fresh-detail" class="num">tap a muscle</div></div>';
   html += '<div class="card tap tint" style="--tint:rgba(255,176,32,.10)" data-act="goto-trends"><span class="lbl">Volume</span>'+weekBulletHTML()
     + '<div class="cap" style="margin-top:8px">vs your 4-week typical</div></div>';
   html += '<div class="card tap tint" style="--tint:rgba(255,214,10,.11)" data-act="goto-insights"><span class="lbl">PRs · 28 days</span>'
@@ -1936,10 +1937,10 @@ function bodySVG(){
     + '<path d="'+d+'" class="sil" transform="translate(220,0) scale(-1,1)"/>';
   /* half-body outline: neck → shoulder → arm (rounded tip, no hands) → armpit → torso →
      leg → foot → centerline. Softer taper than v1. */
-  const OUTLINE = "M110 30 L118 31 C120 40 126 44 137 48 C148 51 154 58 154 68 C154 78 151 87 149 96 "
-    + "C148 105 147 113 147 121 C147 133 145 145 141 157 C139 163 136 169 133 172 C130 174 127 172 127 166 "
-    + "C127 160 127 154 127 149 C128 139 128 129 129 120 C130 110 131 102 134 95 C135 92 136 90 136 88 "
-    + "C134 98 133 110 134 122 C135 134 137 142 139 150 C142 160 143 174 141 190 C139 208 137 220 136 230 "
+  const OUTLINE = "M110 30 L118 31 C120 40 126 44 137 48 C149 51 156 58 156 68 C157 78 156 88 155 97 "
+    + "C155 106 155 114 156 121 C157 132 156 145 153 157 C152 163 150 168 148 171 C145 174 142 172 142 166 "
+    + "C142 160 142 154 143 149 C144 139 144 129 144 120 C144 111 142 103 140 96 C139 93 138 90 137 88 "
+    + "C135 98 134 110 135 122 C136 134 138 142 139 150 C142 160 143 174 141 190 C139 208 137 220 136 230 "
     + "C137 240 138 248 137 256 C136 268 133 280 130 290 C130 296 131 300 135 303 L119 304 "
     + "C116 298 116 292 117 286 C118 272 118 258 117 248 C116 238 116 232 117 226 C118 212 118 198 117 186 "
     + "C116 176 114 168 111 164 L110 164 Z";
@@ -1947,21 +1948,21 @@ function bodySVG(){
     + '<rect x="102" y="26" width="16" height="10" rx="4" class="sil"/>';
   const label = t => '<text x="110" y="323" text-anchor="middle" font-size="11" fill="var(--text-3)" font-weight="600" letter-spacing="1.5">'+t+'</text>';
   let s = '<svg viewBox="0 0 440 332" style="width:100%;max-width:360px;margin:0 auto;display:block" id="heatmap">';
-  s += '<style>#heatmap .sil{fill:#191D2B}'
+  s += '<style>#heatmap .sil{fill:#242C44;stroke:rgba(160,175,255,.14);stroke-width:1}'
     + '#heatmap [data-region]{stroke:rgba(8,10,20,.8);stroke-width:1.1;stroke-linejoin:round;transition:fill .35s}'
     + '</style>';
   /* ================= FRONT ================= */
   s += '<g>' + HEAD + SIL(OUTLINE);
   // delts — front head (inner crescent) + side head (outer crescent)
-  s += P("M136 50 C141 51 146 55 148 60 C149 64 149 68 148 72 C144 70 140 65 138 60 C137 56 136 53 136 50 Z","shoulders","delt_front");
-  s += P("M150 60 C152 63 153 66 153 70 C153 77 151 84 148 89 C145 86 144 80 144 74 C145 68 147 63 150 60 Z","shoulders","delt_side");
+  s += P("M136 50 C142 51 147 55 150 60 C151 64 151 68 150 72 C146 70 141 64 138 59 C137 56 136 52 136 50 Z","shoulders","delt_front");
+  s += P("M152 59 C154 62 155 66 155 70 C155 77 153 84 150 89 C147 86 146 80 146 74 C147 68 149 63 152 59 Z","shoulders","delt_side");
   // chest — upper band + mid/lower fan
   s += P("M111 54 C119 52 127 51 134 51 C135 55 135.5 59 135 64 C127 66 118 66 110.5 65 L110.5 55 Z","chest","chest_up");
   s += P("M110.5 68 C118 69 127 69 134 67 C135 73 134 79 132 84 C127 90 118 92 113 90 C111 87 110.5 83 110.5 77 Z","chest","chest_low");
   // biceps
-  s += P("M136 92 C140 91 144 93 145 99 C145 106 144 112 142 117 C139 120 135 118 134 112 C133 105 134 98 136 92 Z","biceps");
+  s += P("M141 93 C145 92 149 95 150 101 C150 108 149 114 147 118 C144 121 141 119 140 113 C139 106 140 99 141 93 Z","biceps");
   // forearms
-  s += P("M130 122 C135 119 139 121 140 127 C141 137 138 148 134 158 C131 163 127 161 127 155 C126 144 127 132 130 122 Z","forearms");
+  s += P("M144 124 C149 122 153 125 153 131 C153 140 151 150 147 159 C144 164 141 162 141 156 C140 145 141 133 144 124 Z","forearms");
   // abs — upper crunch zone (2 plates) + lower zone + obliques
   s += P("M111 96 C114.5 95 118.5 96 120 98 L120 109 C116.5 110 113 110 111 109 Z","core","abs_crunch");
   s += P("M111 112 C114.5 111 118.5 112 120 114 L120 125 C116.5 126 113 126 111 125 Z","core","abs_crunch");
@@ -1978,14 +1979,14 @@ function bodySVG(){
   // traps
   s += P("M110.5 38 C117 40 125 44 132 49 C127 55 121 62 116 72 C113 78 112 82 110.5 84 Z","upper_back");
   // rear delts
-  s += P("M136 50 C145 52 152 59 152 68 C152 76 150 82 147 86 C143 82 139 74 137 66 C136 60 136 54 136 50 Z","shoulders","delt_rear");
+  s += P("M136 50 C145 52 153 58 154 67 C154 75 152 82 149 86 C145 82 140 73 138 65 C137 59 136 54 136 50 Z","shoulders","delt_rear");
   // lats
   s += P("M131 82 C135 86 136 92 135 98 C133 112 127 124 118 132 C114 135 111.5 136 110.5 136 L110.5 94 C117 92 125 88 131 82 Z","lats");
   // triceps — long head (inner) + lateral head (outer)
-  s += P("M134 91 C137 90 139 92 139.5 97 C139.5 104 138.5 111 136.5 116 C134.5 119 133 117 133 112 C132.5 104 133 96 134 91 Z","triceps","tri_long");
-  s += P("M141.5 90 C144.5 90 146.5 93 146.5 99 C146 106 144 112 141.5 117 C139.5 119 138.5 117 138.5 112 C139 104 140 96 141.5 90 Z","triceps","tri_lat");
+  s += P("M139 92 C142 91 144 93 144.5 98 C144.5 105 143.5 112 141.5 117 C139.5 120 138 118 138 113 C137.5 105 138 97 139 92 Z","triceps","tri_long");
+  s += P("M146.5 91 C149.5 91 151.5 94 151.5 100 C151 107 149 113 146.5 118 C144.5 120 143.5 118 143.5 113 C144 105 145 97 146.5 91 Z","triceps","tri_lat");
   // forearms
-  s += P("M130 122 C135 119 139 121 140 127 C141 137 138 148 134 158 C131 163 127 161 127 155 C126 144 127 132 130 122 Z","forearms");
+  s += P("M144 124 C149 122 153 125 153 131 C153 140 151 150 147 159 C144 164 141 162 141 156 C140 145 141 133 144 124 Z","forearms");
   // erectors
   s += P("M110.5 118 C114 118 117 122 117 130 C117 140 115 148 112.5 153 C111.5 154 110.5 154 110.5 154 Z","lower_back");
   // glutes
@@ -1998,12 +1999,20 @@ function bodySVG(){
   s += label("BACK") + '</g>';
   return s + '</svg>';
 }
-let heatData = null, heatSubs = null;
+let heatData = null, heatSubs = null, heatSubC = null;
 function paintHeat(){
   const svg = $("#heatmap"); if (!svg) return;
   heatData = regionVolume(addDays(todayStr(),-6), todayStr());
-  heatSubs = {};
-  for (const subs of Object.values(GROUP_SUBS)) for (const k of subs) heatSubs[k] = subVolume(k, 7);
+  heatSubs = {}; heatSubC = {};
+  const a7 = addDays(todayStr(), -6);
+  for (const w of S.workouts){ if (w.date < a7) continue;
+    for (const e of w.exercises){
+      const sb = exInfo(e.id).sub; if (!sb) continue;
+      const n = workSets(e.sets).length; if (!n) continue;
+      heatSubs[sb] = (heatSubs[sb]||0) + n;
+      (heatSubC[sb] = heatSubC[sb]||{})[exInfo(e.id).n] = (heatSubC[sb][exInfo(e.id).n]||0) + n;
+    }
+  }
   for (const el of svg.querySelectorAll("[data-region]")){
     const sub = el.dataset.sub;
     const v = sub !== undefined ? (heatSubs[sub] || 0) : (heatData.per[el.dataset.region] || 0);
@@ -3151,13 +3160,48 @@ function claudeText(){
 }
 
 /* ================= events ================= */
+/* forgiving muscle-map hit test: a tap on a gap or the silhouette snaps to the nearest
+   muscle shape (within ~18px) — exact shapes are small, especially on a phone */
+function regionAtPoint(svg, x, y){
+  let best = null, bestKey = Infinity;
+  for (const el of svg.querySelectorAll("[data-region]")){
+    const b = el.getBoundingClientRect();
+    const dx = Math.max(b.left - x, 0, x - b.right), dy = Math.max(b.top - y, 0, y - b.bottom);
+    const d = Math.hypot(dx, dy);
+    if (d > 18) continue;
+    const key = d*1000 + Math.hypot(b.left + b.width/2 - x, b.top + b.height/2 - y);
+    if (key < bestKey){ bestKey = key; best = el; }
+  }
+  return best;
+}
 document.addEventListener("click", ev => {
-  const reg = ev.target.closest && ev.target.closest("[data-region]");
-  if (reg && heatData){
+  let reg = ev.target.closest && ev.target.closest("[data-region]");
+  if (!reg && ev.target.closest){
+    const svg = ev.target.closest("#heatmap, #freshmap");
+    if (svg) reg = regionAtPoint(svg, ev.clientX, ev.clientY);
+  }
+  if (reg && reg.closest("#freshmap")){
+    const inv = {};
+    for (const [nm, regs] of Object.entries(FRESH_REG)) for (const r of regs) inv[r] = nm;
+    const major = inv[reg.dataset.region];
+    const f = major && freshness().find(x => x.nm === major);
+    const el = $("#fresh-detail");
+    if (el && f){
+      const {per} = regionVolume(addDays(todayStr(),-6), todayStr());
+      const sets = (FRESH_REG[major]||[]).reduce((a,r) => a + (per[r]||0), 0);
+      const st = f.days === null ? "not trained yet"
+        : f.days <= 1 ? '<span class="wr">recovering</span> — trained '+(f.days === 0 ? "today" : "yesterday")
+        : '<span class="up">fresh</span> — last trained '+f.days+' days ago';
+      el.innerHTML = "<b>"+major+"</b> — "+st+" · "+(Math.round(sets*2)/2)+" hard sets this week";
+    }
+    return;
+  }
+  if (reg && heatData && reg.closest("#heatmap")){
     const r = reg.dataset.region, sub = reg.dataset.sub;
     const v = sub !== undefined ? ((heatSubs && heatSubs[sub]) || 0) : (heatData.per[r] || 0);
     const nm = REGIONS[r] + (sub !== undefined && SUB_LBL[sub] ? " · "+SUB_LBL[sub].toLowerCase() : "");
-    const top = Object.entries(heatData.contrib[r] || {}).sort((a,b) => b[1]-a[1]).slice(0,3)
+    const src = sub !== undefined ? ((heatSubC && heatSubC[sub]) || {}) : (heatData.contrib[r] || {});
+    const top = Object.entries(src).sort((a,b) => b[1]-a[1]).slice(0,3)
       .map(([n,c]) => n+" "+(Math.round(c*2)/2)).join(" · ");
     const el = $("#heat-detail");
     if (el) el.innerHTML = "<b>"+nm+"</b> — "+(Math.round(v*2)/2)+" hard sets"+(top ? "<br><span class='cap'>"+top+"</span>" : "");
