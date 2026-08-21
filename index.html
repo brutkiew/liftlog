@@ -191,6 +191,8 @@
   .snum{width:34px;height:42px;border-radius:10px;background:none;border:1px solid var(--stroke);
     color:var(--text-3);font-size:13px;padding:0;font-weight:700}
   .srow.warm .snum{color:var(--warn);border-color:rgba(255,214,10,.4)}
+  .srow.pdel .snum{color:#FF6B6B;border-color:rgba(255,107,107,.55)}
+  .srow.pdel input,.srow.pdel .prev{opacity:.35}
   .prev{text-align:center;color:var(--text-3);font-size:13px;overflow:hidden;white-space:nowrap}
   .srow input{height:46px;text-align:center;padding:4px;font-size:17px;font-weight:650;border-radius:10px}
   .srow input::placeholder{color:var(--text-3);font-weight:500}
@@ -198,6 +200,13 @@
   .srow.done .chk{background:var(--accent);border-color:transparent;color:#0A0B0D}
   .srow.done input{border-color:transparent;background:var(--accent-dim)}
   .addset{margin-top:12px;width:100%;color:var(--text-3);border-style:dashed;background:none;padding:9px;font-size:13.5px;font-weight:550}
+  .setbtns{display:flex;gap:8px;margin-top:12px}
+  .setbtns .addset{margin-top:0;width:auto;flex:1.2;white-space:nowrap;padding:9px 4px}
+  .setbtns .addset:first-child{flex:1.6}
+  /* supersets — linked cards share a violet spine + letter chip */
+  .xcard.ssg{border-left:3px solid rgba(169,155,255,.7)}
+  .sschip{flex:none;font-size:10.5px;font-weight:700;color:#A99BFF;background:rgba(139,124,246,.16);
+    border:1px solid rgba(139,124,246,.28);border-radius:6px;padding:2px 6px;margin-right:2px}
   /* collapsed exercise card */
   .xmin{padding:0}
   .xminrow{display:flex;align-items:stretch}
@@ -260,6 +269,10 @@
   .banner{border-color:rgba(255,214,10,.3)}
   /* ===== trends ===== */
   .seg{display:flex;background:var(--bg-1);border:1px solid var(--stroke);border-radius:999px;padding:3px;margin-bottom:14px}
+  /* Trends keeps its segment menu floating under the topbar while the page scrolls */
+  .segwrap{position:sticky;top:calc(48px + env(safe-area-inset-top));z-index:4;margin:-8px -20px 8px;padding:8px 20px;
+    background:rgba(10,12,19,.62);backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5)}
+  .segwrap .seg{margin-bottom:0}
   .seg button{flex:1;background:none;border:none;border-radius:999px;color:var(--text-3);padding:9px;font-size:13.5px;font-weight:600}
   .seg button.on{background:var(--grad);color:#0A0B0D;box-shadow:0 4px 14px rgba(44,224,139,.22)}
   .ranges{display:flex;gap:6px;margin-bottom:12px}
@@ -499,6 +512,9 @@ const STD = {
   bbohp:{t:[.40,.60,.85,1.15,1.50]},
   pullup:{t:[1.00,1.15,1.40,1.70,2.05],bwTotal:1},
   dip:{t:[1.00,1.20,1.50,1.85,2.25],bwTotal:1},
+  bbcurl:{t:[.23,.37,.55,.75,.98]},
+  dbohp:{t:[.15,.27,.42,.60,.80],db:1},
+  dbrow:{t:[.18,.33,.51,.73,.98],db:1},
 };
 const LVLS = ["Beginner","Novice","Intermediate","Advanced","Elite"];
 
@@ -813,6 +829,8 @@ const tonOf = w => w.exercises.reduce((a,e) => a + e.sets.reduce((x,s) =>
 
 /* ================= smart logic ================= */
 const metric = (s, ex) => { const w=+s.w||0, r=+s.r||0; return (ex.bw && !w) ? r : w*(1+r/30); };
+/* how a logged set reads: "185×8", "BW×10" on bodyweight lifts, "12 reps" otherwise */
+const setStr = (s, ex) => +s.w ? s.w+"×"+s.r : (ex && ex.bw ? "BW×"+s.r : s.r+" reps");
 const workSets = sets => sets.filter(s => +s.r > 0 && !s.warm);
 const bestMetric = (sets, ex) => Math.max(...sets.map(s => metric(s, ex)));
 const bestSet = (sets, ex) => sets.reduce((a,b) => metric(b,ex) > metric(a,ex) ? b : a);
@@ -935,7 +953,7 @@ function liftScores(){
     const lv = lvlOf(ratio, std.t);
     const shown = std.bwTotal ? Math.max(0, Math.round(e1 - bw)) : Math.round(e1);
     const nextLb = lv.next ? Math.round(lv.next * fem * bw - (std.bwTotal ? bw : 0)) : null;
-    out.push({id, name:ex.n, e1:shown, ratio, lv, bwTotal:!!std.bwTotal, nextLb});
+    out.push({id, name:ex.n, e1:shown, ratio, lv, bwTotal:!!std.bwTotal, db:!!std.db, nextLb, g:ex.g});
   }
   return out.sort((a,b) => b.lv.score - a.lv.score);
 }
@@ -956,7 +974,7 @@ function regionVolume(a, b){
   }
   return {per, contrib};
 }
-const heatFill = v => !v ? "var(--bg-2)"
+const heatFill = v => !v ? "hsl(224 52% 32%)" /* unworked = clear blue, not blend-in grey */
   : v <= 5 ? "hsl(174 48% 26%)" : v <= 10 ? "hsl(150 55% 38%)"
   : v <= 15 ? "hsl(80 62% 48%)" : "hsl(38 95% 55%)";
 function weeklySessions(ws0){
@@ -1107,11 +1125,11 @@ function rateWorkout(w){
     const ex = exInfo(e.id), sets = hardOf(e);
     if (!sets.length) return;
     const now = bestMetric(sets, ex);
-    let prev = null, prevPos = 0;
+    let prev = null, prevPos = 0, prevSS = false;
     for (const pw of prior){
       const pe = pw.exercises.find(x => x.id === e.id);
       if (pe){ const ps = hardOf(pe);
-        if (ps.length){ prev = bestMetric(ps, ex); prevPos = pw.exercises.indexOf(pe); break; } }
+        if (ps.length){ prev = bestMetric(ps, ex); prevPos = pw.exercises.indexOf(pe); prevSS = !!pe.ss; break; } }
     }
     if (prev === null){ res.push({id:e.id, name:ex.n, cls:"new"}); return; }
     const pct = (now - prev) / prev * 100;
@@ -1125,8 +1143,11 @@ function rateWorkout(w){
       for (const pe of pw.exercises) recent += hardOf(pe).length * creditTo(pe.id, prim);
     }
     const posDelta = Math.max(0, pos - prevPos);
-    const tol = 1.5 + Math.min(3, posDelta*0.8) + Math.min(2.5, pre*0.3) + (recent >= 4 ? 2 : 0);
+    // a lift moved INTO a superset carries extra fatigue from the shortened rest — give it slack
+    const ssNew = !!e.ss && !prevSS;
+    const tol = 1.5 + Math.min(3, posDelta*0.8) + Math.min(2.5, pre*0.3) + (recent >= 4 ? 2 : 0) + (ssNew ? 2 : 0);
     const why = [];
+    if (ssNew) why.push("done in a superset today");
     if (posDelta) why.push("done "+posDelta+" slot"+(posDelta>1?"s":"")+" later than last time");
     if (pre >= 3) why.push(Math.round(pre)+" earlier sets hit the same muscles");
     if (recent >= 4) why.push("same muscles trained in the last 2 days");
@@ -1283,7 +1304,7 @@ function openWorkoutDraft(w){
   const sd = sesDef(w.session);
   S.drafts[w.date] = {date:w.date, session:w.session, active:true,
     startedAt:(w.date === todayStr() && w.durMin) ? Date.now() - w.durMin*60000 : null, timer:null,
-    exercises: w.exercises.map((e,i) => ({id:e.id, note:e.note||"", open:i===0,
+    exercises: w.exercises.map((e,i) => ({id:e.id, note:e.note||"", open:i===0, ss:e.ss,
       plan:(sd && sd.plan.find(p => p[0] === e.id))
         ? (p => ({n:p[1],lo:p[2],hi:p[3]}))(sd.plan.find(p => p[0] === e.id)) : null,
       sets:e.sets.map(s => ({w:String(s.w||""), r:String(s.r), done:true, warm:!!s.warm}))})),
@@ -1430,7 +1451,7 @@ function freshDays(){
           sub:Object.fromEntries(Object.entries(lastS).map(([k,d]) => [k, dd(d)]))};
 }
 /* graded recovery ramp, hot → ready → dormant (mirrors the heat map's bucket idea) */
-const freshFill = d => d === null ? "var(--bg-2)"
+const freshFill = d => d === null ? "hsl(224 48% 30%)" /* never trained = clear blue */
   : d <= 0 ? "hsl(18 88% 55%)"     // trained today
   : d === 1 ? "hsl(42 95% 55%)"    // yesterday — recovering
   : d === 2 ? "hsl(75 60% 50%)"    // almost ready
@@ -1684,7 +1705,9 @@ function liveWarmCheck(ei){
     const s = x.s, w = +s.w || 0;
     if (s.wMan) return;
     const workBefore = logged.slice(0, j).some(y => (+y.s.w || 0) > effTop * 0.75);
-    const light = effTop > 0 && ((w > 0 && w <= effTop * 0.75) || (w === 0 && ex.bw));
+    // a 0-weight set on a bw lift is only a warm-up when weighted sets follow TODAY —
+    // an all-bodyweight day (dips, pull-ups) is real work, not a ramp
+    const light = effTop > 0 && ((w > 0 && w <= effTop * 0.75) || (w === 0 && ex.bw && todayTop > 0));
     const want = light && !workBefore && !(lightDay && w === todayTop);
     if (want === !!s.warm || (!want && !s.wAuto)) return; // never auto-clear a manual W
     s.warm = want; s.wAuto = want; changed = true;
@@ -1698,7 +1721,7 @@ function liveWarmCheck(ei){
   if (!changed) return;
   if (flagged && !S.warmHint){
     S.warmHint = 1;
-    showToast("That looks like a warm-up — marked <b>W</b>. Tap the set number if it was a real set.");
+    showToast("That looks like a warm-up — marked <b>W</b>. Taps on a set number cycle W → ⊘ remove; typing in a set restores ⊘.");
   }
   save();
 }
@@ -1731,30 +1754,37 @@ function renderWorkout(d){
       + '<button class="ghost" data-act="builder-open" data-for="'+d.date+'" style="width:100%;margin-top:8px;font-size:13px">Or let the Target builder fill this day →</button>'
       + '</div>';
 
+  // superset groups get a letter in order of appearance — ⧉ A pairs stay visually linked
+  const ssLetters = {}; let ssN = 0;
+  d.exercises.forEach(e => { if (e.ss && ssLetters[e.ss] === undefined) ssLetters[e.ss] = String.fromCharCode(65 + ssN++); });
   d.exercises.forEach((e, i) => {
     const a = analyze(e.id, e.plan);
     const uni = isUni(e.id);
     const uniTag = uni ? ' <span class="tgt">/side</span>' : '';
+    const ssChip = e.ss ? '<span class="sschip">⧉ '+ssLetters[e.ss]+'</span>' : '';
+    const ssCls = e.ss ? ' ssg' : '';
     const tgt = e.plan ? e.plan.n+"×"+e.plan.lo+"–"+e.plan.hi : "";
     if (e.open === false){
       const ls = e.sets.map((s,si) => ({s,si})).filter(x => setLogged(x.s));
       const sum = ls.length
-        ? ls.length+'/'+e.sets.length+' · <b>'+ls.map(({s,si}) => { const w = +s.w || +a.gW(si) || 0;
+        ? ls.length+'/'+e.sets.length+' · <b>'+ls.map(({s,si}) => { if (a.ex.bw) return +s.w ? s.w+'×'+s.r : 'BW×'+s.r;
+            const w = +s.w || +a.gW(si) || 0;
             return w ? w+'×'+s.r : s.r; }).join(' · ')+'</b>'
         : (a.prev.length
-            ? 'last '+a.prev.map(s => (+s.w ? s.w+'×'+s.r : s.r)).join(' · ')
+            ? 'last '+a.prev.map(s => (+s.w ? s.w+'×'+s.r : (a.ex.bw ? 'BW×'+s.r : s.r))).join(' · ')
             : (tgt || e.sets.length+' sets'));
-      html += '<div class="card xcard xmin'+(ls.length && ls.length === e.sets.length ? ' alldone' : '')+'" data-ei="'+i+'">'
+      html += '<div class="card xcard xmin'+ssCls+(ls.length && ls.length === e.sets.length ? ' alldone' : '')+'" data-ei="'+i+'">'
         + '<div class="xminrow"><span class="grip" data-grip>'+GRIP+'</span>'
         + '<button class="xrow" data-act="ex-open" data-ei="'+i+'">'
-        + '<span class="xn">'+esc(a.ex.n)+uniTag+'</span>'
+        + ssChip + '<span class="xn">'+esc(a.ex.n)+uniTag+'</span>'
         + '<span class="xsum num">'+sum+'</span><span class="cap">▾</span></button></div></div>';
       return;
     }
-    html += '<div class="card xcard" data-ei="'+i+'"><div class="xhead">'
+    html += '<div class="card xcard'+ssCls+'" data-ei="'+i+'"><div class="xhead">'
       + '<span class="grip" data-grip>'+GRIP+'</span>'
       + '<button class="xname" data-act="ex-detail" data-exid="'+e.id+'">'+esc(a.ex.n)+uniTag
       + (tgt ? ' <span class="tgt num">'+tgt+'</span>' : '')+'</button>'
+      + ssChip
       + (a.chip ? '<span class="chip '+a.chip.cls+' num">'+a.chip.txt+'</span>' : '')
       + (chk ? '<button class="chip num" data-act="rest-cycle" data-ei="'+i+'">'+fmtSec(restFor(e.id))+'</button>' : '')
       + '<button class="ghost" data-act="ex-close" data-ei="'+i+'" title="Collapse">▴</button>'
@@ -1767,7 +1797,9 @@ function renderWorkout(d){
       + (e.tabLast && a.prev.length ? lastPanel(e, a)
         : '<div class="cols"><span>Set</span><span>Previous</span><span>Lbs</span><span>Reps</span>'+(chk ? '<span></span>' : '')+'</div>'
           + e.sets.map((s, si) => setRow(e, a, i, si, chk)).join("")
-          + '<button class="addset" data-act="addset" data-ei="'+i+'">+ Add set</button>')
+          + '<div class="setbtns"><button class="addset" data-act="addset" data-ei="'+i+'">+ Add set</button>'
+          + '<button class="addset" data-act="swap" data-ei="'+i+'">⇄ Swap</button>'
+          + '<button class="addset" data-act="ss-open" data-ei="'+i+'">⧉ Superset</button></div>')
       + '</div>';
   });
 
@@ -1798,12 +1830,13 @@ function plateStr(total){
 }
 function setRow(e, a, ei, si, chk){
   const s = e.sets[si];
-  const prev = a.prev[si] ? ((+a.prev[si].w||0) ? a.prev[si].w+" × "+a.prev[si].r : a.prev[si].r+" reps")
+  const prev = a.prev[si] ? ((+a.prev[si].w||0) ? a.prev[si].w+" × "+a.prev[si].r
+      : (a.ex.bw ? "BW × "+a.prev[si].r : a.prev[si].r+" reps"))
     : (a.prev.length ? "—" : "");
-  return '<div class="srow'+(chk && s.done?" done":"")+(s.warm?" warm":"")+'" data-ei="'+ei+'" data-si="'+si+'">'
-    + '<button class="snum" data-act="warm" data-ei="'+ei+'" data-si="'+si+'">'+(s.warm?"W":si+1)+'</button>'
+  return '<div class="srow'+(chk && s.done?" done":"")+(s.warm?" warm":"")+(s.del?" pdel":"")+'" data-ei="'+ei+'" data-si="'+si+'">'
+    + '<button class="snum" data-act="warm" data-ei="'+ei+'" data-si="'+si+'">'+(s.del?"⊘":s.warm?"W":si+1)+'</button>'
     + '<div class="prev num">'+prev+'</div>'
-    + '<input class="w num" type="number" inputmode="decimal" step="0.5" min="0" value="'+esc(s.w)+'" placeholder="'+esc(a.gW(si))+'" data-ei="'+ei+'" data-si="'+si+'">'
+    + '<input class="w num" type="number" inputmode="decimal" step="0.5" min="0" value="'+esc(s.w)+'" placeholder="'+(a.ex.bw && !+a.gW(si) ? "BW" : esc(a.gW(si)))+'" data-ei="'+ei+'" data-si="'+si+'">'
     + '<input class="r num" type="number" inputmode="numeric" min="0" value="'+esc(s.r)+'" placeholder="'+esc(a.gR(si))+'" data-ei="'+ei+'" data-si="'+si+'">'
     + (chk ? '<button class="chk" data-act="chk" data-ei="'+ei+'" data-si="'+si+'">'+icon("check",20,2.4)+'</button>' : '')
     + '</div>';
@@ -1812,7 +1845,7 @@ function lastPanel(e, a){
   const hist = perfHistory(e.id).slice(0,3);
   return hist.map(h =>
     '<div class="lastrow"><span class="ld num">'+fmtShort(h.date)+'</span>'
-    + '<span class="grow num">'+h.sets.map(s => (+s.w ? s.w+"×"+s.r : s.r+" reps")).join(", ")+'</span>'
+    + '<span class="grow num">'+h.sets.map(s => setStr(s, a.ex)).join(", ")+'</span>'
     + '<span class="cap num" style="flex:none">e1RM '+Math.round(bestMetric(h.sets, a.ex))+'</span></div>').join("")
     + '<div class="cap" style="margin-top:10px">Your last '+(hist.length>1 ? hist.length+' sessions' : 'session')+' of this lift — the ghost numbers on the set rows carry the most recent one over.</div>';
 }
@@ -1829,7 +1862,8 @@ function toggleSet(ei, si){
   const row = document.querySelector('.srow[data-ei="'+ei+'"][data-si="'+si+'"]');
   if (!s.done){
     const wIn = row.querySelector(".w"), rIn = row.querySelector(".r");
-    const w = wIn.value !== "" ? wIn.value : wIn.placeholder;
+    // blank weight on a bodyweight lift means bodyweight — never adopt the ghost's added lbs
+    const w = wIn.value !== "" ? wIn.value : (exInfo(e.id).bw ? "0" : wIn.placeholder);
     const r = rIn.value !== "" ? rIn.value : rIn.placeholder;
     if (!(+r > 0)){ row.classList.add("shake"); setTimeout(() => row.classList.remove("shake"), 350); return; }
     s.w = String(+w || 0); s.r = String(+r); s.done = true;
@@ -1838,7 +1872,7 @@ function toggleSet(ei, si){
     if (!s.warm){
       const ex = exInfo(e.id), m = metric(s, ex), prevBest = bestEver(e.id);
       if (prevBest > 0 && m > prevBest + 0.01){
-        let msg = "<b class='wr'>PR</b> — "+esc(ex.n)+" "+(+s.w ? s.w+" × "+s.r : s.r+" reps");
+        let msg = "<b class='wr'>PR</b> — "+esc(ex.n)+" "+(+s.w ? s.w+" × "+s.r : (ex.bw ? "BW × "+s.r : s.r+" reps"));
         const std = STD[e.id];
         if (std){
           const bw = bodyweight(), fem = S.settings.sex === "female" ? 0.72 : 1;
@@ -1948,7 +1982,7 @@ function computePRs(kept){
     const now = bestMetric(sets, ex);
     if (now > prev + 0.01){
       const bs = bestSet(sets, ex);
-      prs.push({id:e.id, name:ex.n, str:(+bs.w||0)+" × "+bs.r});
+      prs.push({id:e.id, name:ex.n, str:(ex.bw && !+bs.w ? "BW" : (+bs.w||0))+" × "+bs.r});
     }
   }
   return prs;
@@ -1987,8 +2021,10 @@ function finishDraft(dateStr, silent){
     const unchecked = d.exercises.reduce((a,e) => a + e.sets.filter(s => !s.done && (+s.r>0 || +s.w>0)).length, 0);
     if (!silent && unchecked && !confirm(unchecked+" set(s) have numbers but no check — they'll be dropped. Finish anyway?")) return false;
   } else {
-    // reps typed + weight left blank → adopt the ghost suggestion, same as tapping the check used to
+    // reps typed + weight left blank → adopt the ghost suggestion, same as tapping the check
+    // used to — except on bodyweight lifts, where blank weight IS the weight (bodyweight)
     for (const e of d.exercises){
+      if (exInfo(e.id).bw) continue;
       const a = analyze(e.id, e.plan);
       e.sets.forEach((s, si) => {
         if (+s.r > 0 && s.w === ""){ const gw = a.gW(si); if (+gw) s.w = gw; }
@@ -1996,8 +2032,8 @@ function finishDraft(dateStr, silent){
     }
   }
   const kept = d.exercises
-    .map(e => ({id:e.id, note:e.note||"", sets:e.sets.filter(s => (chk ? s.done : true) && +s.r > 0)
-      .map(s => ({w:+s.w||0, r:+s.r, warm:!!s.warm}))}))
+    .map(e => Object.assign({id:e.id, note:e.note||"", sets:e.sets.filter(s => (chk ? s.done : true) && +s.r > 0)
+      .map(s => ({w:+s.w||0, r:+s.r, warm:!!s.warm}))}, e.ss ? {ss:e.ss} : {}))
     .filter(e => e.sets.length);
   if (!kept.length){ if (!silent) alert("Check off at least one set first."); return false; }
   const prs = computePRs(kept);
@@ -2034,8 +2070,8 @@ function renderHistory(){
       + (w.prs && w.prs.length ? '<span class="badge pr num">'+w.prs.length+' PR</span>' : '')
       + '</div></div><span class="cap">▾</span></div>'
       + '<div class="h-body">'
-      + w.exercises.map((e,i) => '<p class="num"><b>'+(i+1)+'. '+esc(exInfo(e.id).n)+'</b> — '
-          + e.sets.map(s => (s.warm?"w:":"")+(+s.w ? s.w+"×"+s.r : s.r+" reps")).join(", ")
+      + w.exercises.map((e,i) => '<p class="num"><b>'+(i+1)+'. '+(e.ss ? '<span style="color:#A99BFF">⧉</span> ' : '')+esc(exInfo(e.id).n)+'</b> — '
+          + e.sets.map(s => (s.warm?"w:":"")+setStr(s, exInfo(e.id))).join(", ")
           + (isUni(e.id) ? ' <span class="cap">per side</span>' : '')+'</p>').join("")
       + (rt && rt.notes.length
           ? '<div style="margin-top:8px"><span class="lbl">Session score '+rt.score+' · '+rt.grade+'</span>'
@@ -2052,11 +2088,11 @@ function renderHistory(){
 
 /* ================= TRENDS ================= */
 function renderTrends(){
-  let html = '<div class="seg">'
+  let html = '<div class="segwrap"><div class="seg">'
     + '<button data-act="ttab" data-t="ins" class="'+(S.trendTab==="ins"?"on":"")+'">Insights</button>'
     + '<button data-act="ttab" data-t="lab" class="'+(S.trendTab==="lab"?"on":"")+'">Lab</button>'
     + '<button data-act="ttab" data-t="body" class="'+(S.trendTab==="body"?"on":"")+'">Body</button>'
-    + '<button data-act="ttab" data-t="str" class="'+(S.trendTab==="str"?"on":"")+'">Strength</button></div>';
+    + '<button data-act="ttab" data-t="str" class="'+(S.trendTab==="str"?"on":"")+'">Strength</button></div></div>';
   html += S.trendTab === "body" ? trendsBody() : S.trendTab === "str" ? trendsStrength()
     : S.trendTab === "lab" ? trendsLab() : trendsInsights();
   $("#view").innerHTML = html;
@@ -2169,21 +2205,26 @@ function strengthOverviewHTML(){
   }
   html += '<div class="card"><span class="lbl">You</span>'
     + '<div class="rowline" style="flex-wrap:wrap;gap:12px 18px;margin-top:9px">'+youBits+'</div>'
-    + (bf > 0 ? '' : '<p class="cap" style="margin-top:9px">Set Body fat % in Settings to unlock lean mass + FFMI here.</p>')+'</div>';
+    + '<p class="cap" style="margin-top:9px">Weight here is your smoothed trend — each morning weigh-in nudges it a little, so strength-per-pound doesn\'t jump with scale noise.</p>'
+    + (bf > 0 ? '' : '<p class="cap" style="margin-top:5px">Set Body fat % in Settings to unlock lean mass + FFMI here.</p>')+'</div>';
 
-  const scores = liftScores();
+  // benchmark scorecard — cut to the selected muscle-group chip, so each group grades on its own
+  const inGroup = g => !labGroup || (labGroup === "arms" ? (g === "biceps" || g === "triceps") : g === labGroup);
+  const allScores = liftScores();
+  const scores = allScores.filter(sc => inGroup(sc.g));
+  const gLbl = labGroup ? GROUPS_L.find(g => g[0] === labGroup)[1] : "";
   if (scores.length){
     const med = [...scores].sort((a,b) => a.lv.score - b.lv.score)[Math.floor(scores.length/2)];
     const overall = med.lv.idx < 0 ? "Getting started" : LVLS[med.lv.idx];
-    html += '<div class="card hero"><span class="lbl">Strength scorecard · men at '+Math.round(bw)+' lb'
+    html += '<div class="card hero"><span class="lbl">Strength scorecard'+(gLbl ? ' · '+gLbl : '')+' · men at '+Math.round(bw)+' lb'
       + (S.settings.height ? ' · '+esc(S.settings.height) : '')+'</span>'
       + '<div class="xl grad-ink" style="margin-top:6px">'+overall+'</div>'
-      + '<div class="cap" style="margin-top:2px">overall across '+scores.length+' benchmark lift'+(scores.length>1?"s":"")+'</div>';
+      + '<div class="cap" style="margin-top:2px">'+(gLbl ? gLbl.toLowerCase()+' — ' : 'overall ')+'across '+scores.length+' benchmark lift'+(scores.length>1?"s":"")+'</div>';
     for (const sc of scores){
       const label = sc.lv.idx < 0 ? "Beginner" : LVLS[sc.lv.idx];
       html += '<div class="lift-row"><div class="rowline"><b>'+esc(sc.name)+'</b>'
         + '<span class="lvl" style="color:'+(sc.lv.idx>=2?"var(--accent)":sc.lv.idx>=1?"var(--text-2)":"var(--warn)")+'">'+label+'</span></div>'
-        + '<div class="sub num">e1RM '+sc.e1+(sc.bwTotal?" lb added":" lb")+' · '+sc.ratio.toFixed(2)+'×BW'
+        + '<div class="sub num">e1RM '+sc.e1+(sc.bwTotal?" lb added":sc.db?" lb / hand":" lb")+' · '+sc.ratio.toFixed(2)+'×BW'
         + (sc.nextLb !== null ? ' · next level ~'+sc.nextLb+(sc.bwTotal?" added":"")+' lb' : ' · maxed the chart')+'</div>'
         + '<div class="lbar">'+[0,1,2,3,4].map(i => {
             const fill = Math.max(0, Math.min(1, sc.lv.score - i));
@@ -2192,10 +2233,15 @@ function strengthOverviewHTML(){
     html += '<p class="cap" style="margin-top:14px">Community-average standards for your bodyweight — orientation, not gospel. Dumbbell and machine work counts through volume in Insights.</p></div>';
 
     const weakest = scores[scores.length-1];
-    html += '<div class="card focus-card"><span class="lbl">Where to focus</span>'
-      + '<p class="hint" style="margin-top:8px"><b style="color:var(--text-1)">'+esc(weakest.name)+'</b> is your furthest-back benchmark ('
+    html += '<div class="card focus-card"><span class="lbl">Where to focus'+(gLbl ? ' · '+gLbl.toLowerCase() : '')+'</span>'
+      + '<p class="hint" style="margin-top:8px"><b style="color:var(--text-1)">'+esc(weakest.name)+'</b> is your furthest-back benchmark'+(gLbl ? ' here' : '')+' ('
       + (weakest.lv.idx < 0 ? "Beginner" : LVLS[weakest.lv.idx])
       + (weakest.nextLb !== null ? ' — ~'+Math.max(1, Math.round(weakest.nextLb - weakest.e1))+' lb of e1RM to the next level' : '')+'). Keep it first in its session; add a set there before adding anywhere else.</p></div>';
+  } else if (allScores.length && labGroup){
+    const would = Object.keys(STD).filter(id => inGroup(exInfo(id).g)).map(id => exInfo(id).n);
+    html += '<div class="card hint">No benchmark lifts logged for '+gLbl.toLowerCase()+' yet'
+      + (would.length ? ' — '+would.join(", ")+' grade here once you log them.' : '.')
+      + ' It builds as you enter more workouts.</div>';
   }
   return html;
 }
@@ -2210,7 +2256,7 @@ function trendsStrength(){
   const ex = exInfo(S.progSel);
   const hist = perfHistory(S.progSel).reverse();
   const pts = hist.map(h => { const bs = bestSet(h.sets, ex);
-    return {date:h.date, val:Math.round(bestMetric(h.sets, ex)), lbl:(+bs.w||0)+" × "+bs.r}; });
+    return {date:h.date, val:Math.round(bestMetric(h.sets, ex)), lbl:(ex.bw && !+bs.w ? "BW" : (+bs.w||0))+" × "+bs.r}; });
   const isReps = ex.bw && hist.every(h => h.sets.every(s => !+s.w));
   const best = pts.reduce((a,b) => b.val >= a.val ? b : a);
   const delta = pts[pts.length-1].val - pts[0].val;
@@ -2257,7 +2303,7 @@ function bodySVG(){
   const HEAD = '<ellipse cx="110" cy="19" rx="12" ry="14" class="sil"/>'
     + '<rect x="102" y="26" width="16" height="10" rx="4" class="sil"/>';
   const label = t => '<text x="110" y="323" text-anchor="middle" font-size="11" fill="var(--text-3)" font-weight="600" letter-spacing="1.5">'+t+'</text>';
-  let s = '<svg viewBox="0 0 440 332" style="width:100%;max-width:360px;margin:0 auto;display:block;touch-action:manipulation" id="heatmap">';
+  let s = '<svg viewBox="0 0 440 332" style="width:100%;max-width:360px;margin:0 auto;display:block;touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none" id="heatmap">';
   s += '<style>#heatmap .sil{fill:#242C44;stroke:rgba(160,175,255,.14);stroke-width:1}'
     + '#heatmap [data-region]{stroke:rgba(8,10,20,.8);stroke-width:1.1;stroke-linejoin:round;transition:fill .35s}'
     + '#heatmap .selreg{stroke:rgba(255,255,255,.92);stroke-width:1.8}'
@@ -2341,6 +2387,14 @@ function trendsInsights(){
   if (!hasData)
     return '<div class="card hint">Log a few workouts and your muscle map, report cards and recap build themselves.</div>';
 
+  // heat map first — the muscle-volume figure is the page's anchor
+  html += '<div class="card"><span class="lbl">Muscle volume · last 7 days</span>'
+    + '<div style="margin-top:12px">'+bodySVG()+'</div>'
+    + '<div class="heat-legend">'
+    + [["0",heatFill(0)],["1–5",heatFill(3)],["6–10",heatFill(8)],["11–15",heatFill(13)],["16+",heatFill(18)]]
+        .map(([l,c]) => '<span><i style="background:'+c+'"></i>'+l+'</span>').join("")
+    + '</div><div id="heat-detail" class="num">tap a muscle</div></div>';
+
   // highlights
   const hl = highlights();
   if (hl.length)
@@ -2386,14 +2440,6 @@ function trendsInsights(){
     }
     html += '</div>';
   }
-
-  // heat map
-  html += '<div class="card"><span class="lbl">Muscle volume · last 7 days</span>'
-    + '<div style="margin-top:12px">'+bodySVG()+'</div>'
-    + '<div class="heat-legend">'
-    + [["0",heatFill(0)],["1–5",heatFill(3)],["6–10",heatFill(8)],["11–15",heatFill(13)],["16+",heatFill(18)]]
-        .map(([l,c]) => '<span><i style="background:'+c+'"></i>'+l+'</span>').join("")
-    + '</div><div id="heat-detail" class="num">tap a muscle</div></div>';
 
   // volume bars
   const {per} = regionVolume(addDays(todayStr(),-6), todayStr());
@@ -3230,7 +3276,7 @@ function openAddModal(swapEi){
         + esc(r.e.n)+'<small>'+r.why.slice(0,2).join(" · ")+'</small></button>').join("")
       + '<div class="mgroup">Or pick anything</div>';
   }
-  openModal('<h3>'+(swapEi!=null ? "Replace exercise" : "Add exercise")+'</h3>'
+  openModal('<h3>'+(swapEi!=null ? "Swap exercise" : "Add exercise")+'</h3>'
     + best
     + '<input id="exsearch" placeholder="Search…" autocomplete="off">'
     + '<div id="exlist">'+exercisePicker(act, swapEi, fg)+'</div>'
@@ -3262,11 +3308,31 @@ function openExMenu(ei){
     + '<button class="menu-item" data-act="ex-detail" data-exid="'+e.id+'">Stats &amp; muscle intel</button>'
     + (S.custom[e.id] ? '<button class="menu-item" data-act="classify-open" data-ei="'+ei+'">Muscle focus — '
         + (GROUPS[exInfo(e.id).g]||"?")+(exInfo(e.id).sub && SUB_LBL[exInfo(e.id).sub] ? ' · '+SUB_LBL[exInfo(e.id).sub] : '')+'</button>' : '')
-    + '<button class="menu-item" data-act="swap" data-ei="'+ei+'">Replace exercise</button>'
+    + '<button class="menu-item" data-act="swap" data-ei="'+ei+'">Swap exercise</button>'
+    + '<button class="menu-item" data-act="ss-open" data-ei="'+ei+'">'
+    + (e.ss ? 'Superset — edit or unlink' : 'Superset with another lift')+'</button>'
     + '<button class="menu-item" data-act="up" data-ei="'+ei+'">Move up</button>'
     + '<button class="menu-item" data-act="down" data-ei="'+ei+'">Move down</button>'
     + '<button class="menu-item danger" data-act="del-ex" data-ei="'+ei+'">Remove from workout</button>'
     + '<div class="btnrow"><button data-act="modal-close">Close</button></div>');
+}
+/* superset picker — link this lift with a partner; pairs alternate sets, rest after the pair */
+function openSSModal(ei){
+  const d = curDraft(), e = d.exercises[ei];
+  if (d.exercises.length < 2){ showToast("Add another exercise first — a superset needs a partner."); return; }
+  let h = '<h3>Superset — '+esc(exInfo(e.id).n)+'</h3>'
+    + '<p class="hint">Alternate sets between the two with little rest, then rest after the pair. The lifts move next to each other and are scored with superset fatigue in mind.</p>';
+  if (e.ss){
+    const partners = d.exercises.filter((x,j) => j !== ei && x.ss === e.ss).map(x => esc(exInfo(x.id).n));
+    h += '<p class="hint" style="margin-top:8px">Supersetted with <b>'+partners.join(", ")+'</b>.</p>'
+      + '<button class="menu-item danger" data-act="ss-unlink" data-ei="'+ei+'">Unlink from superset</button>';
+  }
+  const opts = d.exercises.map((x,j) => (j === ei || (e.ss && x.ss === e.ss)) ? "" :
+    '<button class="menu-item" data-act="ss-with" data-ei="'+ei+'" data-j="'+j+'">'+esc(exInfo(x.id).n)
+    + (x.ss ? ' <span class="cap">· in a superset — joins it</span>' : '')+'</button>').join("");
+  if (opts) h += '<div class="mgroup">'+(e.ss ? "Or link with…" : "Superset with…")+'</div>' + opts;
+  h += '<div class="btnrow"><button data-act="modal-close">Close</button></div>';
+  openModal(h);
 }
 function openVariantModal(ei){
   const e = curDraft().exercises[ei], p = exInfo(e.id);
@@ -3325,7 +3391,7 @@ function intelHTML(exId){
 function openExDetail(exId){
   const ex = exInfo(exId), hist = perfHistory(exId);
   const pts = [...hist].reverse().map(h => { const bs = bestSet(h.sets, ex);
-    return {date:h.date, val:Math.round(bestMetric(h.sets, ex)), lbl:(+bs.w||0)+" × "+bs.r}; });
+    return {date:h.date, val:Math.round(bestMetric(h.sets, ex)), lbl:(ex.bw && !+bs.w ? "BW" : (+bs.w||0))+" × "+bs.r}; });
   let rec = "";
   if (hist.length){
     let mw = 0, mws = null, me = 0, mes = null;
@@ -3342,7 +3408,7 @@ function openExDetail(exId){
     + (hist.length ? '<div class="chartwrap" style="margin-top:14px">'+e1rmChart(pts)+'</div>' + rec
       + '<div class="mgroup">Recent sessions</div>'
       + hist.slice(0,6).map(h => '<p class="hint num" style="margin-top:6px"><b style="color:var(--text-1)">'+fmtDate(h.date)+'</b> — '
-          + h.sets.map(s => (+s.w? s.w+"×"+s.r : s.r+" reps")).join(", ")+'</p>').join("")
+          + h.sets.map(s => setStr(s, ex)).join(", ")+'</p>').join("")
       : '<p class="hint">No history yet for this exercise.</p>')
     + '<div class="btnrow"><button data-act="modal-close">Close</button></div>');
 }
@@ -3565,7 +3631,7 @@ function claudeText(){
       + (rt ? " · session score " + rt.score + " (" + rt.grade + ")" : "")
       + (w.prs && w.prs.length ? "  PRs: " + w.prs.map(p => p.name).join(", ") : ""));
     w.exercises.forEach((e,i) =>
-      L.push("  " + (i+1) + ". " + exInfo(e.id).n + (isUni(e.id) ? " (per side)" : "") + ": " + e.sets.map(s => (s.warm?"w:":"")+(s.w? s.w+"×"+s.r : s.r+" reps")).join(", ")));
+      L.push("  " + (i+1) + ". " + exInfo(e.id).n + (isUni(e.id) ? " (per side)" : "") + (e.ss ? " [superset]" : "") + ": " + e.sets.map(s => (s.warm?"w:":"")+setStr(s, exInfo(e.id))).join(", ")));
     if (w.cardio) L.push("  cardio: incline treadmill " + w.cardio.min + " min");
     if (w.note) L.push("  note: " + w.note);
   }
@@ -3593,13 +3659,14 @@ function markSel(svg, keep){
   for (const p of svg.querySelectorAll(".selreg")) p.classList.remove("selreg");
   for (const p of svg.querySelectorAll("[data-region]")) if (keep(p)) p.classList.add("selreg");
 }
-document.addEventListener("click", ev => {
-  let reg = ev.target.closest && ev.target.closest("[data-region]");
-  if (!reg && ev.target.closest){
-    const svg = ev.target.closest("#heatmap, #freshmap");
-    if (svg) reg = regionAtPoint(svg, ev.clientX, ev.clientY);
-  }
-  if (reg && reg.closest("#freshmap")){
+/* muscle-map taps are handled at pointerup with a movement threshold instead of click —
+   a slow tap or light press-and-hold registers too (mobile click timing was eating them) */
+function mapTap(svg, x, y){
+  let reg = document.elementFromPoint(x, y);
+  reg = reg && reg.closest ? reg.closest("[data-region]") : null;
+  if (!reg || !svg.contains(reg)) reg = regionAtPoint(svg, x, y);
+  if (!reg) return;
+  if (reg.closest("#freshmap")){
     const r = reg.dataset.region, sub = reg.dataset.sub;
     markSel(reg.closest("svg"), sub !== undefined
       ? p => p.dataset.sub === sub : p => p.dataset.region === r);
@@ -3622,7 +3689,7 @@ document.addEventListener("click", ev => {
     }
     return;
   }
-  if (reg && heatData && reg.closest("#heatmap")){
+  if (heatData && reg.closest("#heatmap")){
     const r = reg.dataset.region, sub = reg.dataset.sub;
     markSel(reg.closest("svg"), sub !== undefined
       ? p => p.dataset.sub === sub : p => p.dataset.region === r);
@@ -3633,8 +3700,21 @@ document.addEventListener("click", ev => {
       .map(([n,c]) => n+" "+(Math.round(c*2)/2)).join(" · ");
     const el = $("#heat-detail");
     if (el) el.innerHTML = "<b>"+nm+"</b> — "+(Math.round(v*2)/2)+" hard sets"+(top ? "<br><span class='cap'>"+top+"</span>" : "");
-    return;
   }
+}
+let mapDown = null;
+document.addEventListener("pointerdown", ev => {
+  const svg = ev.target.closest && ev.target.closest("#heatmap, #freshmap");
+  mapDown = svg ? {svg, x:ev.clientX, y:ev.clientY, id:ev.pointerId} : null;
+}, true);
+document.addEventListener("pointercancel", () => { mapDown = null; }, true);
+document.addEventListener("pointerup", ev => {
+  if (!mapDown || ev.pointerId !== mapDown.id) return;
+  const m = mapDown; mapDown = null;
+  if (Math.hypot(ev.clientX - m.x, ev.clientY - m.y) > 14) return; // it was a scroll, not a tap
+  mapTap(m.svg, ev.clientX, ev.clientY);
+}, true);
+document.addEventListener("click", ev => {
   const btn = ev.target.closest("[data-act]");
   if (!btn) return;
   const act = btn.dataset.act, ei = +btn.dataset.ei, si = +btn.dataset.si;
@@ -3663,10 +3743,21 @@ document.addEventListener("click", ev => {
   else if (act === "pause"){ d.active = false; S.editing = null; save(); render(); }
   else if (act === "chk"){ toggleSet(ei, si); }
   else if (act === "warm"){
-    const s = d.exercises[ei].sets[si]; s.warm = !s.warm; s.wMan = true; s.wAuto = false; save();
+    /* taps on the set number cycle: working set → W warm-up → ⊘ marked for removal →
+       removed. Typing into any set clears pending ⊘ marks back to their numbers. */
+    const e = d.exercises[ei], s = e.sets[si];
     const row = document.querySelector('.srow[data-ei="'+ei+'"][data-si="'+si+'"]');
-    row.classList.toggle("warm", s.warm);
-    row.querySelector(".snum").textContent = s.warm ? "W" : si+1;
+    if (s.del){
+      e.sets.splice(si, 1); save(); render();
+    } else if (s.warm){
+      s.warm = false; s.del = true; s.wMan = true; s.wAuto = false; save();
+      row.classList.remove("warm"); row.classList.add("pdel");
+      row.querySelector(".snum").textContent = "⊘";
+    } else {
+      s.warm = true; s.wMan = true; s.wAuto = false; save();
+      row.classList.add("warm");
+      row.querySelector(".snum").textContent = "W";
+    }
   }
   else if (act === "addset"){
     d.exercises[ei].sets.push({w:"", r:"", done:false, warm:false}); save(); render();
@@ -3717,6 +3808,32 @@ document.addEventListener("click", ev => {
     }
   }
   else if (act === "swap"){ openAddModal(ei); }
+  else if (act === "ss-open"){ closeModal(); openSSModal(ei); }
+  else if (act === "ss-unlink"){
+    const e = d.exercises[ei], g = e.ss;
+    delete e.ss;
+    const left = d.exercises.filter(x => x.ss === g);
+    if (left.length < 2) left.forEach(x => delete x.ss);
+    save(); closeModal(); render();
+  }
+  else if (act === "ss-with"){
+    const j = +btn.dataset.j, e = d.exercises[ei], p = d.exercises[j];
+    if (!e || !p || e === p) return;
+    const old = e.ss;
+    const g = p.ss || old || Math.max(0, ...d.exercises.map(x => x.ss || 0)) + 1;
+    e.ss = g; p.ss = g;
+    if (old && old !== g){
+      const left = d.exercises.filter(x => x !== e && x.ss === old);
+      if (left.length < 2) left.forEach(x => delete x.ss);
+    }
+    // keep the group adjacent: drop this lift right after the group's last other member
+    const arr = d.exercises;
+    arr.splice(arr.indexOf(e), 1);
+    let k = -1; arr.forEach((x, idx) => { if (x.ss === g) k = idx; });
+    arr.splice(k + 1, 0, e);
+    save(); closeModal(); render();
+    showToast("Superset — alternate sets between the two, rest after the pair.");
+  }
   else if (act === "add-ex"){ openAddModal(null); }
   else if (act === "builder-open"){ openBuilderModal(btn.dataset.for || null); }
   else if (act === "tsel"){
@@ -4108,6 +4225,13 @@ document.addEventListener("input", ev => {
   if (t.classList.contains("w") || t.classList.contains("r")){
     const d = curDraft(), e = d.exercises[+t.dataset.ei];
     if (!e) return;
+    // typing anywhere cancels any set still marked ⊘ for removal — back to its number
+    d.exercises.forEach((x, xi) => x.sets.forEach((u, ui) => {
+      if (!u.del) return;
+      u.del = false;
+      const r2 = document.querySelector('.srow[data-ei="'+xi+'"][data-si="'+ui+'"]');
+      if (r2){ r2.classList.remove("pdel"); r2.querySelector(".snum").textContent = ui+1; }
+    }));
     const s = e.sets[+t.dataset.si];
     if (t.classList.contains("w")){
       s.w = t.value;
