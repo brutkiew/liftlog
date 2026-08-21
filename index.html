@@ -312,6 +312,17 @@
   /* ===== coach ===== */
   .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
   .chips button{font-size:13px;padding:7px 13px;border-radius:999px;color:var(--text-2);font-weight:550}
+  /* target builder + exercise intel */
+  #modal .chips{margin-bottom:4px}
+  .tchip.on{color:var(--accent);border-color:rgba(44,224,139,.4);background:var(--accent-dim)}
+  .fdot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:0}
+  .evb{font-size:10px;font-weight:700;letter-spacing:.06em;border-radius:5px;padding:2px 6px;vertical-align:1px;white-space:nowrap}
+  .evb.p{color:var(--accent);background:var(--accent-dim)}
+  .evb.l{color:var(--info);background:rgba(100,210,255,.12)}
+  .evb.o{color:var(--text-3);background:rgba(255,255,255,.07)}
+  .intel-li{font-size:13.5px;color:var(--text-2);margin-top:7px;line-height:1.5}
+  .intel-li b{color:var(--text-1);font-weight:650}
+  .intel-li .k{color:var(--text-3);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.07em;margin-right:6px}
   .coach-q{background:var(--accent-dim);border:1px solid rgba(44,224,139,.25);
     border-radius:14px 14px 4px 14px;padding:11px 14px;margin:16px 0 8px 36px;font-size:14px}
   .coach-a{background:var(--bg-1);border:1px solid var(--stroke);border-radius:14px 14px 14px 4px;
@@ -415,6 +426,7 @@ const EX = {
   cgbp:{n:"Close-Grip Bench Press",g:"triceps",inc:5,rest:150,bb:1,sub:"tri_lat"},
   jm:{n:"JM Press",g:"triceps",inc:5,rest:120,sub:"tri_lat"},
   skull:{n:"Skull Crusher",g:"triceps",inc:5,sub:"tri_long"},
+  xbody:{n:"Cross-Body Cable Extension",g:"triceps",inc:2.5,uni:1,sub:"tri_long"},
   pullup:{n:"Weighted Pull-Up",g:"back",inc:5,bw:1,rest:150,sub:"back_lat"},
   latpd:{n:"Lat Pulldown",g:"back",inc:5,rest:120,sub:"back_lat"},
   ngpd:{n:"Neutral-Grip Pulldown",g:"back",inc:5,rest:120,sub:"back_lat"},
@@ -425,12 +437,15 @@ const EX = {
   cablerow:{n:"Seated Cable Row",g:"back",inc:5,rest:120,sub:"back_mid"},
   sapd:{n:"Straight-Arm Pulldown",g:"back",inc:5,sub:"back_lat"},
   pullover:{n:"DB Pullover",g:"back",inc:5,db:1,sub:"back_lat"},
+  shrug:{n:"Shrug (DB or BB)",g:"back",inc:10,sub:"back_mid"},
   ezcurl:{n:"EZ-Bar Curl",g:"biceps",inc:5,sub:"bi_curl"},
   bbcurl:{n:"Barbell Curl",g:"biceps",inc:5,sub:"bi_curl"},
   incurl:{n:"Incline DB Curl",g:"biceps",inc:5,db:1,sub:"bi_curl"},
   hammer:{n:"Hammer Curl",g:"biceps",inc:5,db:1,sub:"bi_brach"},
   cablecurl:{n:"Cable Curl",g:"biceps",inc:5,sub:"bi_curl"},
   preacher:{n:"Preacher Curl",g:"biceps",inc:5,sub:"bi_curl"},
+  bayes:{n:"Bayesian Cable Curl",g:"biceps",inc:2.5,uni:1,sub:"bi_curl"},
+  revcurl:{n:"Reverse EZ-Bar Curl",g:"biceps",inc:5,sub:"bi_brach"},
   dbohp:{n:"Seated DB Shoulder Press",g:"shoulders",inc:5,db:1,rest:150,sub:"delt_front"},
   machohp:{n:"Machine Shoulder Press",g:"shoulders",inc:5,rest:120,sub:"delt_front"},
   smithohp:{n:"Smith Machine Shoulder Press",g:"shoulders",inc:5,rest:150,sub:"delt_front"},
@@ -438,6 +453,7 @@ const EX = {
   bbohp:{n:"Overhead Barbell Press",g:"shoulders",inc:5,rest:180,bb:1,sub:"delt_front"},
   latraise:{n:"DB Lateral Raise",g:"shoulders",inc:2.5,db:1,sub:"delt_side"},
   clat:{n:"Cable Lateral Raise",g:"shoulders",inc:2.5,sub:"delt_side"},
+  mlat:{n:"Machine Lateral Raise",g:"shoulders",inc:5,sub:"delt_side"},
   cfront:{n:"Cable Rope Front Raise",g:"shoulders",inc:2.5,sub:"delt_front"},
   rpd:{n:"Reverse Pec Deck",g:"shoulders",inc:5,sub:"delt_rear"},
   sarpd:{n:"Single-Arm Reverse Pec Deck",g:"shoulders",inc:5,uni:1,sub:"delt_rear"},
@@ -450,13 +466,17 @@ const EX = {
   lunge:{n:"Walking Lunge",g:"quads",inc:5,db:1,rest:120,sub:"quad_comp"},
   rdl:{n:"Romanian Deadlift",g:"hamstrings",inc:10,rest:180,bb:1,sub:"ham_hinge"},
   legcurl:{n:"Leg Curl",g:"hamstrings",inc:5,sub:"ham_curl"},
+  seatedcurl:{n:"Seated Leg Curl",g:"hamstrings",inc:5,sub:"ham_curl"},
+  backext:{n:"45° Back Extension",g:"hamstrings",inc:5,sub:"ham_hinge"},
+  hipthrust:{n:"Barbell Hip Thrust",g:"glutes",inc:10,rest:150,bb:1},
+  abduct:{n:"Hip Abduction Machine",g:"glutes",inc:5},
   scalf:{n:"Standing Calf Raise",g:"calves",inc:10,sub:"calf_stand"},
   seatcalf:{n:"Seated Calf Raise",g:"calves",inc:10,sub:"calf_seat"},
   hlr:{n:"Hanging Leg Raise",g:"abs",inc:0,bw:1,sub:"abs_low"},
   cablecrunch:{n:"Cable Crunch",g:"abs",inc:5,sub:"abs_crunch"},
 };
 const GROUPS = {chest:"Chest",triceps:"Triceps",back:"Back",biceps:"Biceps",
-  shoulders:"Shoulders",quads:"Quads",hamstrings:"Hamstrings",calves:"Calves",abs:"Abs",other:"Other"};
+  shoulders:"Shoulders",quads:"Quads",hamstrings:"Hamstrings",glutes:"Glutes",calves:"Calves",abs:"Abs",other:"Other"};
 
 const SESSIONS = {
   "ls-a":{name:"Legs / Shoulders — A",plan:[["squat",4,5,8],["legpress",3,10,12],["legext",3,12,15],["scalf",4,10,15],["dbohp",3,8,10],["latraise",3,12,15],["rpd",3,12,15],["hlr",3,10,15]]},
@@ -491,7 +511,7 @@ const REG_COL = {chest:"#FF6B6B", shoulders:"#FFB020", biceps:"#C08BF8", forearm
   core:"#FFD60A", quads:"#2CE08B", calves:"#64D2FF", upper_back:"#4D8FE0", lats:"#5AA7F0",
   triceps:"#9B8CF8", lower_back:"#3E7FD6", glutes:"#F27FD2", hamstrings:"#FF7BAC"};
 const GROUP_COL = {chest:"#FF6B6B", triceps:"#9B8CF8", back:"#5AA7F0", biceps:"#C08BF8",
-  shoulders:"#FFB020", quads:"#2CE08B", hamstrings:"#FF7BAC", calves:"#64D2FF",
+  shoulders:"#FFB020", quads:"#2CE08B", hamstrings:"#FF7BAC", glutes:"#F27FD2", calves:"#64D2FF",
   abs:"#FFD60A", other:"#8A93A3"};
 const MAJOR_COL = {Chest:"#FF6B6B", Back:"#5AA7F0", Delts:"#FFB020", Arms:"#B085F5",
   Quads:"#2CE08B", Hams:"#FF7BAC", Calves:"#64D2FF", Core:"#FFD60A"};
@@ -531,11 +551,13 @@ const MUSC = {
   cgbp:{p:["triceps"],s:["chest","shoulders"],t:["forearms","core"]},
   jm:{p:["triceps"],s:["chest"],t:["forearms"]},
   skull:{p:["triceps"],s:[],t:["forearms"]},
+  xbody:{p:["triceps"],s:[],t:["core","shoulders"]},
   pullup:{p:["lats"],s:["biceps","forearms"],t:["core","upper_back"]},
   latpd:{p:["lats"],s:["biceps"],t:["forearms","upper_back"]},
   ngpd:{p:["lats"],s:["biceps"],t:["forearms","upper_back"]},
   sapd:{p:["lats"],s:[],t:["triceps","core"]},
   pullover:{p:["lats"],s:["chest"],t:["triceps","core"]},
+  shrug:{p:["upper_back"],s:[],t:["forearms","core"]},
   bbrow:{p:["upper_back"],s:["lats","biceps","shoulders"],t:["lower_back","hamstrings","glutes","forearms","core"]},
   tbar:{p:["upper_back"],s:["lats","biceps","shoulders"],t:["lower_back","hamstrings","glutes","forearms","core"]},
   csrow:{p:["upper_back"],s:["lats","biceps","shoulders"],t:["forearms"]},
@@ -544,6 +566,8 @@ const MUSC = {
   ezcurl:{p:["biceps"],s:["forearms"]}, bbcurl:{p:["biceps"],s:["forearms"]},
   incurl:{p:["biceps"],s:[],t:["forearms"]}, hammer:{p:["biceps"],s:["forearms"]},
   cablecurl:{p:["biceps"],s:[],t:["forearms"]}, preacher:{p:["biceps"],s:[],t:["forearms"]},
+  bayes:{p:["biceps"],s:[],t:["forearms","shoulders"]},
+  revcurl:{p:["biceps"],s:["forearms"]},
   dbohp:{p:["shoulders"],s:["triceps"],t:["upper_back","forearms"]},
   machohp:{p:["shoulders"],s:["triceps"],t:["upper_back"]},
   smithohp:{p:["shoulders"],s:["triceps"],t:["upper_back"]},
@@ -551,6 +575,7 @@ const MUSC = {
   bbohp:{p:["shoulders"],s:["triceps","core"],t:["upper_back","forearms","glutes"]},
   latraise:{p:["shoulders"],s:[],t:["upper_back","forearms"]},
   clat:{p:["shoulders"],s:[],t:["upper_back","forearms"]},
+  mlat:{p:["shoulders"],s:[],t:["upper_back"]},
   cfront:{p:["shoulders"],s:[],t:["upper_back"]},
   rpd:{p:["shoulders"],s:["upper_back"]},
   sarpd:{p:["shoulders"],s:["upper_back"],t:["core"]},
@@ -563,6 +588,10 @@ const MUSC = {
   lunge:{p:["quads"],s:["glutes"],t:["hamstrings","calves","core"]},
   rdl:{p:["hamstrings"],s:["glutes","lower_back"],t:["forearms","upper_back","core"]},
   legcurl:{p:["hamstrings"],s:[],t:["calves"]},
+  seatedcurl:{p:["hamstrings"],s:[],t:["calves"]},
+  backext:{p:["hamstrings"],s:["glutes","lower_back"]},
+  hipthrust:{p:["glutes"],s:["hamstrings"],t:["quads","core"]},
+  abduct:{p:["glutes"],s:[]},
   scalf:{p:["calves"],s:[]}, seatcalf:{p:["calves"],s:[]},
   hlr:{p:["core"],s:[],t:["forearms","lats","quads"]},
   cablecrunch:{p:["core"],s:[]},
@@ -570,8 +599,128 @@ const MUSC = {
 const GROUP_M = {chest:{p:["chest"],s:["triceps"]}, triceps:{p:["triceps"],s:[]},
   back:{p:["lats"],s:["upper_back","biceps"]}, biceps:{p:["biceps"],s:["forearms"]},
   shoulders:{p:["shoulders"],s:[]}, quads:{p:["quads"],s:["glutes"]},
-  hamstrings:{p:["hamstrings"],s:["glutes"]}, calves:{p:["calves"],s:[]},
-  abs:{p:["core"],s:[]}, other:{p:[],s:[]}};
+  hamstrings:{p:["hamstrings"],s:["glutes"]}, glutes:{p:["glutes"],s:["hamstrings"]},
+  calves:{p:["calves"],s:[]}, abs:{p:["core"],s:[]}, other:{p:[],s:[]}};
+
+/* ================= exercise intelligence (research pass, Aug 2026) =================
+   Per-lift metadata distilled from the regional-hypertrophy + exercise-consensus research
+   (full report: "LiftLog Coach" doc). Fields:
+     mv   movement pattern (press/fly/row/pulldown/pullover/curl/ext/push/raise/squat/
+          hinge/curlH/thrust/calf/crunch/dip/shrug/pull) — the builder pairs DIFFERENT
+          patterns for one target, the swap engine prefers the SAME pattern
+     st   0–3 how well it loads the muscle at LONG length (the top selection criterion —
+          "train the stretch" is the field's most agreed-on principle)
+     sb   0–3 stability (stable machines/cables titrate load + failure better; equal growth)
+     good / bad   honest one-liners for the intel card
+     ev   the receipt — study or community verdict worth knowing
+     flag joint caveat (gate, not a ban)
+     pair complements that cover what this lift misses */
+const INTEL = {
+  bench:{mv:"press",st:2,sb:2,good:"Heavy progressive overload for the whole chest — front delts and triceps grow along with it.",bad:"Doesn't bias the upper chest; pair with an incline.",ev:"Machines and dumbbells grow the chest just as well — barbell is a preference, not a requirement (2023 meta-analysis)."},
+  incbb:{mv:"press",st:2,sb:2,good:"Upper-chest emphasis — the best-proven regional target in the research.",ev:"~30° incline is the sweet spot; 45°+ turns into a front-delt press (Chaves 2020, Rodríguez-Ridao 2020).",pair:["cfly"]},
+  incdb:{mv:"press",st:3,sb:1,good:"Upper chest with a deeper stretch than a bar allows.",ev:"Deep-stretch pressing is the modern default — dumbbells let the pec reach full length.",pair:["l2h"]},
+  flatdb:{mv:"press",st:3,sb:1,good:"Whole-chest builder with a deeper stretch than the barbell.",pair:["pec"]},
+  dip:{mv:"dip",st:3,sb:1,good:"Elite chest + triceps builder — deep stretch under heavy load; lean forward for more chest.",flag:"Shoulder-extension stress at depth — control it, and skip it if the front of the shoulder complains.",ev:"Community S-tier with a joint-tolerance gate."},
+  cfly:{mv:"fly",st:2,sb:2,good:"Chest isolation with tension through full adduction — this IS the honest \"inner chest\" work.",pair:["bench"]},
+  l2h:{mv:"fly",st:2,sb:2,good:"Upper-chest fly path — the cable keeps tension at the squeeze where dumbbells go slack."},
+  pec:{mv:"fly",st:2,sb:3,good:"Stable pec isolation, easy to take to failure — grows upper and lower fibers alike (2024 trial)."},
+  machchest:{mv:"press",st:2,sb:3,good:"Stable heavy pressing — easy to push near failure safely.",ev:"Nippard's S+ chest pick; machines = free weights for growth."},
+  ohext:{mv:"ext",st:3,sb:2,good:"Long head at full stretch — the single best-supported triceps choice.",ev:"Overhead work grew the whole triceps ~1.4× more than pushdowns, long head ~1.5× (Maeo 2023).",pair:["pushdown"]},
+  dbohext:{mv:"ext",st:3,sb:1,good:"Overhead stretch for the long head with simple loading.",pair:["pushdown"]},
+  ropeoh:{mv:"ext",st:3,sb:2,good:"Overhead rope — long head at length with smooth cable tension.",pair:["rope"]},
+  xbody:{mv:"ext",st:3,sb:2,good:"Long head at length plus a hard squeeze — a 2024–26 community favorite.",pair:["pushdown"]},
+  pushdown:{mv:"push",st:1,sb:2,good:"Clean short-position triceps work — the complement to overhead extensions.",bad:"Leaves the long head short — never your only triceps lift.",pair:["ohext"]},
+  rope:{mv:"push",st:1,sb:2,good:"Pushdown with a longer squeeze at the bottom split.",bad:"Same story as any pushdown: pair it with overhead work.",pair:["ropeoh"]},
+  cgbp:{mv:"press",st:1,sb:2,good:"Heavy triceps loading with chest helping — strength-friendly.",bad:"Long head stays short throughout."},
+  jm:{mv:"press",st:2,sb:2,good:"Skullcrusher-press hybrid — trending for loadable stretch on the triceps."},
+  skull:{mv:"ext",st:2,sb:1,good:"Stretch-loaded triceps — take the bar behind your head for extra long-head length.",pair:["pushdown"]},
+  pullup:{mv:"pulldown",st:2,sb:1,good:"Loaded vertical pull — lats at length with real overload.",bad:"Harder to fine-tune load near failure than a pulldown.",ev:"Pull-up ≈ pulldown for growth — pick by loadability."},
+  latpd:{mv:"pulldown",st:3,sb:3,good:"The default lat builder — full stretch at the top, precise loading.",ev:"All pulldown variations sit in Nippard's S tier."},
+  ngpd:{mv:"pulldown",st:3,sb:3,good:"Strong, shoulder-friendly grip; slight extension path adds a mid-back flavor."},
+  sapd:{mv:"pullover",st:3,sb:2,good:"Lats in isolation at long length — no biceps in the way.",ev:"The \"lat prayer\" pattern is the rehabilitated pullover — trending for good reason.",pair:["csrow"]},
+  pullover:{mv:"pullover",st:3,sb:1,good:"Deep lat stretch — the cable/machine versions are the modern evidence-crowd picks."},
+  csrow:{mv:"row",st:2,sb:3,good:"Mid-back thickness (traps, rhomboids, rear delts) without the lower-back tax — the modern row default.",ev:"Chest-supported rows displaced bent-over rows in evidence-based programs."},
+  bbrow:{mv:"row",st:2,sb:1,good:"Heavy full-back loading.",bad:"High lower-back fatigue for the same growth a supported row gives cheaper."},
+  tbar:{mv:"row",st:2,sb:2,good:"Heavy row with a stable chest angle if braced."},
+  dbrow:{mv:"row",st:2,sb:2,good:"Lat-biased unilateral row with bench support."},
+  cablerow:{mv:"row",st:2,sb:3,good:"Constant-tension row — top mid-trap and rhomboid recruitment of the row family."},
+  shrug:{mv:"shrug",st:1,sb:2,good:"Direct upper traps — a slightly wider or overhead-leaning path matches the fibers better.",bad:"Upper traps only; mid/lower traps need rows, face pulls and Y-raise work."},
+  ezcurl:{mv:"curl",st:1,sb:2,good:"Heavy bar loading through the curl's strong middle range."},
+  bbcurl:{mv:"curl",st:1,sb:2,good:"Straight-bar loading — simple heavy progression."},
+  incurl:{mv:"curl",st:3,sb:1,good:"Elbows behind the body = long head at length; biases the upper arm region.",ev:"Incline grew the proximal arm more, preacher the distal — they're complements (Kassiano 2025).",pair:["preacher"]},
+  hammer:{mv:"curl",st:1,sb:2,good:"Brachialis + brachioradialis — arm thickness between biceps and triceps.",pair:["incurl"]},
+  cablecurl:{mv:"curl",st:2,sb:2,good:"Tension through the whole curl — no dead spot at the top like a dumbbell."},
+  preacher:{mv:"curl",st:3,sb:3,good:"Hardest exactly where the biceps is longest; biases the lower biceps near the elbow.",ev:"Preacher-style work reliably grew the distal arm in two RCTs.",pair:["incurl"]},
+  bayes:{mv:"curl",st:3,sb:2,good:"Behind-body cable curl — long head at max length with cable tension.",ev:"2025 trial: equal growth to preacher curls — pick by feel, not hype."},
+  revcurl:{mv:"curl",st:1,sb:2,good:"The best brachialis bias there is — wrist extensors work too."},
+  dbohp:{mv:"press",st:2,sb:1,good:"Heavy front-delt + triceps pressing.",bad:"Does not build side delts — lateral raises are non-optional.",pair:["latraise"]},
+  machohp:{mv:"press",st:2,sb:3,good:"Stable overhead pressing — easy to push hard safely."},
+  smithohp:{mv:"press",st:2,sb:3,good:"Fixed path = pure pressing effort; the Smith stigma is dead in the research era."},
+  arnold:{mv:"press",st:2,sb:1,good:"Press with extra time under tension through rotation."},
+  bbohp:{mv:"press",st:2,sb:1,good:"The classic strength press.",bad:"For delt size specifically, seated/machine pressing + laterals gives more for less fatigue."},
+  latraise:{mv:"raise",st:1,sb:1,good:"THE side-delt builder — no press replaces it.",ev:"Dumbbell = cable for side-delt growth (2025 trial) — use whichever feels best.",pair:["rpd"]},
+  clat:{mv:"raise",st:2,sb:2,good:"Side delts with tension at the bottom where dumbbells go slack."},
+  mlat:{mv:"raise",st:2,sb:3,good:"The machine-lateral era is real: stable, loadable, easy failure work for side delts."},
+  cfront:{mv:"raise",st:1,sb:2,good:"Direct front-delt work when you really want it.",bad:"Front delts already grow from every press — usually redundant volume (Nippard: F-tier as a staple)."},
+  rpd:{mv:"fly",st:2,sb:3,good:"Rear delts in isolation — stable and easy to progress.",ev:"Neutral (thumbs-up) grip beats pronated for rear-delt recruitment (Schoenfeld 2013)."},
+  sarpd:{mv:"fly",st:2,sb:3,good:"Your bigger-ROM version — one side at a time with a deeper reach."},
+  facepull:{mv:"pull",st:1,sb:2,good:"Rear delts + mid traps + external rotators — shoulder-health work that builds too."},
+  squat:{mv:"squat",st:3,sb:1,good:"Deep knee + hip loading — quads, glutes and adductors all grow (adductors most of all with depth).",bad:"Does NOT grow the rectus femoris — that one needs leg extensions.",ev:"Full depth beat half squats for glutes (+6.7% vs +2.2%) and adductors (Kubo 2019).",pair:["legext"]},
+  legpress:{mv:"squat",st:3,sb:3,good:"Quad growth ≈ squats with far less systemic fatigue — go deep, that's where growth lives."},
+  hack:{mv:"squat",st:3,sb:3,good:"The era's quad darling — stretch-loaded, stable, back-friendly.",ev:"Nippard S+: \"brilliant quad builder\".",pair:["legext"]},
+  legext:{mv:"ext",st:2,sb:3,good:"The ONLY lift here that grows the rectus femoris — plus distal quad sweep.",ev:"Squats grew the RF 0% in 10 weeks; extensions grew every region (Kubo 2019; Kassiano 2025).",pair:["hack"]},
+  bss:{mv:"squat",st:3,sb:1,good:"Deep unilateral quad + glute work — brutal and effective.",flag:"Balance-limited — a hand on a rack tightens the stimulus."},
+  lunge:{mv:"squat",st:2,sb:1,good:"Glute-biased knee flexion — walking lunges sit in current glute S-tiers."},
+  rdl:{mv:"hinge",st:3,sb:1,good:"Hamstrings + glutes at long length under heavy load.",bad:"Skips the short hamstring head entirely — a curl is mandatory alongside.",ev:"Hinges bias the semimembranosus; curls grow what hinges miss (2025 RCT).",pair:["seatedcurl"]},
+  legcurl:{mv:"curlH",st:1,sb:3,good:"Knee-flexion work no hinge can replace (short head + semitendinosus).",ev:"The SEATED version grew hamstrings ~1.5× more — hips flexed = hamstrings stretched (Maeo 2021). Use it when the machine's free.",pair:["rdl"]},
+  seatedcurl:{mv:"curlH",st:3,sb:3,good:"The research-backed #1 hamstring curl — hip flexed puts the hamstrings at length.",ev:"Seated beat lying leg curls +14% vs +9% growth (Maeo 2021).",pair:["rdl"]},
+  backext:{mv:"hinge",st:2,sb:2,good:"45° back extension — glutes, hams and erectors; squeeze the glutes at the top.",ev:"A current community favorite for glute-biased hinge volume."},
+  hipthrust:{mv:"thrust",st:1,sb:2,good:"Direct glute overload without quad or hamstring size tagging along.",ev:"Thrust ≈ deep squat for glute growth (Plotkin 2023, MRI) — combining patterns beats either alone.",pair:["squat"]},
+  abduct:{mv:"raise",st:1,sb:3,good:"Glute med + upper-glute bias — lean the torso slightly forward on the machine.",ev:"Machine abduction maximizes glute med while keeping the TFL out of it (2022)."},
+  scalf:{mv:"calf",st:3,sb:3,good:"Straight knee = gastroc at length. Sink deep and pause the stretch — that's where calves grow.",ev:"Standing grew the gastroc +9–12% vs +1–2% seated; bottom-half stretched reps beat full ROM (Kinoshita 2023; Kassiano 2023).",pair:["seatcalf"]},
+  seatcalf:{mv:"calf",st:1,sb:3,good:"Soleus-only work with a comfortable setup.",bad:"Optional: the soleus grew the SAME from standing raises (Kinoshita 2023) — keep it for variety, not necessity."},
+  hlr:{mv:"raise",st:2,sb:1,good:"Lower-ab bias — curl the pelvis toward the ribs, or it's mostly a hip-flexor exercise.",ev:"2024 imaging: the segment nearest the load thickens most — pelvis-up work biases the lower abs."},
+  cablecrunch:{mv:"crunch",st:2,sb:2,good:"Loaded spinal flexion — upper-ab bias with easy progression."},
+};
+const intelOf = id => INTEL[id] || (S.custom[id] && S.custom[id].base && INTEL[S.custom[id].base]) || {};
+
+/* target menu for the builder: evidence tier (2 proven / 1 likely / 0 optional) + the receipt */
+const TGT_LBL = {chest_up:"Upper chest", chest_low:"Mid & lower chest", delt_front:"Front delts",
+  delt_side:"Side delts", delt_rear:"Rear delts", tri_long:"Long head (overhead)", tri_lat:"Pushdown pattern",
+  bi_curl:"Biceps", bi_brach:"Brachialis", back_lat:"Lats", back_mid:"Mid-back & traps",
+  quad_comp:"Quads — deep compound", quad_iso:"Rectus femoris (extensions)", ham_hinge:"Hams — hinge",
+  ham_curl:"Hams — curl", calf_stand:"Gastroc (standing)", calf_seat:"Soleus (seated)",
+  abs_low:"Lower abs", abs_crunch:"Upper abs"};
+const TGT_INFO = {
+  chest_up:{ev:2,note:"~30° incline pressing + low-to-high flys. The best-proven regional target in the literature."},
+  chest_low:{ev:2,note:"Flat/decline pressing, dips, flys. Flat work already covers the lower fibers well."},
+  delt_front:{ev:2,note:"Any pressing grows it — dedicated front-delt work is usually redundant."},
+  delt_side:{ev:2,note:"Direct lateral raises are the only real driver — presses don't cover this head."},
+  delt_rear:{ev:2,note:"Reverse flys (neutral grip), face pulls, high-elbow rows."},
+  tri_long:{ev:2,note:"Overhead / behind-head extensions grew the long head ~1.5× more than pushdowns (Maeo 2023)."},
+  tri_lat:{ev:1,note:"Pushdown-pattern work. It biases the pattern — true lateral-head isolation is unproven."},
+  bi_curl:{ev:2,note:"Preacher-style biases the lower biceps, incline/behind-body the upper — pairing one of each covers the arm."},
+  bi_brach:{ev:2,note:"A separate muscle under the biceps — reverse + hammer curls build visible arm width."},
+  back_lat:{ev:2,note:"Pulldowns, pull-ups, straight-arm work. (Upper-vs-lower lat targeting is still emerging science.)"},
+  back_mid:{ev:2,note:"Rows build the \"thickness\" muscles: mid traps, rhomboids, rear delts."},
+  quad_comp:{ev:2,note:"Deep squat/press patterns grow the outer quads — but not the rectus femoris."},
+  quad_iso:{ev:2,note:"Leg extensions are the ONLY thing that grows the rectus femoris — squats leave it untouched. Proven repeatedly."},
+  ham_hinge:{ev:2,note:"RDLs and hip hinges bias the outer/inner-upper hamstrings at long length."},
+  ham_curl:{ev:2,note:"Curls grow what hinges can't touch. Seated beats lying — hips flexed = hamstrings stretched."},
+  calf_stand:{ev:2,note:"Straight-knee raises with a deep paused stretch — the gastroc barely grows any other way."},
+  calf_seat:{ev:0,note:"Optional: the soleus grows just as well from standing work. Use for variety or knee comfort."},
+  abs_low:{ev:1,note:"Hanging/reverse raises WITH a pelvic curl — without it they're mostly hip-flexor work."},
+  abs_crunch:{ev:1,note:"Weighted crunch patterns bias the upper segments."},
+};
+/* the honest answers to the classic asks */
+const MYTHS = [
+  {label:"“Inner chest”", to:"chest_low",
+   note:"There is no inner-chest compartment to isolate — no study has ever shown region-specific “inner” growth. What actually works: full-adduction work (cable flys crossing the midline, pec deck) trains the whole pec including the middle, and overall chest mass is what fills the center in."},
+  {label:"“Teardrop” (VMO)", to:"quad_comp",
+   note:"No stance, toe angle or ball-squeeze selectively grows the VMO (2009 systematic review, never overturned). It grows with all deep, heavy quad work — depth and progression are the teardrop plan."},
+  {label:"Triceps medial head", to:"tri_lat",
+   note:"Not separately targetable — it fires in every hard extension. Cover the long head (overhead) and the pushdown pattern and the medial head takes care of itself."},
+];
 
 /* ================= state ================= */
 const KEY = "liftlog.v1";
@@ -1336,7 +1485,7 @@ function todayHeroInner(today){
   const dd = S.drafts[today] || (S.drafts[today] = newDraft(today));
   const ses = sesDef(dd.session);
   return '<span class="lbl">Today</span>'
-    + '<div class="today-name grad-ink">'+(ses ? esc(ses.name) : (WEEK[dow] === null ? "Rest day" : "Custom workout"))+'</div>'
+    + '<div class="today-name grad-ink">'+(ses ? esc(ses.name) : dd.bname ? esc(dd.bname) : (WEEK[dow] === null ? "Rest day" : "Custom workout"))+'</div>'
     + (dd.planned ? '<div class="cap" style="margin:-2px 0 6px"><span class="ok-dot"></span>Planned ahead — ready to go</div>' : '')
     + sesFreshLine(ses)
     + '<div class="preview">'+(dd.exercises.length
@@ -1344,7 +1493,8 @@ function todayHeroInner(today){
         : (ses ? "" : "Off day on the program — recovery is where the growth happens."))+'</div>'
     + '<select id="session-sel" style="margin-bottom:12px">'+sessionOptions(dd.session)+'</select>'
     + '<button class="primary big" data-act="start">'+(draftHasData(dd) ? "Resume workout" : "Start workout")+'</button>'
-    + '<button class="ghost" data-act="past-workout" style="width:100%;margin-top:8px;font-size:13px">Logging a different day? Pick the date →</button>'
+    + '<button class="ghost" data-act="builder-open" style="width:100%;margin-top:8px;font-size:13px">Target builder — a session for exactly what you want to grow →</button>'
+    + '<button class="ghost" data-act="past-workout" style="width:100%;margin-top:2px;font-size:13px">Logging a different day? Pick the date →</button>'
     + (WEEK[dow] === null ? '<button class="ghost" data-act="plan-tomorrow" style="width:100%;margin-top:2px;font-size:13px">Plan tomorrow\'s workout →</button>' : '');
 }
 function scoreHeroInner(done){
@@ -1560,7 +1710,7 @@ function renderWorkout(d){
   const total = d.exercises.reduce((a,e) => a + e.sets.length, 0);
   const doneN = d.exercises.reduce((a,e) => a + e.sets.filter(setLogged).length, 0);
   let html = '<div id="sessbar"><button class="ghost" data-act="pause" title="Save & exit">‹</button>'
-    + '<b class="grow">'+esc((sesDef(d.session)||{}).name || "Workout")
+    + '<b class="grow">'+esc((sesDef(d.session)||{}).name || d.bname || "Workout")
     + (isToday ? "" : ' <span class="t num">· '+fmtShort(d.date)+'</span>')+'</b>'
     + (planning
       ? '<button class="primary small" data-act="plan-done">Done</button>'
@@ -1850,7 +2000,7 @@ function finishDraft(dateStr, silent){
   const prs = computePRs(kept);
   S.workouts = S.workouts.filter(w => w.date !== dateStr);
   S.workouts.push({id:dateStr.replace(/-/g,"")+"-"+Math.floor(Math.random()*1e6),
-    date:dateStr, session:d.session, sesName:(sesDef(d.session)||{}).name || "Custom",
+    date:dateStr, session:d.session, sesName:(sesDef(d.session)||{}).name || d.bname || "Custom",
     exercises:kept, cardio:d.cardio.on ? {min:+d.cardio.min || 20} : null,
     note:(d.note||"").trim(), prs,
     durMin:(dateStr === todayStr() && d.startedAt) ? Math.round((Date.now()-d.startedAt)/60000) : null});
@@ -2609,7 +2759,7 @@ function muscleReport(){
   const rows = [];
   const majors = [["chest","Chest"],["shoulders","Shoulders"],["lats","Lats"],["upper_back","Upper back"],
     ["biceps","Biceps"],["triceps","Triceps"],["quads","Quads"],["hamstrings","Hamstrings"],
-    ["calves","Calves"],["core","Core"]];
+    ["glutes","Glutes"],["calves","Calves"],["core","Core"]];
   for (const [r, label] of majors){
     const wv = (per[r]||0)/(days/7);
     if (!wv) continue;
@@ -3068,7 +3218,17 @@ function todayGroups(){
 function openAddModal(swapEi){
   const act = swapEi != null ? "modal-swap" : "modal-add";
   const fg = swapEi != null ? [exInfo(curDraft().exercises[swapEi].id).g] : todayGroups();
+  let best = "";
+  if (swapEi != null){
+    const d0 = curDraft(), curId = d0.exercises[swapEi].id;
+    const rk = rankSwaps(curId, new Set(d0.exercises.map(e => e.id)));
+    if (rk.length) best = '<div class="mgroup">Best swaps — ranked for the same target</div>'
+      + rk.map(r => '<button class="pick" data-act="modal-swap" data-exid="'+r.id+'" data-ei="'+swapEi+'">'
+        + esc(r.e.n)+'<small>'+r.why.slice(0,2).join(" · ")+'</small></button>').join("")
+      + '<div class="mgroup">Or pick anything</div>';
+  }
   openModal('<h3>'+(swapEi!=null ? "Replace exercise" : "Add exercise")+'</h3>'
+    + best
     + '<input id="exsearch" placeholder="Search…" autocomplete="off">'
     + '<div id="exlist">'+exercisePicker(act, swapEi, fg)+'</div>'
     + '<div class="mgroup">Create your own</div>'
@@ -3096,6 +3256,7 @@ function openExMenu(ei){
     + '<button class="menu-item" data-act="uni-toggle" data-ei="'+ei+'">'
     + (isUni(e.id) ? '✓ One side at a time — turn off' : 'One side at a time (1-arm / 1-leg)')+'</button>'
     + '<button class="menu-item" data-act="variant-open" data-ei="'+ei+'">New variant — different bar, grip or setup</button>'
+    + '<button class="menu-item" data-act="ex-detail" data-exid="'+e.id+'">Stats &amp; muscle intel</button>'
     + (S.custom[e.id] ? '<button class="menu-item" data-act="classify-open" data-ei="'+ei+'">Muscle focus — '
         + (GROUPS[exInfo(e.id).g]||"?")+(exInfo(e.id).sub && SUB_LBL[exInfo(e.id).sub] ? ' · '+SUB_LBL[exInfo(e.id).sub] : '')+'</button>' : '')
     + '<button class="menu-item" data-act="swap" data-ei="'+ei+'">Replace exercise</button>'
@@ -3137,6 +3298,27 @@ function openClassifyModal(ei){
   fill();
   $("#clsg").addEventListener("change", fill);
 }
+/* research-backed card: what a lift builds, what it's good/bad at, the receipt */
+function intelHTML(exId){
+  const ex = exInfo(exId), i = intelOf(exId), m = muscOf(exId);
+  const rn = r => REGIONS[r] || r;
+  const dots = n => n === undefined ? "—" : "●".repeat(n)+"○".repeat(3-n);
+  let h = '<div class="mgroup">Muscle intel</div>';
+  h += '<p class="intel-li"><span class="k">Builds</span><b>'+m.p.map(rn).join(", ")
+    + (ex.sub && TGT_LBL[ex.sub] ? ' · '+TGT_LBL[ex.sub].toLowerCase() : '')+'</b>'
+    + (m.s.length ? ' — plus '+m.s.map(rn).join(", ") : '')+'</p>';
+  if (i.good) h += '<p class="intel-li"><span class="k">Good at</span>'+i.good+'</p>';
+  if (i.bad) h += '<p class="intel-li"><span class="k">Not for</span>'+i.bad+'</p>';
+  if (i.st !== undefined) h += '<p class="intel-li num"><span class="k">Stretch under load</span>'+dots(i.st)
+    + ' &nbsp; <span class="k">Stability</span>'+dots(i.sb)+'</p>';
+  if (i.ev) h += '<p class="intel-li"><span class="k">Evidence</span><span class="cap">'+i.ev+'</span></p>';
+  if (i.flag) h += '<p class="intel-li"><span class="k" style="color:var(--warn)">Caveat</span><span class="wr">'+i.flag+'</span></p>';
+  if (i.pair && i.pair.length)
+    h += '<p class="intel-li"><span class="k">Pairs with</span>'+esc(i.pair.map(p => exInfo(p).n).join(", "))+'</p>';
+  if (isStalled(exId))
+    h += '<p class="intel-li"><span class="k" style="color:var(--warn)">Stalled</span><span class="wr">3 sessions without a best.</span> Proven reset: one week at −10% load and half the sets, then rebuild — fatigue is masking strength, not erasing it.</p>';
+  return h;
+}
 function openExDetail(exId){
   const ex = exInfo(exId), hist = perfHistory(exId);
   const pts = [...hist].reverse().map(h => { const bs = bestSet(h.sets, ex);
@@ -3153,7 +3335,8 @@ function openExDetail(exId){
       + 'Best e1RM: <b style="color:var(--text-1)">'+Math.round(me)+(ex.bw && !mw ? ' reps' : ' lb')+'</b></p>';
   }
   openModal('<h3>'+esc(ex.n)+(isUni(exId) ? ' <span class="tgt">/side</span>' : '')+'</h3>'
-    + (hist.length ? '<div class="chartwrap">'+e1rmChart(pts)+'</div>' + rec
+    + intelHTML(exId)
+    + (hist.length ? '<div class="chartwrap" style="margin-top:14px">'+e1rmChart(pts)+'</div>' + rec
       + '<div class="mgroup">Recent sessions</div>'
       + hist.slice(0,6).map(h => '<p class="hint num" style="margin-top:6px"><b style="color:var(--text-1)">'+fmtDate(h.date)+'</b> — '
           + h.sets.map(s => (+s.w? s.w+"×"+s.r : s.r+" reps")).join(", ")+'</p>').join("")
@@ -3173,6 +3356,118 @@ function openPastModal(){
     const v = $("#past-date").value;
     if (v) $("#past-ses").value = WEEK[new Date(v+"T12:00:00").getDay()] || "custom";
   });
+}
+
+/* ================= target builder ================= */
+let bSel = [], bSize = 6, bMyth = null;
+function tgtDays(k){
+  if (!freshD) freshD = freshDays();
+  if (k.startsWith("g:")){
+    const regs = (GROUP_M[k.slice(2)] || {p:[]}).p;
+    let m = null;
+    for (const r of regs){ const d = freshD.reg[r]; if (d !== undefined && (m === null || d < m)) m = d; }
+    return m;
+  }
+  return freshD.sub[k] !== undefined ? freshD.sub[k] : null;
+}
+const tgtLabel = k => k.startsWith("g:") ? "All "+(GROUPS[k.slice(2)]||"") : (TGT_LBL[k]||k);
+function openBuilderModal(){
+  bSel = []; bMyth = null; freshD = freshDays();
+  const chip = (k, label) => '<button class="tchip" data-act="tsel" data-k="'+k+'">'
+    + '<i class="fdot" style="background:'+freshFill(tgtDays(k))+'"></i>'+label+'</button>';
+  let h = '<h3>Target builder</h3>'
+    + '<p class="hint">Pick what you want to grow. The engine builds a focused session from the research — a stretch-loaded primary plus a different-pattern complement per target, weighted toward lifts you already progress on. Chip dots show recovery: green = ready, orange/amber = trained recently.</p>';
+  for (const g of Object.keys(GROUPS)){
+    if (g === "other") continue;
+    const subs = GROUP_SUBS[g] || [];
+    h += '<div class="mgroup"><i class="gdot" style="background:'+GROUP_COL[g]+'"></i>'+GROUPS[g]+'</div><div class="chips">'
+      + chip("g:"+g, subs.length ? "All "+GROUPS[g].toLowerCase() : GROUPS[g])
+      + subs.map(k => chip(k, TGT_LBL[k]||SUB_LBL[k]||k)).join("")+'</div>';
+  }
+  h += '<div class="mgroup">Chasing one of these? The honest answer</div><div class="chips">'
+    + MYTHS.map((m,i) => '<button class="tchip" data-act="bmyth" data-i="'+i+'">'+m.label+'</button>').join("")+'</div>';
+  h += '<div id="bnotes"></div>';
+  h += '<div class="mgroup">Session size</div><div class="stabs" id="bsz">'
+    + [[4,"Quick · 4"],[6,"Focused · 6"],[8,"Full · 8"]].map(([n,l]) =>
+      '<button data-act="bsize" data-n="'+n+'" class="'+(bSize===n?"on":"")+'">'+l+'</button>').join("")+'</div>';
+  h += '<label class="rowline" style="gap:8px;margin-top:14px"><input type="checkbox" id="btmr" style="width:20px;height:20px">'
+    + '<span style="font-size:14px">Build it for tomorrow instead</span></label>';
+  h += '<div class="btnrow"><button class="primary" data-act="builder-go">Build the session</button>'
+    + '<button data-act="modal-close">Cancel</button></div>';
+  openModal(h);
+}
+function updateBNotes(){
+  const el = $("#bnotes"); if (!el) return;
+  let h = "";
+  if (bMyth) h += '<p class="hint" style="margin-top:12px"><b class="wr">'+bMyth.label+'</b> — '+bMyth.note+'</p>';
+  for (const k of bSel){
+    const info = k.startsWith("g:") ? null : TGT_INFO[k];
+    const d = tgtDays(k);
+    const evb = info ? (info.ev === 2 ? ' <span class="evb p">PROVEN</span>' : info.ev === 1 ? ' <span class="evb l">LIKELY</span>' : ' <span class="evb o">OPTIONAL</span>') : "";
+    h += '<p class="hint" style="margin-top:10px"><b style="color:var(--text-1)">'+tgtLabel(k)+'</b>'+evb
+      + ' — '+(info ? info.note : 'everything for the muscle: stretch-loaded primary + complement.')
+      + (d !== null && d <= 1 ? ' <span class="wr">Trained '+(d === 0 ? "today" : "yesterday")+' — consider building for tomorrow, or keep it light.</span>' : '')+'</p>';
+  }
+  el.innerHTML = h;
+}
+function buildWorkout(keys, size){
+  const all = Object.entries(EX).concat(Object.entries(S.custom));
+  const hist = new Set(trainedIds(60));
+  const used = new Set();
+  const score = ([id]) => { const i = intelOf(id);
+    return (i.st !== undefined ? i.st : 1)*3 + (i.sb !== undefined ? i.sb : 1)
+      + (hist.has(id) ? 4 : 0) + (S.custom[id] ? 1 : 0); };
+  const cands = k => all.filter(([id, e]) => !used.has(id)
+      && (k.startsWith("g:") ? e.g === k.slice(2) : (e.sub || "") === k))
+    .sort((a, b) => score(b) - score(a));
+  size = Math.min(10, Math.max(size, keys.length));
+  /* round 0: a stretch-loaded primary for every target · later rounds: complements with a
+     DIFFERENT movement pattern (press+fly, hinge+curl, overhead+pushdown) while slots last */
+  const picks = [];
+  for (let round = 0; picks.length < size && round < 4; round++){
+    let added = false;
+    for (const k of keys){
+      if (picks.length >= size) break;
+      const cs = cands(k); if (!cs.length) continue;
+      let pick;
+      if (round === 0) pick = cs.find(([id]) => (intelOf(id).st||0) >= 2) || cs[0];
+      else {
+        const prevMv = picks.filter(p => p.k === k).map(p => intelOf(p.id).mv).filter(Boolean);
+        pick = cs.find(([id]) => intelOf(id).mv && !prevMv.includes(intelOf(id).mv)) || cs[0];
+      }
+      used.add(pick[0]);
+      picks.push({id:pick[0], k});
+      added = true;
+    }
+    if (!added) break;
+  }
+  const isComp = id => { const e = exInfo(id), mv = intelOf(id).mv;
+    return ["press","squat","hinge","row","pulldown","dip","thrust"].includes(mv) || !!e.bb || (e.rest||0) >= 150; };
+  picks.sort((a, b) => (isComp(b.id)?1:0) - (isComp(a.id)?1:0));
+  const list = picks.map((p, i) => ({id:p.id,
+    plan: isComp(p.id) ? {n:(i === 0 ? 4 : 3), lo:6, hi:10} : {n:3, lo:10, hi:15}}));
+  const name = "Target: " + keys.slice(0,3).map(tgtLabel).join(" + ") + (keys.length > 3 ? " +" : "");
+  return {list, name};
+}
+/* ranked alternatives for the swap sheet — same focus first, then same muscle */
+function rankSwaps(curId, excl){
+  const cur = exInfo(curId), ci = intelOf(curId);
+  const hist = new Set(trainedIds(90));
+  const out = [];
+  for (const [id, e] of Object.entries(EX).concat(Object.entries(S.custom))){
+    if (id === curId || excl.has(id)) continue;
+    if (e.g !== cur.g && !(cur.sub && e.sub === cur.sub)) continue;
+    const i = intelOf(id);
+    let sc = 0; const why = [];
+    if (cur.sub && e.sub === cur.sub){ sc += 4; why.push("same focus"); }
+    else why.push("same muscle");
+    if (ci.mv && i.mv === ci.mv){ sc += 2; why.push("same movement"); }
+    if ((i.st||0) >= 2){ sc += i.st; if ((i.st||0) > (ci.st||0)) why.push("better stretch"); }
+    sc += (i.sb||0)*0.5;
+    if (hist.has(id)){ sc += 3; why.push("you have history"); }
+    out.push({id, e, sc, why});
+  }
+  return out.sort((a, b) => b.sc - a.sc).slice(0, 4);
 }
 
 /* ================= copy for Claude ================= */
@@ -3411,6 +3706,43 @@ document.addEventListener("click", ev => {
   }
   else if (act === "swap"){ openAddModal(ei); }
   else if (act === "add-ex"){ openAddModal(null); }
+  else if (act === "builder-open"){ openBuilderModal(); }
+  else if (act === "tsel"){
+    const k = btn.dataset.k;
+    if (bSel.includes(k)) bSel = bSel.filter(x => x !== k);
+    else bSel.push(k);
+    btn.classList.toggle("on", bSel.includes(k));
+    updateBNotes();
+  }
+  else if (act === "bsize"){
+    bSize = +btn.dataset.n || 6;
+    for (const b of document.querySelectorAll("#bsz button")) b.classList.toggle("on", +b.dataset.n === bSize);
+  }
+  else if (act === "bmyth"){
+    bMyth = MYTHS[+btn.dataset.i];
+    if (bMyth && !bSel.includes(bMyth.to)){
+      bSel.push(bMyth.to);
+      const c = document.querySelector('.tchip[data-k="'+bMyth.to+'"]');
+      if (c) c.classList.add("on");
+    }
+    updateBNotes();
+  }
+  else if (act === "builder-go"){
+    if (!bSel.length){ showToast("Pick at least one target first."); return; }
+    const tomorrow = $("#btmr") && $("#btmr").checked;
+    const bdate = tomorrow ? addDays(todayStr(), 1) : todayStr();
+    if (draftHasData(S.drafts[bdate])
+        && !confirm((tomorrow ? "Tomorrow" : "Today")+" already has a workout in progress — replace it?")) return;
+    const built = buildWorkout(bSel, bSize);
+    if (!built.list.length){ showToast("Couldn't find lifts for that pick — try different targets."); return; }
+    S.drafts[bdate] = {date:bdate, session:null, bname:built.name, active:false, startedAt:null, timer:null,
+      planned: tomorrow ? true : undefined,
+      exercises: built.list.map((x,i) => ({id:x.id, plan:x.plan, note:"", open:i===0, sets:setsFor(x.id, x.plan.n)})),
+      cardio:{on:true, min:20}, note:""};
+    save(); closeModal(); tab = "home"; render();
+    showToast("Built <b>"+built.list.length+" lifts</b> — "+esc(built.name.replace("Target: ",""))
+      + (tomorrow ? ". Waiting on Home tomorrow." : ". Review it, swap anything, then Start."));
+  }
   else if (act === "modal-add"){
     d.exercises.forEach(x => x.open = false);
     d.exercises.push({id:btn.dataset.exid, plan:null, note:"", open:true, sets:setsFor(btn.dataset.exid)});
