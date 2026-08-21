@@ -297,7 +297,7 @@
   .heat-legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
   #heat-detail,#fresh-detail{margin-top:10px;font-size:13px;color:var(--text-2);text-align:center;min-height:20px}
   #heat-detail b,#fresh-detail b{color:var(--text-1)}
-  [data-region]{cursor:pointer;transition:opacity .2s}
+  [data-region]{cursor:pointer;transition:opacity .2s;touch-action:manipulation}
   [data-region]:active{opacity:.7}
   /* consistency calendar */
   .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:10px}
@@ -1947,9 +1947,10 @@ function bodySVG(){
   const HEAD = '<ellipse cx="110" cy="19" rx="12" ry="14" class="sil"/>'
     + '<rect x="102" y="26" width="16" height="10" rx="4" class="sil"/>';
   const label = t => '<text x="110" y="323" text-anchor="middle" font-size="11" fill="var(--text-3)" font-weight="600" letter-spacing="1.5">'+t+'</text>';
-  let s = '<svg viewBox="0 0 440 332" style="width:100%;max-width:360px;margin:0 auto;display:block" id="heatmap">';
+  let s = '<svg viewBox="0 0 440 332" style="width:100%;max-width:360px;margin:0 auto;display:block;touch-action:manipulation" id="heatmap">';
   s += '<style>#heatmap .sil{fill:#242C44;stroke:rgba(160,175,255,.14);stroke-width:1}'
     + '#heatmap [data-region]{stroke:rgba(8,10,20,.8);stroke-width:1.1;stroke-linejoin:round;transition:fill .35s}'
+    + '#heatmap .selreg{stroke:rgba(255,255,255,.92);stroke-width:1.8}'
     + '</style>';
   /* ================= FRONT ================= */
   s += '<g>' + HEAD + SIL(OUTLINE);
@@ -3174,6 +3175,11 @@ function regionAtPoint(svg, x, y){
   }
   return best;
 }
+/* outline every shape included in the stat being shown */
+function markSel(svg, keep){
+  for (const p of svg.querySelectorAll(".selreg")) p.classList.remove("selreg");
+  for (const p of svg.querySelectorAll("[data-region]")) if (keep(p)) p.classList.add("selreg");
+}
 document.addEventListener("click", ev => {
   let reg = ev.target.closest && ev.target.closest("[data-region]");
   if (!reg && ev.target.closest){
@@ -3186,6 +3192,7 @@ document.addEventListener("click", ev => {
     const major = inv[reg.dataset.region];
     const f = major && freshness().find(x => x.nm === major);
     const el = $("#fresh-detail");
+    if (major) markSel(reg.closest("svg"), p => (FRESH_REG[major]||[]).includes(p.dataset.region));
     if (el && f){
       const {per} = regionVolume(addDays(todayStr(),-6), todayStr());
       const sets = (FRESH_REG[major]||[]).reduce((a,r) => a + (per[r]||0), 0);
@@ -3198,6 +3205,8 @@ document.addEventListener("click", ev => {
   }
   if (reg && heatData && reg.closest("#heatmap")){
     const r = reg.dataset.region, sub = reg.dataset.sub;
+    markSel(reg.closest("svg"), sub !== undefined
+      ? p => p.dataset.sub === sub : p => p.dataset.region === r);
     const v = sub !== undefined ? ((heatSubs && heatSubs[sub]) || 0) : (heatData.per[r] || 0);
     const nm = REGIONS[r] + (sub !== undefined && SUB_LBL[sub] ? " · "+SUB_LBL[sub].toLowerCase() : "");
     const src = sub !== undefined ? ((heatSubC && heatSubC[sub]) || {}) : (heatData.contrib[r] || {});
