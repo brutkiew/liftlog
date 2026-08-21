@@ -205,6 +205,9 @@
   .setbtns .addset:first-child{flex:1.6}
   /* supersets — linked cards share a violet spine + letter chip */
   .xcard.ssg{border-left:3px solid rgba(169,155,255,.7)}
+  /* pick-a-partner mode: candidate cards glow dashed violet, the source card holds solid */
+  .xcard.sspick{outline:2px dashed rgba(169,155,255,.55);outline-offset:-2px;cursor:pointer}
+  .xcard.sssrc{outline:2px solid rgba(169,155,255,.75);outline-offset:-2px}
   .sschip{flex:none;font-size:10.5px;font-weight:700;color:#A99BFF;background:rgba(139,124,246,.16);
     border:1px solid rgba(139,124,246,.28);border-radius:6px;padding:2px 6px;margin-right:2px}
   /* collapsed exercise card */
@@ -269,10 +272,11 @@
   .banner{border-color:rgba(255,214,10,.3)}
   /* ===== trends ===== */
   .seg{display:flex;background:var(--bg-1);border:1px solid var(--stroke);border-radius:999px;padding:3px;margin-bottom:14px}
-  /* Trends keeps its segment menu floating under the topbar while the page scrolls */
-  .segwrap{position:sticky;top:calc(48px + env(safe-area-inset-top));z-index:4;margin:-8px -20px 8px;padding:8px 20px;
-    background:rgba(10,12,19,.62);backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5)}
-  .segwrap .seg{margin-bottom:0}
+  /* Trends keeps its segment pill floating under the topbar — just the glass pill, no strip */
+  .segwrap{position:sticky;top:calc(56px + env(safe-area-inset-top));z-index:4;margin-bottom:14px}
+  .segwrap .seg{margin-bottom:0;background:rgba(19,24,42,.55);border-color:rgba(160,175,255,.20);
+    backdrop-filter:blur(18px) saturate(1.6);-webkit-backdrop-filter:blur(18px) saturate(1.6);
+    box-shadow:0 10px 30px rgba(0,0,0,.38)}
   .seg button{flex:1;background:none;border:none;border-radius:999px;color:var(--text-3);padding:9px;font-size:13.5px;font-weight:600}
   .seg button.on{background:var(--grad);color:#0A0B0D;box-shadow:0 4px 14px rgba(44,224,139,.22)}
   .ranges{display:flex;gap:6px;margin-bottom:12px}
@@ -360,6 +364,7 @@
   #modal input[type="date"],#plan-date{display:block;width:100%;-webkit-appearance:none;appearance:none;
     min-height:46px;text-align:left;-webkit-min-logical-width:0}
   #modal h3{font-size:16px;font-weight:700;letter-spacing:-.01em;margin-bottom:12px}
+  .grab{width:44px;height:5px;border-radius:3px;background:rgba(160,175,255,.28);margin:-8px auto 12px;flex:none}
   .pick{display:flex;align-items:center;width:100%;text-align:left;margin-top:6px;justify-content:space-between}
   .pick small{color:var(--text-3)}
   .mgroup{margin:15px 2px 3px;color:var(--text-3);font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;font-weight:600}
@@ -1291,7 +1296,7 @@ function draftFromSession(key, dateStr){
   const ses = sesDef(key);
   return {date:dateStr, session:key || null, active:false, startedAt:null, timer:null,
     exercises: ses ? ses.plan.map((p,i) => ({id:p[0], plan:{n:p[1],lo:p[2],hi:p[3]}, note:"", open:i===0,
-      sets:setsFor(p[0], p[1])})) : [],
+      ss:p[4] || undefined, sets:setsFor(p[0], p[1])})) : [],
     cardio:{on:true, min:20}, note:""};
 }
 function newDraft(dateStr){
@@ -1321,7 +1326,13 @@ function renderTabs(){
   $("#tabs").innerHTML = TABS.map(([t,label,ic]) =>
     '<button data-act="tab" data-tab="'+t+'" class="'+(tab===t?"on":"")+'">'+icon(ic,21)+label+'</button>').join("");
 }
+let ssPick = null; // exercise index waiting for a superset partner (tap-a-card mode)
+function ssExitPick(){
+  ssPick = null;
+  for (const c of document.querySelectorAll(".xcard.sspick, .xcard.sssrc")) c.classList.remove("sspick", "sssrc");
+}
 function render(){
+  ssPick = null; // a re-render always leaves superset pick-a-partner mode
   $("#hdrdate").textContent = fmtDate(todayStr());
   document.body.classList.toggle("nochk", !S.settings.checkOff);
   renderTabs();
@@ -2438,7 +2449,7 @@ function trendsInsights(){
           + (p.since ? ' · best '+p.since+' ago' : ' · at best')+'</span></b></div>';
       }
     }
-    html += '</div>';
+    html += '<p class="cap" style="margin-top:12px">Grade = how much this lift\'s best e1RM climbed over the last 28 days (the % shown), docked when you haven\'t matched your all-time best in 3+ sessions of it. Recomputed live from your log every time this page renders.</p></div>';
   }
 
   // volume bars
@@ -2907,6 +2918,30 @@ function trendsLab(){
       + '<p class="cap" style="margin-top:10px">Aim near 1:1 push-to-pull for shoulder health, and at least ~0.6 hamstring sets per quad set to protect knees and posture.</p></div>';
   }
 
+  // cardio — the treadmill work finally gets its own ledger
+  const cwAll = allWeekStarts().map(ws0 => {
+    const end = addDays(ws0, 6);
+    let min = 0, n = 0;
+    for (const w of S.workouts)
+      if (w.date >= ws0 && w.date <= end && w.cardio && +w.cardio.min > 0){ min += +w.cardio.min; n++; }
+    return {d:ws0, val:min, n};
+  });
+  if (cwAll.some(p => p.val > 0)){
+    const cw = cwAll.slice(-8);
+    const thisWk = cw[cw.length-1];
+    const prev = cw.slice(0, -1).filter(p => p.val > 0);
+    const typ = prev.length ? Math.round(prev.reduce((a,p) => a+p.val, 0) / prev.length) : null;
+    const kc = Math.round(thisWk.val * (+S.settings.cardioKcal || 7.8));
+    html += '<div class="card"><span class="lbl">Cardio · incline treadmill</span>'
+      + '<div class="stat num" style="margin-top:6px">'+thisWk.val+'<small> min this week</small>'
+      + ' <small class="cap" style="font-size:12px">· '+thisWk.n+' session'+(thisWk.n===1?"":"s")
+      + (kc ? ' · ≈'+kc.toLocaleString()+' kcal' : '')+'</small></div>'
+      + (typ !== null ? '<div class="cap" style="margin-top:2px">typical week: ~'+typ+' min'
+          + (thisWk.val >= typ*0.85 ? ' — on pace' : ' — room to walk')+'</div>' : '')
+      + labBars(cw, v => Math.round(v)+"m")
+      + '<p class="cap" style="margin-top:8px">Counted per workout ("Incline treadmill" on the log screen) — it feeds the energy model below and earns a session-score bonus.</p></div>';
+  }
+
   const em = energyModel(), real = impliedTDEE();
   html += '<div class="card hero"><span class="lbl">Energy & maintenance</span>'
     + '<div class="stat num" style="margin-top:6px"><span class="grad-ink">≈ '+em.tdee.toLocaleString()+'</span><small> kcal/day maintenance</small></div>'
@@ -3151,10 +3186,15 @@ async function askCoach(q){
 /* ================= templates ================= */
 let pendingTpl = null;
 function templateFromExercises(exs){
-  return exs.map(e => [e.id,
-    Math.max(1, e.sets.length || (e.plan ? e.plan.n : 3)),
-    e.plan ? e.plan.lo : 8,
-    e.plan ? e.plan.hi : 12]);
+  // tuple = [id, sets, lo, hi, ssGroup?] — 5th slot carries the superset link
+  return exs.map(e => {
+    const t = [e.id,
+      Math.max(1, e.sets.length || (e.plan ? e.plan.n : 3)),
+      e.plan ? e.plan.lo : 8,
+      e.plan ? e.plan.hi : 12];
+    if (e.ss) t.push(e.ss);
+    return t;
+  });
 }
 function openTplModal(plan, defName){
   if (!plan.length){ showToast("Nothing to save — add some exercises first."); return; }
@@ -3222,7 +3262,7 @@ function renderMore(){
 /* body scroll-lock while a sheet is open — otherwise scrolling the sheet can pan the page behind it */
 let modScrollY = 0;
 function openModal(html){
-  $("#modal").innerHTML = html;
+  $("#modal").innerHTML = '<div class="grab"></div>' + html;
   if (!document.body.classList.contains("mlock")){
     modScrollY = window.scrollY || 0;
     document.body.style.top = -modScrollY + "px";
@@ -3315,6 +3355,25 @@ function openExMenu(ei){
     + '<button class="menu-item" data-act="down" data-ei="'+ei+'">Move down</button>'
     + '<button class="menu-item danger" data-act="del-ex" data-ei="'+ei+'">Remove from workout</button>'
     + '<div class="btnrow"><button data-act="modal-close">Close</button></div>');
+}
+/* link two draft exercises into a superset group and pull them adjacent */
+function linkSS(ei, j){
+  const d = curDraft(), e = d.exercises[ei], p = d.exercises[j];
+  if (!e || !p || e === p) return;
+  const old = e.ss;
+  const g = p.ss || old || Math.max(0, ...d.exercises.map(x => x.ss || 0)) + 1;
+  e.ss = g; p.ss = g;
+  if (old && old !== g){
+    const left = d.exercises.filter(x => x !== e && x.ss === old);
+    if (left.length < 2) left.forEach(x => delete x.ss);
+  }
+  // keep the group adjacent: drop this lift right after the group's last other member
+  const arr = d.exercises;
+  arr.splice(arr.indexOf(e), 1);
+  let k = -1; arr.forEach((x, idx) => { if (x.ss === g) k = idx; });
+  arr.splice(k + 1, 0, e);
+  save(); render();
+  showToast("Superset — alternate sets between the two, rest after the pair.");
 }
 /* superset picker — link this lift with a partner; pairs alternate sets, rest after the pair */
 function openSSModal(ei){
@@ -3715,6 +3774,16 @@ document.addEventListener("pointerup", ev => {
   mapTap(m.svg, ev.clientX, ev.clientY);
 }, true);
 document.addEventListener("click", ev => {
+  // superset pick-a-partner mode: the next tap on another lift card links the pair
+  if (ssPick !== null && !(ev.target.closest && ev.target.closest('[data-act="ss-open"]'))){
+    const card = ev.target.closest && ev.target.closest(".xcard");
+    if (card && +card.dataset.ei !== ssPick){
+      const ei0 = ssPick; ssExitPick();
+      linkSS(ei0, +card.dataset.ei);
+      return;
+    }
+    ssExitPick(); // tapping anything else leaves pick mode and acts normally
+  }
   const btn = ev.target.closest("[data-act]");
   if (!btn) return;
   const act = btn.dataset.act, ei = +btn.dataset.ei, si = +btn.dataset.si;
@@ -3808,7 +3877,19 @@ document.addEventListener("click", ev => {
     }
   }
   else if (act === "swap"){ openAddModal(ei); }
-  else if (act === "ss-open"){ closeModal(); openSSModal(ei); }
+  else if (act === "ss-open"){
+    closeModal();
+    const e = d.exercises[ei];
+    if (d.exercises.length < 2){ showToast("Add another exercise first — a superset needs a partner."); }
+    else if (e.ss){ openSSModal(ei); }               // already linked → edit / unlink sheet
+    else if (ssPick === ei){ ssExitPick(); }         // second tap on ⧉ cancels
+    else {                                           // pick-a-partner: just tap another card
+      ssExitPick(); ssPick = ei;
+      for (const c of document.querySelectorAll(".xcard"))
+        c.classList.add(+c.dataset.ei === ei ? "sssrc" : "sspick");
+      showToast("Tap the lift to superset with — ⧉ again to cancel.");
+    }
+  }
   else if (act === "ss-unlink"){
     const e = d.exercises[ei], g = e.ss;
     delete e.ss;
@@ -3816,24 +3897,7 @@ document.addEventListener("click", ev => {
     if (left.length < 2) left.forEach(x => delete x.ss);
     save(); closeModal(); render();
   }
-  else if (act === "ss-with"){
-    const j = +btn.dataset.j, e = d.exercises[ei], p = d.exercises[j];
-    if (!e || !p || e === p) return;
-    const old = e.ss;
-    const g = p.ss || old || Math.max(0, ...d.exercises.map(x => x.ss || 0)) + 1;
-    e.ss = g; p.ss = g;
-    if (old && old !== g){
-      const left = d.exercises.filter(x => x !== e && x.ss === old);
-      if (left.length < 2) left.forEach(x => delete x.ss);
-    }
-    // keep the group adjacent: drop this lift right after the group's last other member
-    const arr = d.exercises;
-    arr.splice(arr.indexOf(e), 1);
-    let k = -1; arr.forEach((x, idx) => { if (x.ss === g) k = idx; });
-    arr.splice(k + 1, 0, e);
-    save(); closeModal(); render();
-    showToast("Superset — alternate sets between the two, rest after the pair.");
-  }
+  else if (act === "ss-with"){ closeModal(); linkSS(ei, +btn.dataset.j); }
   else if (act === "add-ex"){ openAddModal(null); }
   else if (act === "builder-open"){ openBuilderModal(btn.dataset.for || null); }
   else if (act === "tsel"){
@@ -4275,6 +4339,43 @@ document.addEventListener("pointerover", ev => {
   tip.style.left = x + "px"; tip.style.top = Math.max(0, y) + "px";
 });
 $("#ovl").addEventListener("click", ev => { if (ev.target.id === "ovl") closeModal(); });
+/* swipe down to dismiss a sheet — drag starts only when the sheet is scrolled to its top,
+   so normal scrolling inside long pickers (like Swap exercise) is untouched */
+(() => {
+  const m = $("#modal");
+  let sw = null;
+  m.addEventListener("touchstart", ev => {
+    sw = {y: ev.touches[0].clientY, drag: false};
+  }, {passive:true});
+  m.addEventListener("touchmove", ev => {
+    if (!sw) return;
+    const dy = ev.touches[0].clientY - sw.y;
+    if (!sw.drag){
+      if (dy > 10 && m.scrollTop <= 0) sw.drag = true;
+      else if (dy < -4 || m.scrollTop > 0){ sw = null; return; }
+      else return;
+    }
+    ev.preventDefault();
+    m.style.transition = "none";
+    m.style.transform = "translateY(" + Math.max(0, dy) + "px)";
+  }, {passive:false});
+  const end = ev => {
+    if (sw && sw.drag){
+      const dy = (ev.changedTouches && ev.changedTouches[0] ? ev.changedTouches[0].clientY : sw.y) - sw.y;
+      m.style.transition = "transform .22s ease-out";
+      if (dy > 110){
+        m.style.transform = "translateY(110%)";
+        setTimeout(() => { closeModal(); m.style.transform = ""; m.style.transition = ""; }, 180);
+      } else {
+        m.style.transform = "";
+        setTimeout(() => { m.style.transition = ""; }, 240);
+      }
+    }
+    sw = null;
+  };
+  m.addEventListener("touchend", end);
+  m.addEventListener("touchcancel", end);
+})();
 
 /* ===== drag-to-reorder exercises (grip handles) ===== */
 let drag = null;
