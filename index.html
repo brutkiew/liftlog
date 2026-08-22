@@ -16,6 +16,13 @@
     /* surfaces — deep indigo-charcoal, not plain black */
     --bg-0:#0A0C13; --bg-1:#141826; --bg-2:#1D2333; --bg-3:#262E42;
     --stroke:rgba(150,165,255,.13); --stroke-soft:rgba(150,165,255,.05);
+    /* liquid glass — one material system (v9.0): translucent fill over the aurora,
+       backdrop blur + saturation, a specular top edge and a soft inner shade at the
+       bottom, so every surface reads as a pane of glass with light hitting its rim */
+    --glass:rgba(26,32,53,.55); --glass-2:rgba(31,38,62,.60);
+    --glass-stroke:rgba(165,180,255,.17);
+    --glass-blur:blur(22px) saturate(1.7);
+    --spec:inset 0 1px 0 rgba(255,255,255,.10), inset 0 -1px 0 rgba(8,10,18,.30);
     /* text */
     --text-1:#F4F5F7; --text-2:rgba(255,255,255,.62); --text-3:rgba(255,255,255,.38);
     /* accent + semantic */
@@ -24,23 +31,23 @@
     --grad2:linear-gradient(135deg,#17B9A0,#3ECFB2 35%,#8B7CF6);
     --accent-dim:rgba(44,224,139,.14);
     --good:#30D158; --warn:#FFD60A; --bad:#FF453A; --info:#64D2FF;
-    /* geometry & motion */
-    --r-card:16px; --r-el:12px;
+    /* geometry & motion — bigger, concentric radii, the iOS-glass silhouette */
+    --r-card:20px; --r-el:14px;
     --ease:cubic-bezier(.16,1,.3,1);
     color-scheme:dark;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-  html{background:radial-gradient(130% 50% at 50% -10%,rgba(88,108,232,.24),transparent 60%),var(--bg-0)}
+  html{background:radial-gradient(130% 50% at 50% -10%,rgba(88,108,232,.28),transparent 60%),var(--bg-0)}
   body{color:var(--text-1);background:transparent;min-height:100vh;
     font:15px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI Variable Display","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
     -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
-    padding-bottom:calc(92px + env(safe-area-inset-bottom))}
+    padding-bottom:calc(104px + env(safe-area-inset-bottom))}
   /* aurora */
   body::before,body::after{content:"";position:fixed;z-index:-1;border-radius:50%;filter:blur(90px);pointer-events:none}
   body::before{width:540px;height:540px;top:-160px;left:-150px;
-    background:radial-gradient(circle,rgba(23,185,160,.40),transparent 65%)}
+    background:radial-gradient(circle,rgba(23,185,160,.46),transparent 65%)}
   body::after{width:600px;height:600px;bottom:-210px;right:-170px;
-    background:radial-gradient(circle,rgba(139,124,246,.36),transparent 65%)}
+    background:radial-gradient(circle,rgba(139,124,246,.42),transparent 65%)}
   @media (prefers-reduced-motion:no-preference){
     body::before{animation:drift1 26s ease-in-out infinite alternate}
     body::after{animation:drift2 32s ease-in-out infinite alternate}
@@ -49,7 +56,7 @@
   }
   main::before{content:"";position:fixed;z-index:-1;width:440px;height:440px;border-radius:50%;
     filter:blur(100px);pointer-events:none;top:30%;right:-180px;
-    background:radial-gradient(circle,rgba(255,123,172,.24),transparent 65%)}
+    background:radial-gradient(circle,rgba(255,123,172,.28),transparent 65%)}
   @media (prefers-reduced-motion:no-preference){
     main::before{animation:drift3 38s ease-in-out infinite alternate}
     @keyframes drift3{to{transform:translate(-70px,70px) scale(1.12)}}
@@ -66,8 +73,8 @@
     background:radial-gradient(130% 100% at 18% 0%,var(--tint),transparent 55%)}
   /* ===== chrome ===== */
   #topbar{position:sticky;top:0;z-index:5;
-    background:rgba(21,25,42,.72);backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);
-    border-bottom:1px solid var(--stroke);
+    background:rgba(14,17,30,.55);backdrop-filter:blur(26px) saturate(1.8);-webkit-backdrop-filter:blur(26px) saturate(1.8);
+    border-bottom:1px solid rgba(165,180,255,.14);
     padding:calc(12px + env(safe-area-inset-top)) 20px 12px;display:flex;align-items:center;gap:9px}
   #topbar .mark{color:var(--accent);display:flex}
   #topbar h1{font-size:16px;font-weight:700;letter-spacing:-.01em}
@@ -76,13 +83,16 @@
   h2{font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;font-weight:600;
     margin:24px 2px 12px;display:flex;align-items:center;gap:8px}
   h2::before{content:"";width:16px;height:3px;border-radius:2px;background:var(--grad2)}
-  #tabs{position:fixed;bottom:0;left:0;right:0;z-index:6;
-    background:rgba(21,25,42,.72);backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);
-    border-top:1px solid var(--stroke);display:flex;
-    padding:6px 8px calc(8px + env(safe-area-inset-bottom))}
+  /* the tab bar floats as a detached glass capsule — the iOS-26 signature — with content
+     scrolling underneath it */
+  #tabs{position:fixed;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:6;
+    max-width:456px;margin:0 auto;
+    background:rgba(24,29,50,.60);backdrop-filter:blur(28px) saturate(1.8);-webkit-backdrop-filter:blur(28px) saturate(1.8);
+    border:1px solid rgba(165,180,255,.20);border-radius:30px;display:flex;
+    padding:7px;box-shadow:inset 0 1px 0 rgba(255,255,255,.13), 0 18px 44px rgba(0,0,0,.5)}
   #tabs button{flex:1;background:none;border:none;color:var(--text-3);font-size:10.5px;
-    font-weight:600;padding:7px 0 4px;letter-spacing:.03em;border-radius:12px;
-    transition:transform .35s var(--ease)}
+    font-weight:600;padding:8px 0 5px;letter-spacing:.03em;border-radius:23px;
+    transition:transform .35s var(--ease),background .3s}
   #tabs button:active{transform:scale(.94)}
   #tabs button .ic{display:block;margin:0 auto 3px}
   #tabs button.on{color:var(--text-1);background:var(--accent-dim)}
@@ -97,14 +107,18 @@
   #tabs button[data-tab="more"].on{background:rgba(255,176,32,.12)}
   #tabs button[data-tab="more"].on .ic{color:#FFB020}
   /* ===== cards ===== */
-  .card{background:linear-gradient(180deg,#171C30,#131726);border:1px solid var(--stroke);border-radius:var(--r-card);
-    padding:18px;margin-bottom:12px;transition:transform .35s var(--ease)}
+  .card{background:linear-gradient(180deg,var(--glass-2),var(--glass));
+    backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+    border:1px solid var(--glass-stroke);border-radius:var(--r-card);
+    padding:18px;margin-bottom:12px;transition:transform .35s var(--ease);
+    box-shadow:var(--spec), 0 10px 30px rgba(0,0,0,.25)}
   .card.tap{cursor:pointer}
   .card.tap:active{transform:scale(.97)}
   .hero{border:1px solid transparent;
-    background:linear-gradient(180deg,#171C30,#131726) padding-box,
+    background:linear-gradient(180deg,rgba(33,41,66,.66),rgba(21,26,45,.60)) padding-box,
       linear-gradient(135deg,rgba(44,224,139,.55),rgba(139,124,246,.5)) border-box;
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 10px 36px rgba(23,185,160,.10)}
+    backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 10px 36px rgba(23,185,160,.10)}
   .hint{color:var(--text-2);font-size:13px;line-height:1.45}
   .cap{color:var(--text-3);font-size:13px}
   .lbl{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
@@ -115,19 +129,23 @@
   .xl small{font-size:16px}
   .up{color:var(--good)} .dn{color:var(--bad)} .fl{color:var(--text-3)} .wr{color:var(--warn)}
   /* ===== controls ===== */
-  button{font:inherit;color:var(--text-1);background:var(--bg-2);border:1px solid var(--stroke);
+  button{font:inherit;color:var(--text-1);background:rgba(255,255,255,.07);border:1px solid var(--glass-stroke);
     border-radius:var(--r-el);padding:10px 14px;cursor:pointer;touch-action:manipulation;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
     transition:transform .35s var(--ease),background .2s}
   button:active{transform:scale(.96)}
   button.primary{background:var(--grad);border:none;color:#0A0B0D;font-weight:700;
-    box-shadow:0 6px 22px rgba(44,224,139,.28)}
+    box-shadow:0 6px 22px rgba(44,224,139,.28), inset 0 1px 0 rgba(255,255,255,.40)}
   button.big{width:100%;padding:15px;font-size:15px;border-radius:var(--r-el);letter-spacing:.01em}
   button.small{padding:6px 12px;font-size:13px;border-radius:10px;font-weight:550}
   button.ghost{background:none;border:none;color:var(--text-2);padding:6px 8px;font-size:15px}
   button.danger{color:var(--bad)}
   button.link{background:none;border:none;color:var(--accent);font-size:13px;font-weight:600;padding:4px}
-  input,select,textarea{font:inherit;font-size:16px;color:var(--text-1);background:var(--bg-2);
-    border:1px solid var(--stroke);border-radius:var(--r-el);padding:10px 12px;width:100%}
+  /* bare / in-chrome buttons carry no specular edge — only real glass chips do */
+  button.ghost,button.link,.snum,.xname,.xrow,.qbtn,#tabs button,.seg button,.addset{box-shadow:none}
+  input,select,textarea{font:inherit;font-size:16px;color:var(--text-1);background:rgba(255,255,255,.055);
+    border:1px solid var(--glass-stroke);border-radius:var(--r-el);padding:10px 12px;width:100%;
+    box-shadow:inset 0 1px 2px rgba(0,0,0,.18)}
   input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent-lo);
     box-shadow:0 0 0 3px rgba(44,224,139,.13)}
   .rowline{display:flex;align-items:center;gap:10px}
@@ -169,7 +187,7 @@
   .spark{margin-top:10px;display:block}
   /* ===== workout ===== */
   #sessbar{position:sticky;top:calc(49px + env(safe-area-inset-top));z-index:4;
-    background:rgba(20,22,26,.8);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+    background:rgba(14,17,30,.55);backdrop-filter:blur(24px) saturate(1.7);-webkit-backdrop-filter:blur(24px) saturate(1.7);
     display:flex;align-items:center;gap:10px;padding:10px 8px;border-bottom:1px solid var(--stroke);
     margin:0 -20px 14px;padding-left:14px;padding-right:14px}
   #sessbar .t{font-size:13px;color:var(--text-3)}
@@ -179,8 +197,8 @@
   .xname{background:none;border:none;color:var(--text-1);font-size:15px;font-weight:650;padding:4px 0;
     text-align:left;flex:1;min-width:0;letter-spacing:-.01em}
   .xname .tgt{color:var(--text-3);font-weight:500;font-size:12px}
-  .chip{flex:none;font-size:12px;color:var(--text-2);background:var(--bg-2);
-    border:1px solid var(--stroke);border-radius:999px;padding:4px 11px;font-weight:600}
+  .chip{flex:none;font-size:12px;color:var(--text-2);background:rgba(255,255,255,.07);
+    border:1px solid var(--glass-stroke);border-radius:999px;padding:4px 11px;font-weight:600}
   .chip.sug{color:var(--accent);border-color:rgba(44,224,139,.4);background:var(--accent-dim)}
   .chip.stall{color:var(--warn);border-color:rgba(255,214,10,.35);background:rgba(255,214,10,.08)}
   .xnote{color:var(--text-2);font-size:12.5px;margin-top:3px;font-style:italic}
@@ -242,11 +260,11 @@
   .sc.gC{background:var(--warn)} .sc.gD{background:var(--bad);color:#fff}
   .shake{animation:shake .3s}
   @keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
-  #timer{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(92px + env(safe-area-inset-bottom));
+  #timer{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom));
     z-index:7;display:none;align-items:center;gap:6px;
-    background:rgba(20,22,26,.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+    background:rgba(21,26,45,.68);backdrop-filter:blur(26px) saturate(1.8);-webkit-backdrop-filter:blur(26px) saturate(1.8);
     border:1px solid rgba(44,224,139,.5);border-radius:999px;padding:7px 9px 7px 17px;
-    box-shadow:0 16px 48px rgba(0,0,0,.55)}
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.12), 0 16px 48px rgba(0,0,0,.55)}
   #timer.show{display:flex}
   #timer.flash{animation:tflash .5s 3}
   @keyframes tflash{50%{background:rgba(44,224,139,.75)}}
@@ -254,15 +272,16 @@
   #timer .tex{font-size:12px;color:var(--text-2);max-width:92px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
   #timer button{padding:6px 11px;font-size:13px;border-radius:999px}
   #toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(66px + env(safe-area-inset-top));
-    z-index:9;background:var(--bg-3);border:1px solid var(--stroke);color:var(--text-1);
-    border-radius:14px;padding:12px 18px;font-size:14px;display:none;
-    box-shadow:0 16px 48px rgba(0,0,0,.55);max-width:90vw}
+    z-index:9;background:rgba(35,42,68,.78);backdrop-filter:blur(24px) saturate(1.7);-webkit-backdrop-filter:blur(24px) saturate(1.7);
+    border:1px solid var(--glass-stroke);color:var(--text-1);
+    border-radius:16px;padding:12px 18px;font-size:14px;display:none;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.12), 0 16px 48px rgba(0,0,0,.55);max-width:90vw}
   #toast.show{display:block;animation:tin .3s var(--ease)}
   @keyframes tin{from{opacity:0;transform:translateX(-50%) translateY(-8px)}}
   /* ===== history ===== */
   .h-head{display:flex;align-items:center;gap:8px;cursor:pointer}
   .badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px}
-  .badge{font-size:11.5px;color:var(--text-2);background:var(--bg-2);border:1px solid var(--stroke);
+  .badge{font-size:11.5px;color:var(--text-2);background:rgba(255,255,255,.07);border:1px solid var(--glass-stroke);
     border-radius:999px;padding:2px 9px;font-weight:550}
   .badge.pr{color:#0A0B0D;background:var(--warn);border:none;font-weight:700}
   .h-body{display:none;margin-top:12px;border-top:1px solid var(--stroke-soft);padding-top:10px}
@@ -271,21 +290,22 @@
   .h-body p b{color:var(--text-1);font-weight:600}
   .banner{border-color:rgba(255,214,10,.3)}
   /* ===== trends ===== */
-  .seg{display:flex;background:var(--bg-1);border:1px solid var(--stroke);border-radius:999px;padding:3px;margin-bottom:14px}
+  .seg{display:flex;background:rgba(24,29,50,.55);border:1px solid rgba(165,180,255,.20);border-radius:999px;padding:3px;margin-bottom:14px;
+    backdrop-filter:blur(24px) saturate(1.7);-webkit-backdrop-filter:blur(24px) saturate(1.7);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.10), 0 10px 30px rgba(0,0,0,.30)}
   /* Trends keeps its segment pill floating under the topbar — just the glass pill, no strip */
   .segwrap{position:sticky;top:calc(56px + env(safe-area-inset-top));z-index:4;margin-bottom:14px}
-  .segwrap .seg{margin-bottom:0;background:rgba(19,24,42,.55);border-color:rgba(160,175,255,.20);
-    backdrop-filter:blur(18px) saturate(1.6);-webkit-backdrop-filter:blur(18px) saturate(1.6);
-    box-shadow:0 10px 30px rgba(0,0,0,.38)}
+  .segwrap .seg{margin-bottom:0}
   .seg button{flex:1;background:none;border:none;border-radius:999px;color:var(--text-3);padding:9px;font-size:13.5px;font-weight:600}
-  .seg button.on{background:var(--grad);color:#0A0B0D;box-shadow:0 4px 14px rgba(44,224,139,.22)}
+  .seg button.on{background:var(--grad);color:#0A0B0D;box-shadow:0 4px 14px rgba(44,224,139,.22), inset 0 1px 0 rgba(255,255,255,.35)}
   .ranges{display:flex;gap:6px;margin-bottom:12px}
   .ranges button{padding:5px 15px;font-size:13px;border-radius:999px;font-weight:600;color:var(--text-2)}
   .ranges button.on{border-color:rgba(44,224,139,.4);color:var(--accent);background:var(--accent-dim)}
   .chartwrap{position:relative}
   .chartwrap svg{width:100%;height:auto;display:block}
-  #ctip{position:absolute;pointer-events:none;background:var(--bg-3);border:1px solid var(--stroke);
-    border-radius:9px;padding:6px 10px;font-size:12.5px;display:none;white-space:nowrap;z-index:3}
+  #ctip{position:absolute;pointer-events:none;background:rgba(35,42,68,.85);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+    border:1px solid var(--glass-stroke);
+    border-radius:10px;padding:6px 10px;font-size:12.5px;display:none;white-space:nowrap;z-index:3}
   table{width:100%;border-collapse:collapse;font-size:13.5px}
   th{text-align:left;color:var(--text-3);font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;
     padding:5px 6px;border-bottom:1px solid var(--stroke)}
@@ -303,11 +323,11 @@
   .vol-row{display:flex;align-items:center;gap:10px;margin-top:9px;font-size:13px}
   .vol-row .nm{width:86px;color:var(--text-2)}
   .vol-row .bar{flex:1;height:8px;border-radius:4px;background:rgba(255,255,255,.06);position:relative;overflow:hidden}
-  .vol-row .bar::after{content:"";position:absolute;top:0;bottom:0;left:40%;width:40%;background:rgba(255,255,255,.05)}
-  .vol-row .bar i{position:absolute;top:0;bottom:0;left:0;border-radius:4px;background:var(--grad);z-index:1}
+  .vol-row .bar .zone{position:absolute;top:0;bottom:0;background:rgba(255,255,255,.09)}
+  .vol-row .bar i{position:absolute;top:0;bottom:0;left:0;border-radius:4px;background:var(--grad);z-index:1;opacity:.9}
   .vol-row .bar.low i{opacity:.45}
   .vol-row .v{width:52px;text-align:right;color:var(--text-3);font-size:12px}
-  .focus-card{border-color:rgba(44,224,139,.3);background:linear-gradient(180deg,rgba(44,224,139,.07),var(--bg-1) 70%)}
+  .focus-card{border-color:rgba(44,224,139,.3);background:linear-gradient(180deg,rgba(44,224,139,.10),var(--glass) 70%)}
   /* heat map */
   .heat-legend{display:flex;gap:12px;justify-content:center;margin-top:10px;flex-wrap:wrap}
   .heat-legend span{display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--text-3);font-weight:600}
@@ -357,8 +377,10 @@
   .exdiag text{fill:var(--text-3);font-size:8.5px;letter-spacing:.06em}
   .coach-q{background:var(--accent-dim);border:1px solid rgba(44,224,139,.25);
     border-radius:14px 14px 4px 14px;padding:11px 14px;margin:16px 0 8px 36px;font-size:14px}
-  .coach-a{background:var(--bg-1);border:1px solid var(--stroke);border-radius:14px 14px 14px 4px;
-    padding:14px 15px;font-size:14px;line-height:1.55;color:var(--text-2);margin-right:16px}
+  .coach-a{background:rgba(26,32,53,.50);backdrop-filter:blur(18px) saturate(1.6);-webkit-backdrop-filter:blur(18px) saturate(1.6);
+    border:1px solid var(--glass-stroke);border-radius:14px 14px 14px 4px;
+    padding:14px 15px;font-size:14px;line-height:1.55;color:var(--text-2);margin-right:16px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
   .coach-a b{color:var(--text-1);font-weight:650}
   .coach-a ul{margin:8px 0 8px 18px}
   .coach-a li{margin:4px 0}
@@ -368,12 +390,14 @@
   .thinking{display:inline-block;animation:tpulse 1.2s ease-in-out infinite}
   @keyframes tpulse{50%{opacity:.35}}
   /* ===== modal ===== */
-  #ovl{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:10;display:none;align-items:flex-end;justify-content:center;
+  #ovl{position:fixed;inset:0;background:rgba(4,6,12,.5);z-index:10;display:none;align-items:flex-end;justify-content:center;
     overscroll-behavior:contain;touch-action:none}
   #ovl.show{display:flex}
-  #modal{background:var(--bg-1);border:1px solid var(--stroke);border-radius:20px 20px 0 0;width:100%;max-width:480px;
+  /* sheets are the heaviest glass in the app — thick blur, bright rim, content showing through */
+  #modal{background:rgba(23,28,49,.72);backdrop-filter:blur(34px) saturate(1.8);-webkit-backdrop-filter:blur(34px) saturate(1.8);
+    border:1px solid rgba(165,180,255,.22);border-radius:26px 26px 0 0;width:100%;max-width:480px;
     max-height:84vh;overflow-y:auto;overflow-x:hidden;padding:20px 18px calc(20px + env(safe-area-inset-bottom));
-    box-shadow:0 16px 48px rgba(0,0,0,.55);overscroll-behavior:contain;touch-action:pan-y}
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.12), 0 -18px 60px rgba(0,0,0,.5);overscroll-behavior:contain;touch-action:pan-y}
   body.mlock{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   #modal input,#modal select,#modal textarea{min-width:0;max-width:100%}
   /* auto-regulation: readiness sliders + pump/soreness check-in */
@@ -387,7 +411,7 @@
   #modal input[type="date"],#plan-date{display:block;width:100%;-webkit-appearance:none;appearance:none;
     min-height:46px;text-align:left;-webkit-min-logical-width:0}
   #modal h3{font-size:16px;font-weight:700;letter-spacing:-.01em;margin-bottom:12px}
-  .grab{width:44px;height:5px;border-radius:3px;background:rgba(160,175,255,.28);margin:-8px auto 12px;flex:none}
+  .grab{width:44px;height:5px;border-radius:3px;background:rgba(190,200,255,.35);margin:-8px auto 12px;flex:none}
   .pick{display:flex;align-items:center;width:100%;text-align:left;margin-top:6px;justify-content:space-between}
   .pick small{color:var(--text-3)}
   .mgroup{margin:15px 2px 3px;color:var(--text-3);font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;font-weight:600}
@@ -457,7 +481,9 @@ const EX = {
   incbb:{n:"Incline Barbell Press",g:"chest",inc:5,rest:150,bb:1,sub:"chest_up"},
   incdb:{n:"Incline DB Press",g:"chest",inc:5,db:1,rest:120,sub:"chest_up"},
   flatdb:{n:"Flat DB Press",g:"chest",inc:5,db:1,rest:120,sub:"chest_low"},
-  dip:{n:"Weighted Dip",g:"chest",inc:5,bw:1,rest:120,sub:"chest_low"},
+  /* dips live under triceps (Strength Level's convention, and upright dips are
+     triceps-led per EMG) — chest still gets half credit via MUSC; lean forward for more */
+  dip:{n:"Weighted Dip",g:"triceps",inc:5,bw:1,rest:120,sub:"tri_lat"},
   cfly:{n:"Cable Fly",g:"chest",inc:5,sub:"chest_low"},
   l2h:{n:"Low-to-High Cable Fly",g:"chest",inc:5,sub:"chest_up"},
   pec:{n:"Pec Deck",g:"chest",inc:5,sub:"chest_low"},
@@ -574,6 +600,9 @@ const MAJOR_COL = {Chest:"#FF6B6B", Back:"#5AA7F0", Delts:"#FFB020", Arms:"#B085
      hence 0.5); hinged rows also load lower back, hamstrings, glutes, grip isometrically.
    - Pushdowns/extensions get core + lats: the trunk and lats brace against the cable
      (his upper-abs-during-pushdowns intuition — credited at region level).
+   - Dips: triceps prime, chest + front delts at 0.5 — upright dips are triceps-dominant
+     (EMG + Strength Level's classification); forward-lean chest dips still earn chest
+     credit through the half tier.
    - Straight-arm work (sapd, pullover) hits the triceps long head (shoulder extension).
    - Overhead pressing/raises get upper_back (traps upwardly rotate the scapula).
    - Squat patterns add hamstrings (co-contraction) + calves (ankle stability); single-leg
@@ -585,7 +614,7 @@ const MUSC = {
   incbb:{p:["chest"],s:["shoulders","triceps"],t:["forearms","core"]},
   incdb:{p:["chest"],s:["shoulders","triceps"],t:["forearms","core","biceps"]},
   flatdb:{p:["chest"],s:["shoulders","triceps"],t:["forearms","core","biceps"]},
-  dip:{p:["chest"],s:["triceps","shoulders"],t:["core"]},
+  dip:{p:["triceps"],s:["chest","shoulders"],t:["core","forearms"]},
   cfly:{p:["chest"],s:["shoulders"],t:["biceps","core"]},
   l2h:{p:["chest"],s:["shoulders"],t:["biceps","core"]},
   pec:{p:["chest"],s:["shoulders"],t:["biceps"]},
@@ -667,7 +696,7 @@ const INTEL = {
   incbb:{mv:"press",st:2,sb:2,good:"Upper-chest emphasis — the best-proven regional target in the research.",ev:"~30° incline is the sweet spot; 45°+ turns into a front-delt press (Chaves 2020, Rodríguez-Ridao 2020).",pair:["cfly"]},
   incdb:{mv:"press",st:3,sb:1,good:"Upper chest with a deeper stretch than a bar allows.",ev:"Deep-stretch pressing is the modern default — dumbbells let the pec reach full length.",pair:["l2h"]},
   flatdb:{mv:"press",st:3,sb:1,good:"Whole-chest builder with a deeper stretch than the barbell.",pair:["pec"]},
-  dip:{mv:"dip",st:3,sb:1,good:"Elite chest + triceps builder — deep stretch under heavy load; lean forward for more chest.",flag:"Shoulder-extension stress at depth — control it, and skip it if the front of the shoulder complains.",ev:"Community S-tier with a joint-tolerance gate."},
+  dip:{mv:"dip",st:3,sb:1,good:"Elite triceps + chest builder — deep stretch under heavy load. Upright torso = triceps-dominant; a forward lean shifts it toward the lower chest.",flag:"Shoulder-extension stress at depth — control it, and skip it if the front of the shoulder complains.",ev:"Community S-tier with a joint-tolerance gate."},
   cfly:{mv:"fly",st:2,sb:2,good:"Chest isolation with tension through full adduction — this IS the honest \"inner chest\" work.",pair:["bench"]},
   l2h:{mv:"fly",st:2,sb:2,good:"Upper-chest fly path — the cable keeps tension at the squeeze where dumbbells go slack."},
   pec:{mv:"fly",st:2,sb:3,good:"Stable pec isolation, easy to take to failure — grows upper and lower fibers alike (2024 trial)."},
@@ -740,12 +769,12 @@ const TGT_LBL = {chest_up:"Upper chest", chest_low:"Mid & lower chest", delt_fro
   abs_low:"Lower abs", abs_crunch:"Upper abs"};
 const TGT_INFO = {
   chest_up:{ev:2,note:"~30° incline pressing + low-to-high flys. The best-proven regional target in the literature."},
-  chest_low:{ev:2,note:"Flat/decline pressing, dips, flys. Flat work already covers the lower fibers well."},
+  chest_low:{ev:2,note:"Flat/decline pressing and flys (forward-lean dips too). Flat work already covers the lower fibers well."},
   delt_front:{ev:2,note:"Any pressing grows it — dedicated front-delt work is usually redundant."},
   delt_side:{ev:2,note:"Direct lateral raises are the only real driver — presses don't cover this head."},
   delt_rear:{ev:2,note:"Reverse flys (neutral grip), face pulls, high-elbow rows."},
   tri_long:{ev:2,note:"Overhead / behind-head extensions grew the long head ~1.5× more than pushdowns (Maeo 2023)."},
-  tri_lat:{ev:1,note:"Pushdown-pattern work. It biases the pattern — true lateral-head isolation is unproven."},
+  tri_lat:{ev:1,note:"Pushdown-pattern + heavy lockout work (dips, close-grip pressing). It biases the pattern — true lateral-head isolation is unproven."},
   bi_curl:{ev:2,note:"Preacher-style biases the lower biceps, incline/behind-body the upper — pairing one of each covers the arm."},
   bi_brach:{ev:2,note:"A separate muscle under the biceps — reverse + hammer curls build visible arm width."},
   back_lat:{ev:2,note:"Pulldowns, pull-ups, straight-arm work. (Upper-vs-lower lat targeting is still emerging science.)"},
@@ -770,7 +799,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "8.8"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.0"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -1011,6 +1040,13 @@ function liftScores(){
   }
   return out.sort((a,b) => b.lv.score - a.lv.score);
 }
+/* counted weekly sets — the number every volume judgment runs on.
+   Counting convention (the "fractional set" convention the dose-response literature
+   itself uses, e.g. Pelland 2024's meta-regression): prime movers earn the full set,
+   strong synergists half. The 0.25 stabilizer tier (grip, bracing) deliberately does
+   NOT count here — it feeds the freshness map only. Counting it pushed nearly every
+   muscle "past the limit" on paper and made the advice nag about volume that was never
+   really there (v9.0 fix). */
 function regionVolume(a, b){
   const per = {}, contrib = {};
   for (const w of S.workouts){
@@ -1022,12 +1058,32 @@ function regionVolume(a, b){
         (contrib[r] = contrib[r]||{})[nm] = (contrib[r][nm]||0) + n; }
       for (const r of m.s){ per[r] = (per[r]||0) + n*0.5;
         (contrib[r] = contrib[r]||{})[nm] = (contrib[r][nm]||0) + n*0.5; }
-      for (const r of (m.t||[])){ per[r] = (per[r]||0) + n*0.25;
-        (contrib[r] = contrib[r]||{})[nm] = (contrib[r][nm]||0) + n*0.25; }
     }
   }
   return {per, contrib};
 }
+/* per-muscle weekly growth zones (counted sets, primary + half-secondary).
+   The classic "10–20 hard sets" band is the research center of mass for one muscle
+   (Schoenfeld 2017 dose-response: 10+ beats fewer; Baz-Valle 2022: 12–20 in trained
+   lifters) — but it is NOT a ceiling: trained lifters kept growing at 20–30+ sets
+   (Schoenfeld 2019; Enes 2024), and the 2024–25 meta-regressions (Pelland et al.) show
+   returns that keep rising, just ever flatter, deep into the 30s. So a band's top means
+   "past here extra sets buy little and cost recovery" — the app only calls it a problem
+   when the user's own soreness check-ins agree, or the volume is far beyond what any
+   trial found useful. Bands are wider for regions that pool several heads or soak up
+   half-credits from everything (delts get 0.5 from every press AND row; glutes from
+   every squat and hinge). Forearms + lower back get no band: they ride along with grip
+   and bracing on nearly every lift — direct work for them is optional, never nagged. */
+const VOL_BAND = {
+  chest:[10,22], lats:[10,22], upper_back:[10,25],
+  shoulders:[12,30],                      // three delt heads share this one bucket
+  biceps:[8,20], triceps:[8,22],          // steady half-credit from every pull / press
+  quads:[8,20], hamstrings:[8,20],
+  glutes:[8,25],                          // half-credit from every squat + hinge
+  calves:[8,20], core:[6,25],
+  forearms:null, lower_back:null,         // rider muscles — informational only
+};
+const bandOf = r => VOL_BAND[r] === undefined ? [10,20] : VOL_BAND[r];
 const heatFill = v => !v ? "hsl(224 52% 32%)" /* unworked = clear blue, not blend-in grey */
   : v <= 5 ? "hsl(174 48% 26%)" : v <= 10 ? "hsl(150 55% 38%)"
   : v <= 15 ? "hsl(80 62% 48%)" : "hsl(38 95% 55%)";
@@ -1064,7 +1120,9 @@ function recapFor(ws0){
     const inW = bestE1InRange(id, ws0, we), before = bestE1InRange(id, addDays(ws0,-21), addDays(ws0,-1));
     if (inW && before) anchors.push({name:exInfo(id).n, id, pct:(inW-before)/before*100});
   }
-  const sets = Object.values(per).reduce((a,b) => a+b, 0);
+  // true hard-set count — summing the per-region credits double-counts every set that
+  // touches more than one muscle
+  const sets = sessions.reduce((a,w) => a + w.exercises.reduce((x,e) => x + workSets(e.sets).length, 0), 0);
   const cardio = sessions.reduce((a,w) => a + (w.cardio ? w.cardio.min : 0), 0);
   return {ws0, we, sessions, dW, ks, prs, per, outlier, anchors,
     sets:Math.round(sets), cardio, tEnd,
@@ -1991,8 +2049,10 @@ function toggleSet(ei, si){
         if (std){
           const bw = bodyweight(), fem = S.settings.sex === "female" ? 0.72 : 1;
           const rNew = (std.bwTotal ? (bw + (+s.w||0))*(1+(+s.r)/30) : m) / bw / fem;
-          const rOld = (std.bwTotal ? (bw + prevBest*0+((prevBest))) : prevBest) / bw / fem; // conservative
-          const iNew = lvlOf(rNew, std.t).idx, iOld = lvlOf(prevBest/bw/fem, std.t).idx;
+          // old level from the same standards basis (bwTotal lifts grade on body + added
+          // weight, while plain PR tracking uses added only) — else dips "level up" nonstop
+          const iNew = lvlOf(rNew, std.t).idx;
+          const iOld = lvlOf(stdE1UpTo(e.id, todayStr()) / bw / fem, std.t).idx;
           if (iNew > iOld && iNew >= 0) msg += " · <b style='color:var(--accent)'>→ "+LVLS[iNew]+"</b>";
         }
         showToast(msg);
@@ -2382,7 +2442,10 @@ function strengthOverviewHTML(){
   const scores = allScores.filter(sc => inGroup(sc.g));
   const gLbl = labGroup ? GROUPS_L.find(g => g[0] === labGroup)[1] : "";
   if (scores.length){
-    const med = [...scores].sort((a,b) => a.lv.score - b.lv.score)[Math.floor(scores.length/2)];
+    // even counts take the LOWER middle — a group's headline grade should never sit above
+    // a level half its benchmarks haven't reached (the old upper-middle read "Elite chest"
+    // off one strong lift)
+    const med = [...scores].sort((a,b) => a.lv.score - b.lv.score)[Math.floor((scores.length-1)/2)];
     const overall = med.lv.idx < 0 ? "Getting started" : LVLS[med.lv.idx];
     html += '<div class="card hero"><span class="lbl">Strength scorecard'+(gLbl ? ' · '+gLbl : '')+' · men at '+Math.round(bw)+' lb'
       + (S.settings.height ? ' · '+esc(S.settings.height) : '')+qBtn("score")+'</span>'
@@ -2416,22 +2479,29 @@ function strengthOverviewHTML(){
 
 function trendsStrength(){
   if (!S.workouts.length) return '<div class="card hint">Finish a workout or two first.</div>';
+  // the lift-by-lift list follows the muscle-group chips above — Chest shows chest lifts,
+  // All shows everything (Arms = biceps + triceps, same as the chips)
+  const inChip = id => { const g = exInfo(id).g;
+    return !labGroup || (labGroup === "arms" ? g === "biceps" || g === "triceps" : g === labGroup); };
   const ids = [...new Set(S.workouts.flatMap(w => w.exercises.map(e => e.id)))]
-    .filter(id => perfHistory(id).length)
+    .filter(id => perfHistory(id).length && inChip(id))
     .sort((a,b) => exInfo(a).n.localeCompare(exInfo(b).n));
-  if (!ids.length) return strengthOverviewHTML() || '<div class="card hint">Finish a workout or two first.</div>';
-  if (!S.progSel || !ids.includes(S.progSel)) S.progSel = ids[0];
-  const ex = exInfo(S.progSel);
-  const hist = perfHistory(S.progSel).reverse();
+  if (!ids.length) return strengthOverviewHTML()
+    + (labGroup ? '<h2>Lift by lift</h2><div class="card hint">No logged lifts in this muscle group yet — the All tab shows everything.</div>' : '');
+  // a chip switch narrows the view without clobbering the saved pick
+  const sel = ids.includes(S.progSel) ? S.progSel : ids[0];
+  const ex = exInfo(sel);
+  const hist = perfHistory(sel).reverse();
   const pts = hist.map(h => { const bs = bestSet(h.sets, ex);
     return {date:h.date, val:Math.round(bestMetric(h.sets, ex)), lbl:(ex.bw && !+bs.w ? "BW" : (+bs.w||0))+" × "+bs.r}; });
   const isReps = ex.bw && hist.every(h => h.sets.every(s => !+s.w));
   const best = pts.reduce((a,b) => b.val >= a.val ? b : a);
   const delta = pts[pts.length-1].val - pts[0].val;
   let html = strengthOverviewHTML();
-  html += '<h2>Lift by lift</h2>';
+  const chipLbl = labGroup ? ({chest:"Chest",back:"Back",shoulders:"Delts",arms:"Arms",quads:"Quads",hamstrings:"Hams"})[labGroup] : "";
+  html += '<h2>Lift by lift'+(chipLbl ? ' · '+chipLbl.toLowerCase() : '')+'</h2>';
   html += '<div class="card" style="padding:12px"><select id="prog-sel">'
-    + ids.map(id => '<option value="'+id+'"'+(id===S.progSel?" selected":"")+'>'+esc(exInfo(id).n)+'</option>').join("")+'</select></div>';
+    + ids.map(id => '<option value="'+id+'"'+(id===sel?" selected":"")+'>'+esc(exInfo(id).n)+'</option>').join("")+'</select></div>';
   html += '<div class="card"><span class="lbl">'+esc(ex.n)+' — '+(isReps?"best reps":"est. 1RM")+'</span>'
     + '<div class="chartwrap" style="margin-top:8px">'+e1rmChart(pts)+'<div id="ctip"></div></div></div>';
   html += '<div class="grid2" style="margin-bottom:12px">'
@@ -2541,7 +2611,7 @@ function paintHeat(){
   for (const el of svg.querySelectorAll("[data-region]")){
     const sub = el.dataset.sub;
     const v = sub !== undefined ? (heatSubs[sub] || 0) : (heatData.per[el.dataset.region] || 0);
-    /* a sub-region's growth zone is ~4–12 sets/wk vs 10–20 for a whole muscle — scale so
+    /* a sub-region's growth zone is ~4–12 sets/wk vs ~10–20+ for a whole muscle — scale so
        the shared color ramp means the same thing on both kinds of shape */
     const vv = sub !== undefined ? v * 1.8 : v;
     el.setAttribute("fill", heatFill(vv));
@@ -2555,32 +2625,41 @@ function trendsInsights(){
   if (!hasData)
     return '<div class="card hint">Log a few workouts and your muscle map, report cards and recap build themselves.</div>';
 
-  // heat map first — the muscle-volume figure is the page's anchor
+  // heat map first — the muscle-volume figure is the page's anchor; the per-muscle bars
+  // (with each muscle's growth-zone band drawn in) sit right under it, and the verdict
+  // list lives behind the toggle (his v9.0 swap — "the bars look better")
+  const {per:pv7} = regionVolume(addDays(todayStr(),-6), todayStr());
+  const barMax = Math.max(28, ...Object.values(pv7).map(v => v*1.05));
+  let bars = '<div class="cap" style="margin:8px 0 2px">counted sets — primary work full credit, secondary half · the light band is each muscle\'s growth zone</div>';
+  for (const [r, label] of Object.entries(REGIONS)){
+    const v = pv7[r] || 0, band = bandOf(r);
+    const vCol = band && v && v < band[0] ? ' style="color:var(--info)"'
+      : band && v > band[1]+10 ? ' style="color:var(--warn)"' : '';
+    bars += '<div class="vol-row"><span class="nm"><i class="gdot" style="background:'+REG_COL[r]+'"></i>'+label+'</span>'
+      + '<span class="bar'+(band && v > 0 && v < band[0] ? " low" : "")+'">'
+      + (band ? '<b class="zone" style="left:'+(band[0]/barMax*100).toFixed(1)+'%;width:'+((band[1]-band[0])/barMax*100).toFixed(1)+'%"></b>' : '')
+      + '<i style="width:'+Math.min(100, v/barMax*100).toFixed(1)+'%;background:'+REG_COL[r]+'"></i></span>'
+      + '<span class="v num"'+vCol+'>'+(v ? (Math.round(v*2)/2) : 0)+'</span></div>';
+  }
+  const va = volAdvice();
   html += '<div class="card"><span class="lbl">Muscle volume · last 7 days</span>'
     + '<div style="margin-top:12px">'+bodySVG()+'</div>'
     + '<div class="heat-legend">'
     + [["0",heatFill(0)],["1–5",heatFill(3)],["6–10",heatFill(8)],["11–15",heatFill(13)],["16+",heatFill(18)]]
         .map(([l,c]) => '<span><i style="background:'+c+'"></i>'+l+'</span>').join("")
     + '</div><div id="heat-detail" class="num">tap a muscle</div>'
-    + (va => '<div class="mgroup" style="margin-top:14px">Growth-zone check'+qBtn("volband")+'</div>'
-      + (va.length
-        ? va.map(a => '<div class="rowline" style="margin-top:7px"><span style="font-size:13.5px"><i class="gdot" style="background:'
-            + (REG_COL[a.r]||"#8A93A3")+'"></i>'+REGIONS[a.r]+'</span>'
-            + '<b class="num" style="margin-left:auto;color:'+(a.k === "under" ? "var(--info)" : "var(--warn)")+'">'
-            + (Math.round(a.v*2)/2)+' <span class="cap">/ 10–20</span></b></div>'
-            + '<div class="cap" style="margin:1px 0 0 15px">'+a.note+'</div>').join("")
-        : '<p class="hint" style="margin-top:6px">Every muscle you train sat inside the 10–20 set growth zone this week — exactly where you want to live.</p>'))(volAdvice())
-    + '<button class="link" data-act="volnums" style="margin-top:12px;font-size:12.5px">See every muscle\'s exact numbers ›</button>'
+    + '<div class="mgroup" style="margin-top:14px">Weekly sets by muscle</div>'
+    + bars
+    + '<button class="link" data-act="volnums" style="margin-top:12px;font-size:12.5px">Growth-zone check — anything to change? ›</button>'
     + '<div id="volnums" hidden>'
-    + (() => { const {per:pv} = regionVolume(addDays(todayStr(),-6), todayStr());
-        let b = '<div class="cap" style="margin:8px 0 2px">hard sets, last 7 days · secondary work = half credit</div>';
-        for (const [r, label] of Object.entries(REGIONS)){
-          const v = pv[r] || 0;
-          b += '<div class="vol-row"><span class="nm"><i class="gdot" style="background:'+REG_COL[r]+'"></i>'+label+'</span>'
-            + '<span class="bar'+(v>0 && v<10?" low":"")+'"><i style="width:'+Math.min(100, v/25*100).toFixed(0)+'%;background:'+REG_COL[r]+'"></i></span>'
-            + '<span class="v num">'+(v ? (Math.round(v*2)/2) : 0)+'</span></div>';
-        }
-        return b; })()
+    + '<div class="mgroup" style="margin-top:2px">Growth-zone check'+qBtn("volband")+'</div>'
+    + (va.length
+      ? va.map(a => '<div class="rowline" style="margin-top:7px"><span style="font-size:13.5px"><i class="gdot" style="background:'
+          + (REG_COL[a.r]||"#8A93A3")+'"></i>'+REGIONS[a.r]+'</span>'
+          + '<b class="num" style="margin-left:auto;color:'+(a.k === "under" ? "var(--info)" : "var(--warn)")+'">'
+          + (Math.round(a.v*2)/2)+' <span class="cap">/ '+a.lo+'–'+a.hi+'</span></b></div>'
+          + '<div class="cap" style="margin:1px 0 0 15px">'+a.note+'</div>').join("")
+      : '<p class="hint" style="margin-top:6px">Nothing needs changing — every trained muscle is in or comfortably above its growth zone, and your check-ins say recovery is keeping up.</p>')
     + '</div>'
     + '</div>';
 
@@ -2958,9 +3037,11 @@ function subVolume(subKey, days){
     for (const e of w.exercises) if (exInfo(e.id).sub === subKey) n += workSets(e.sets).length; }
   return n;
 }
-/* growth-zone check: last-7-day fractional sets vs the ~10–20 productive band, cross-read
-   with recent pump/soreness check-ins so the advice reflects your recovery, not just math.
-   Only muscles that are actually part of the program (≥8 credited sets over 28d) get advice. */
+/* growth-zone check: last-7-day counted sets vs each muscle's own band, cross-read with
+   pump/soreness check-ins. Philosophy (v9.0): UNDER the band is a real flag; ABOVE it is
+   only a flag when the user's recovery data agrees, or the volume is beyond anything the
+   research found productive — high volume with good recovery is a choice, not a mistake.
+   Only muscles that are actually in the program (≥8 counted sets over 28d) get advice. */
 function volAdvice(){
   const {per} = regionVolume(addDays(todayStr(),-6), todayStr());
   const {per:p28} = regionVolume(addDays(todayStr(),-27), todayStr());
@@ -2973,25 +3054,33 @@ function volAdvice(){
   };
   const out = [];
   for (const r of Object.keys(REGIONS)){
+    const band = bandOf(r); if (!band) continue;
     if ((p28[r]||0) < 8) continue;
+    const [lo, hi] = band;
     const v = per[r]||0, fb = fbAvg(r);
-    if (v < 10){
-      let note = v === 0 ? "nothing this week" : "below the growth zone";
-      if (fb && fb.p !== null && fb.p < 0.7) note += " — low pump agrees; add a set or two";
-      out.push({r, v, k:"under", note});
-    } else if (v > 20){
-      out.push({r, v, k:"over", note: fb && fb.s !== null && fb.s >= 1.5
-        ? "high volume + still getting sore — recovery is losing; trim sets"
-        : "past the point of diminishing returns"});
+    if (v < lo){
+      let note = v === 0 ? "nothing this week" : "below the growth zone — room for a set or two";
+      if (v && fb && fb.p !== null && fb.p < 0.7) note = "below the zone AND low pump — add a set or two";
+      out.push({r, v, lo, hi, k:"under", note});
+    } else if (v > hi + 10){
+      out.push({r, v, lo, hi, k:"over",
+        note:"far past where research shows extra sets still pay — bank some recovery"});
+    } else if (v > hi && fb && fb.s !== null && fb.s >= 1.5){
+      out.push({r, v, lo, hi, k:"over",
+        note:"high volume + still getting sore — recovery is losing; trim a set or two"});
     } else if (fb && fb.s !== null && fb.s >= 1.8){
-      out.push({r, v, k:"sore", note:"volume is in the zone but it keeps staying sore — hold or trim a set"});
+      out.push({r, v, lo, hi, k:"sore", note:"volume is fine but it keeps coming in sore — hold or trim a set"});
     }
   }
   return out;
 }
-function volScore(wv, isSub){
+function volScore(wv, isSub, band){
   if (isSub) return wv >= 4 && wv <= 12 ? 50 : wv >= 3 || (wv > 12 && wv <= 16) ? 42 : wv >= 1.5 ? 28 : wv > 0 ? 15 : 0;
-  return wv >= 10 && wv <= 20 ? 50 : (wv >= 8 || (wv > 20 && wv <= 24)) ? 42 : wv > 24 ? 35 : wv >= 6 ? 32 : wv >= 3 ? 20 : wv > 0 ? 10 : 0;
+  // above the band costs far less than below it — volume you recover from is a choice
+  const [lo, hi] = band || [10,20];
+  if (wv >= lo && wv <= hi) return 50;
+  if (wv > hi) return wv <= hi + 10 ? 46 : 38;
+  return wv >= lo*0.8 ? 42 : wv >= lo*0.6 ? 32 : wv >= 3 ? 20 : wv > 0 ? 10 : 0;
 }
 function progScore(avgP){
   if (avgP === null) return 36;
@@ -3020,7 +3109,7 @@ function muscleReport(){
     const wv = (per[r]||0)/(days/7);
     if (!wv) continue;
     const avgP = avgPctFor(ids28.filter(id => muscOf(id).p.includes(r)));
-    rows.push({label, r, wv, avgP, score:volScore(wv,false)+progScore(avgP), sub:false});
+    rows.push({label, r, wv, avgP, score:volScore(wv,false,bandOf(r))+progScore(avgP), sub:false});
     for (const [key, subLabel] of (MUSC_SUBS[r]||[])){
       const sv = subVolume(key, days)/(days/7);
       const subIds = ids28.filter(id => exInfo(id).sub === key);
@@ -3330,7 +3419,7 @@ async function askCoach(q){
     + "The user is a returning lifter on a 6-day split (Saturday off), currently cutting.\n\n"
     + "GROUNDING RULES (hard rules):\n"
     + "- The app has already computed every number in the data block below: e1RMs, trends, session scores, "
-    + "recovery clocks, weekly volume vs the 10-20 hard-set growth zone, readiness scaling, targeted deloads, "
+    + "recovery clocks, weekly volume vs each muscle's own growth zone, readiness scaling, targeted deloads, "
     + "PR taxonomy, maintenance calories. Your job is to NARRATE and INTERPRET those numbers — never to compute new ones.\n"
     + "- No arithmetic. Don't add weights, project rates, convert units, or estimate percentages, calories or dates. "
     + "Every number you state must appear verbatim in the data block.\n"
@@ -3623,15 +3712,15 @@ function linkSS(ei, j){
 /* "?" about-sheets — the long explanations live here instead of cluttering the cards */
 const HELP = {
   exrep:{t:"Exercise report card", b:"Every lift trained in the last 28 days with at least 2 logged sessions, graded on two things: <b>(1)</b> how much its best e1RM climbed over those 28 days — that's the %, where +3% and up is an A and a drop pulls toward C/D — and <b>(2)</b> staleness: not matching your all-time best for 3+ sessions caps the grade. Sorted worst-first so the lift that needs attention sits on top. Recomputed live from your log every time the page renders."},
-  musrep:{t:"Muscle report card", b:"Each muscle's grade = volume dose + progress. <b>Volume:</b> 10–20 hard sets a week is the growth zone for a whole muscle, roughly 4–12 for a sub-region. <b>Progress:</b> whether that muscle's lifts pushed their e1RMs up over the last 28 days. \"Untrained\" flags a sub-region with no direct sets at all."},
-  score:{t:"Strength scorecard", b:"Community-average standards for a man at your bodyweight — your best-ever e1RM per benchmark lift, as a multiple of bodyweight, mapped Beginner → Elite. Dips and pull-ups count bodyweight + added load; dumbbell lifts grade per hand. Orientation, not gospel — dumbbell and machine work still counts through volume in Insights."},
+  musrep:{t:"Muscle report card", b:"Each muscle's grade = volume dose + progress. <b>Volume:</b> counted sets vs that muscle's own growth zone (~10–20 for most, wider for pooled regions like delts, ~4–12 for a sub-region). Sitting <i>above</i> the zone barely costs — volume you recover from is a choice; sitting under it does. <b>Progress:</b> whether that muscle's lifts pushed their e1RMs up over the last 28 days. \"Untrained\" flags a sub-region with no direct sets at all."},
+  score:{t:"Strength scorecard", b:"Community-average standards for a man at your bodyweight — your best-ever e1RM per benchmark lift, as a multiple of bodyweight, mapped Beginner → Elite. The group headline is the <b>middle</b> of that group's benchmarks, and ties break down, never up. Dips and pull-ups count bodyweight + added load; dumbbell lifts grade per hand. Dips grade under <b>triceps</b> — upright dips are triceps-led (chest assists at half credit in the volume math). Orientation, not gospel — dumbbell and machine work still counts through volume in Insights."},
   ovr:{t:"Overall strength index", b:"Each lift's best e1RM per week, divided by its own first-week baseline (that's 100), then averaged across every lift — one line answering \"am I actually getting stronger?\". Weeks you skip a lift, its last value carries forward. The chips cut the same math to one muscle group."},
   rel:{t:"Pound-for-pound", b:"The strength index corrected for bodyweight change. On a cut this is the win condition: if it climbs while the scale falls, you're holding or gaining strength in a smaller body."},
   you:{t:"Your numbers", b:"The denominator behind every grade on this page. Weight is your smoothed <b>trend</b> — each morning weigh-in only nudges it a little — so strength-per-pound doesn't jump around with scale noise. Set body-fat % in Settings to unlock lean mass and FFMI."},
   cardio:{t:"Cardio tracking", b:"Counted from the \"Incline treadmill\" line on the workout screen. Minutes feed the daily-energy model below (minutes × your kcal/min setting), earn a small session-score bonus, and show in the weekly recap."},
   ready:{t:"Readiness check", b:"Auto-regulation, Juggernaut-style: rate sleep, energy, food and how fresh your body feels, 1–5 each. A strong day (average ≥ 4.25) nudges today's ghost targets <b>+5%</b>; a rough one pulls them <b>−5 to −10%</b>. It only scales the <i>suggestions</i> — what you actually lift is always your call, and progression math still runs on what you log. Asked once, at the day's first workout start; tap the banner to redo it."},
   pumpfb:{t:"Pump & soreness check-in", b:"The feedback loop the $200/yr apps run, in two taps per muscle. <b>Pump</b> = did today's volume do its job — a muscle that never pumps and never progresses probably needs more sets. <b>Coming in</b> = had it healed from last time? That answer tunes the muscle's recovery clock on the freshness map: \"still sore\" makes its clock run slower, \"fresh\" makes it run faster. Two or three check-ins per muscle are enough to see the map shift."},
-  volband:{t:"Growth-zone check", b:"Research puts the productive weekly dose near <b>10–20 hard sets</b> per muscle (secondary work counts half, ~4–12 for a sub-region), with diminishing returns above. This reads your last 7 days against that band and only flags what's off — under-stimulated or overreached — cross-checked against your pump &amp; soreness check-ins when you've logged them. Muscles you don't train directly aren't nagged about."},
+  volband:{t:"Growth-zone check", b:"Research puts the productive weekly dose for one muscle near <b>10–20 counted sets</b> (primary work = 1, secondary = ½; grip/bracing riders don't count) — and that's a zone, <b>not a limit</b>: trained lifters kept growing at 20–30+ sets in multiple trials (Schoenfeld 2019, Enes 2024), and 2024–25 meta-analyses show returns that flatten rather than reverse. Regions that pool several heads or soak up half-credits from everything get wider bands — delts (three heads, half credit from every press and row) run 12–30. So the check flags <b>under</b> the zone, or volume so high your own soreness check-ins say recovery is losing — being above the zone while recovering fine is a choice, not an error. Forearms and lower back are never nagged: they ride along with nearly every lift."},
   fresh:{t:"Muscle freshness", b:"Days since each muscle last took a real dose (2+ credited sets), on a ramp: trained today → recovering → almost → ready → due again at 8+ days. Your post-workout check-ins tune it per muscle — report a muscle \"still sore\" and its clock runs up to 1 day slower; \"fresh\" up to a day faster. Real recovery data instead of pure day-counting."},
 };
 const qBtn = k => '<button class="qbtn" data-act="help" data-h="'+k+'">?</button>';
@@ -4260,8 +4349,9 @@ function claudeText(){
   const {per} = regionVolume(addDays(todayStr(),-6), todayStr());
   if (Object.keys(per).length){
     L.push("");
-    L.push("WEEKLY SETS BY MUSCLE (last 7d, secondary = half credit):");
-    L.push("  " + Object.entries(REGIONS).filter(([r]) => per[r]).map(([r,n]) => n+" "+(Math.round(per[r]*2)/2)).join(" · "));
+    L.push("WEEKLY SETS BY MUSCLE (last 7d, counted sets: primary = 1, secondary = half; grip/bracing riders not counted):");
+    L.push("  " + Object.entries(REGIONS).filter(([r]) => per[r]).map(([r,n]) => { const b = bandOf(r);
+      return n+" "+(Math.round(per[r]*2)/2)+(b ? " (zone "+b[0]+"-"+b[1]+")" : ""); }).join(" · "));
   }
   /* today, plans & auto-regulation — phase 4: the coach narrates these, never recomputes them */
   const DNAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
@@ -4310,8 +4400,8 @@ function claudeText(){
   const va = volAdvice();
   if (va.length){
     L.push("");
-    L.push("VOLUME ADVICE (this week's sets vs the 10-20/wk growth zone, cross-read with check-ins):");
-    for (const a of va) L.push("  " + REGIONS[a.r] + ": " + (Math.round(a.v*2)/2) + " sets — " + a.note);
+    L.push("VOLUME ADVICE (this week's counted sets vs each muscle's growth zone, cross-read with check-ins — above-zone is only flagged when recovery data agrees):");
+    for (const a of va) L.push("  " + REGIONS[a.r] + ": " + (Math.round(a.v*2)/2) + " vs zone " + a.lo + "-" + a.hi + " — " + a.note);
   }
   /* lab metrics */
   const si = strengthIndex(null);
@@ -4424,7 +4514,7 @@ function mapTap(svg, x, y){
         : days < 2.75 ? '<span style="color:hsl(75 60% 55%)">almost ready</span> — '+ago
         : days <= 7.5 ? '<span class="up">ready</span> — '+ago
         : '<span class="cap">due again</span> — '+raw+' days since trained';
-      el.innerHTML = "<b>"+nm+"</b> — "+st+" · "+(Math.round(sets*2)/2)+" hard sets this week"
+      el.innerHTML = "<b>"+nm+"</b> — "+st+" · "+(Math.round(sets*2)/2)+" counted sets this week"
         + (Math.abs(adj) >= 0.5 ? '<br><span class="cap">your check-ins say this recovers '
           + (adj > 0 ? "slower" : "faster")+' than average — clock adjusted</span>' : "");
     }
@@ -4440,12 +4530,13 @@ function mapTap(svg, x, y){
     const top = Object.entries(src).sort((a,b) => b[1]-a[1]).slice(0,3)
       .map(([n,c]) => n+" "+(Math.round(c*2)/2)).join(" · ");
     const el = $("#heat-detail");
-    const band = sub !== undefined ? [4,12] : [10,20];
-    const verdict = !v ? ""
+    const band = sub !== undefined ? [4,12] : bandOf(r);
+    const verdict = !v || !band ? ""
       : v < band[0] ? ' · <span style="color:var(--info)">below the '+band[0]+'–'+band[1]+' zone</span>'
-      : v > band[1] ? ' · <span class="wr">past the '+band[0]+'–'+band[1]+' zone</span>'
-      : ' · <span class="up">in the growth zone</span>';
-    if (el) el.innerHTML = "<b>"+nm+"</b> — "+(Math.round(v*2)/2)+" hard sets"+verdict+(top ? "<br><span class='cap'>"+top+"</span>" : "");
+      : v <= band[1] ? ' · <span class="up">in the growth zone</span>'
+      : v <= band[1]+10 ? ' · <span class="up">above the zone — fine while recovery holds</span>'
+      : ' · <span class="wr">far past the '+band[0]+'–'+band[1]+' zone</span>';
+    if (el) el.innerHTML = "<b>"+nm+"</b> — "+(Math.round(v*2)/2)+" counted sets"+verdict+(top ? "<br><span class='cap'>"+top+"</span>" : "");
   }
 }
 let mapDown = null;
@@ -4935,7 +5026,7 @@ document.addEventListener("click", ev => {
   else if (act === "goto-history"){ tab = "history"; render(); }
   else if (act === "volnums"){
     const el = $("#volnums"); el.hidden = !el.hidden;
-    btn.textContent = el.hidden ? "See every muscle's exact numbers ›" : "Hide the numbers";
+    btn.textContent = el.hidden ? "Growth-zone check — anything to change? ›" : "Hide the growth-zone check";
   }
   else if (act === "hist-more"){ histShow += 25; render(); }
   else if (act === "ttab"){ S.trendTab = btn.dataset.t; save(); render(); }
