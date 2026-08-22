@@ -828,7 +828,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.2.1"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.3"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -954,9 +954,47 @@ const histTopW = exId => {
   const h = perfHistory(exId);
   return h.length ? Math.max(0, ...h[0].sets.map(s => +s.w || 0)) : 0;
 };
+/* ── typo guard (v9.3 — his "+217 dip max while repping +90×5" catch) ──
+   A single set whose estimate towers over every other session of a lift is far more
+   likely a mislogged entry (weight or rep typo) than a real max: strength moves in
+   small steps, not 20% leaps. Rule: with 3+ sessions on record, the top session's best
+   set is SUSPECT when it beats the best of every other session by >20% (checked twice,
+   in case two typos stack). Suspect sets stay visible in History — fix or delete them
+   there — but are EXCLUDED from best-ever grading, PR baselines, staleness and progress
+   math, and the scorecard names them. Self-healing by design: if the number was real,
+   the next session that comes within 20% of it clears the flag and it counts again.
+   Cache is cleared each render (mutations always re-render). */
+let _outCache = {};
+function liftOutliers(exId){
+  if (_outCache[exId]) return _outCache[exId];
+  const ex = exInfo(exId), bw = ex.bw ? bodyweight() : 0;
+  const val = s => (ex.bw ? bw + (+s.w||0) : (+s.w||0)) * e1Mult(+s.r||0);
+  const sess = [];
+  for (const h of perfHistory(exId)){
+    let best = null;
+    for (const s of h.sets){ const v = val(s); if (v > 0 && (!best || v > best.v)) best = {v, s}; }
+    if (best) sess.push({date:h.date, v:best.v, s:best.s});
+  }
+  const out = [];
+  for (let iter = 0; iter < 2 && sess.length >= 3; iter++){
+    sess.sort((a,b) => b.v - a.v);
+    if (sess[0].v > sess[1].v * 1.2){
+      out.push({date:sess[0].date, w:+sess[0].s.w||0, r:+sess[0].s.r||0,
+        pct:Math.round((sess[0].v/sess[1].v - 1)*100)});
+      sess.shift();
+    } else break;
+  }
+  return (_outCache[exId] = out);
+}
+const isOutlier = (exId, date, s) => liftOutliers(exId).some(o =>
+  o.date === date && o.w === (+s.w||0) && o.r === (+s.r||0));
+const credOf = (exId, h) => h.sets.filter(s => !isOutlier(exId, h.date, s));
 function bestEver(exId){
   const ex = exInfo(exId); let best = 0;
-  for (const h of perfHistory(exId)) best = Math.max(best, bestMetric(h.sets, ex));
+  for (const h of perfHistory(exId)){
+    const ss = credOf(exId, h);
+    if (ss.length) best = Math.max(best, bestMetric(ss, ex));
+  }
   return best;
 }
 function bestE1InRange(id, a, b){
@@ -1072,6 +1110,7 @@ function liftScores(){
     if (!hist.length) continue;
     let e1 = 0, bs = null, bd = null;
     for (const h of hist) for (const s of workSets(h.sets)){
+      if (isOutlier(id, h.date, s)) continue; // typo-guard: suspect sets don't grade
       const v = std.bwTotal ? (bw + (+s.w||0))*e1Mult(+s.r) : (+s.w||0)*e1Mult(+s.r);
       if (v > e1){ e1 = v; bs = s; bd = h.date; }
     }
@@ -1082,7 +1121,8 @@ function liftScores(){
     const nextLb = lv.next ? Math.round(lv.next * fem * bw - (std.bwTotal ? bw : 0)) : null;
     // src = the receipt: exactly which logged set produced this estimate
     const src = bs ? (std.bwTotal ? (+bs.w ? "BW+"+bs.w : "BW") : bs.w)+"×"+bs.r+" · "+fmtShort(bd) : "";
-    out.push({id, name:ex.n, e1:shown, ratio, lv, bwTotal:!!std.bwTotal, db:!!std.db, nextLb, g:ex.g, src});
+    out.push({id, name:ex.n, e1:shown, ratio, lv, bwTotal:!!std.bwTotal, db:!!std.db, nextLb, g:ex.g, src,
+      flags:liftOutliers(id)});
   }
   return out.sort((a,b) => b.lv.score - a.lv.score);
 }
@@ -1490,6 +1530,7 @@ function ssExitPick(){
   for (const c of document.querySelectorAll(".xcard.sspick, .xcard.sssrc")) c.classList.remove("sspick", "sssrc");
 }
 function render(){
+  _outCache = {}; // outlier verdicts recompute after any mutation (all writes re-render)
   ssPick = null; // a re-render always leaves superset pick-a-partner mode
   $("#hdrdate").textContent = fmtDate(todayStr());
   document.body.classList.toggle("nochk", !S.settings.checkOff);
@@ -2205,7 +2246,10 @@ function computePRs(kept){
     const hist = perfHistory(e.id);
     if (!hist.length) continue;
     let n = 0;
-    const prev = Math.max(...hist.map(h => bestMetric(h.sets, ex)));
+    // PR baselines ignore typo-guarded sets — a mislogged monster set was silently
+    // suppressing every real PR behind it
+    const prev = Math.max(...hist.map(h => { const ss = credOf(e.id, h);
+      return ss.length ? bestMetric(ss, ex) : 0; }));
     const now = bestMetric(sets, ex);
     if (now > prev + 0.01){
       const bs = bestSet(sets, ex);
@@ -2215,7 +2259,9 @@ function computePRs(kept){
     // rep-max: best weight held for at least r reps, vs all history (2+ prior sessions)
     if (!n && hist.length >= 2){
       const histRM = r => { let m = 0;
-        for (const h of hist) for (const s of h.sets) if (+s.r >= r) m = Math.max(m, +s.w || 0);
+        for (const h of hist) for (const s of h.sets){
+          if (isOutlier(e.id, h.date, s)) continue;
+          if (+s.r >= r) m = Math.max(m, +s.w || 0); }
         return m; };
       let best = null;
       for (const s of sets){
@@ -2230,7 +2276,7 @@ function computePRs(kept){
     // session-volume record (3+ prior sessions so early noise doesn't count)
     if (n < 2 && hist.length >= 3){
       const vol = ss => ss.reduce((a, s) => a + (+s.w||0)*(+s.r||0), 0);
-      const nowV = vol(sets), prevV = Math.max(...hist.map(h => vol(h.sets)));
+      const nowV = vol(sets), prevV = Math.max(...hist.map(h => vol(credOf(e.id, h))));
       if (prevV > 0 && nowV > prevV * 1.02)
         prs.push({id:e.id, name:ex.n, kind:"vol", str:Math.round(nowV).toLocaleString()+" lb"});
     }
@@ -2518,6 +2564,10 @@ function strengthOverviewHTML(){
         + '<div class="sub num">e1RM '+sc.e1+(sc.bwTotal?" lb added":sc.db?" lb / hand":" lb")+' · '+sc.ratio.toFixed(2)+'×BW'
         + (sc.src ? ' · from '+sc.src : '')
         + (sc.nextLb !== null ? ' · next level ~'+sc.nextLb+(sc.bwTotal?" added":"")+' lb' : ' · maxed the chart')+'</div>'
+        + (sc.flags || []).map(o =>
+          '<div class="sub" style="color:var(--warn);cursor:pointer" data-act="hist-goto" data-date="'+o.date+'">⚠ ignoring '
+          + (sc.bwTotal ? (o.w ? "BW+"+o.w : "BW") : o.w)+'×'+o.r+' ('+fmtShort(o.date)+') — '
+          + o.pct+'% above everything else, probably mislogged. Tap to fix in History; if it was real it counts again once you repeat something close.</div>').join("")
         + '<div class="lbar">'+[0,1,2,3,4].map(i => {
             const fill = Math.max(0, Math.min(1, sc.lv.score - i));
             return '<span><i style="transform:scaleX('+fill.toFixed(2)+')"></i></span>'; }).join("")+'</div></div>';
@@ -2998,6 +3048,7 @@ function stdE1UpTo(id, dateEnd){
   for (const w of S.workouts){ if (w.date > dateEnd) continue;
     const e = w.exercises.find(x => x.id === id); if (!e) continue;
     for (const s of workSets(e.sets)){
+      if (isOutlier(id, w.date, s)) continue;
       const v = std.bwTotal ? (bw + (+s.w||0))*e1Mult(+s.r) : (+s.w||0)*e1Mult(+s.r);
       if (v > m) m = v; } }
   return m;
@@ -3006,7 +3057,8 @@ function bestPlainUpTo(id, dateEnd){
   const ex = exInfo(id); let m = 0;
   for (const w of S.workouts){ if (w.date > dateEnd) continue;
     const e = w.exercises.find(x => x.id === id); if (!e) continue;
-    const ss = workSets(e.sets); if (ss.length) m = Math.max(m, bestMetric(ss, ex)); }
+    const ss = workSets(e.sets).filter(s => !isOutlier(id, w.date, s));
+    if (ss.length) m = Math.max(m, bestMetric(ss, ex)); }
   return m;
 }
 function highlights(){
@@ -3057,9 +3109,11 @@ function highlights(){
   let lag = null;
   for (const id of [...new Set(S.workouts.flatMap(w => w.exercises.map(e => e.id)))]){
     const hist = perfHistory(id); if (hist.length < 5) continue;
-    const ex = exInfo(id), best = Math.max(...hist.map(h => bestMetric(h.sets, ex)));
+    const ex = exInfo(id);
+    const bh = hist.map(h => { const ss = credOf(id, h); return ss.length ? bestMetric(ss, ex) : 0; });
+    const best = Math.max(...bh);
     let since = 0;
-    for (const h of hist){ if (bestMetric(h.sets, ex) >= best - 0.01) break; since++; }
+    for (const v of bh){ if (v >= best - 0.01) break; since++; }
     if (since >= 4 && (!lag || since > lag.since)) lag = {id, since};
   }
   if (lag) out.push({tag:"Watch", tone:"wr",
@@ -3073,9 +3127,12 @@ function exProgress(id){
   const b0 = bestPlainUpTo(id, addDays(todayStr(), -28));
   const b1 = bestPlainUpTo(id, todayStr());
   const pct = b0 > 0 ? (b1-b0)/b0*100 : null;
-  const best = Math.max(...hist.map(h => bestMetric(h.sets, ex)));
+  // staleness vs the credible best — a typo'd monster set made every later session
+  // read "not at best" forever
+  const bh = hist.map(h => { const ss = credOf(id, h); return ss.length ? bestMetric(ss, ex) : 0; });
+  const best = Math.max(...bh);
   let since = 0;
-  for (const h of hist){ if (bestMetric(h.sets, ex) >= best - 0.01) break; since++; }
+  for (const v of bh){ if (v >= best - 0.01) break; since++; }
   return {pct, since, n:hist.length};
 }
 function exScore(p){
@@ -3808,7 +3865,7 @@ function linkSS(ei, j){
 const HELP = {
   exrep:{t:"Exercise report card", b:"Every lift trained in the last 28 days with at least 2 logged sessions, graded on two things: <b>(1)</b> how much its best e1RM climbed over those 28 days — that's the %, where +3% and up is an A and a drop pulls toward C/D — and <b>(2)</b> staleness: not matching your all-time best for 3+ sessions caps the grade. Sorted worst-first so the lift that needs attention sits on top. Recomputed live from your log every time the page renders."},
   musrep:{t:"Muscle report card", b:"Each muscle's grade = volume dose + progress. <b>Volume:</b> counted sets vs that muscle's own growth zone (~10–20 for most, wider for pooled regions like delts, ~4–12 for a sub-region). Sitting <i>above</i> the zone barely costs — volume you recover from is a choice; sitting under it does. <b>Progress:</b> whether that muscle's lifts pushed their e1RMs up over the last 28 days. \"Untrained\" flags a sub-region with no direct sets at all."},
-  score:{t:"Strength scorecard", b:"All 16 benchmarks grade against <b>one source</b>: Strength Level's community percentiles for a man at your bodyweight (Beginner ≈ top 95% … Elite ≈ top 5% of people who actually log that lift), so a level means the same thing on every lift. <b>The max estimate:</b> Epley (weight × (1 + reps/30)) through 10 reps — the range where the formula is validated — with only half credit per rep beyond 10, because prediction equations provably overestimate from high-rep sets. Each line shows the exact set the estimate came from, so you can judge it yourself. Dips and pull-ups grade on bodyweight + added load (their standards ladders converted the same way); dumbbell lifts grade per hand. The group headline is the middle of its benchmarks; ties break down, never up. Orientation, not gospel."},
+  score:{t:"Strength scorecard", b:"All 16 benchmarks grade against <b>one source</b>: Strength Level's community percentiles for a man at your bodyweight (Beginner ≈ top 95% … Elite ≈ top 5% of people who actually log that lift), so a level means the same thing on every lift. <b>The max estimate:</b> Epley (weight × (1 + reps/30)) through 10 reps — the range where the formula is validated — with only half credit per rep beyond 10, because prediction equations provably overestimate from high-rep sets. Each line shows the exact set the estimate came from, so you can judge it yourself. <b>Typo guard:</b> a set that beats every other session of a lift by more than 20% is treated as a likely mislog — it's excluded and flagged (tap the flag to fix it in History), and if it was real it counts again the moment you repeat something close. Dips and pull-ups grade on bodyweight + added load; dumbbell lifts grade per hand. The group headline is the middle of its benchmarks; ties break down, never up. Orientation, not gospel."},
   ovr:{t:"Overall strength index", b:"Each lift's best e1RM per week, divided by its own first-week baseline (that's 100), then averaged across every lift — one line answering \"am I actually getting stronger?\". Weeks you skip a lift, its last value carries forward. The chips cut the same math to one muscle group."},
   rel:{t:"Pound-for-pound", b:"The strength index corrected for bodyweight change. On a cut this is the win condition: if it climbs while the scale falls, you're holding or gaining strength in a smaller body."},
   you:{t:"Your numbers", b:"The denominator behind every grade on this page. Weight is your smoothed <b>trend</b> — each morning weigh-in only nudges it a little — so strength-per-pound doesn't jump around with scale noise. Set body-fat % in Settings to unlock lean mass and FFMI."},
@@ -4260,14 +4317,18 @@ function openExDetail(exId){
     return {date:h.date, val:Math.round(bestMetric(h.sets, ex)), lbl:(ex.bw && !+bs.w ? "BW" : (+bs.w||0))+" × "+bs.r}; });
   let rec = "";
   if (hist.length){
-    let mw = 0, mws = null, me = 0, mes = null;
+    let mw = 0, mws = null, me = 0;
     for (const h of hist) for (const s of h.sets){
+      if (isOutlier(exId, h.date, s)) continue;
       if (+s.w > mw){ mw = +s.w; mws = s; }
-      const v = metric(s, ex); if (v > me){ me = v; mes = s; }
+      const v = metric(s, ex); if (v > me) me = v;
     }
     rec = '<div class="mgroup">Records</div><p class="hint num" style="margin-top:4px">'
       + (mw ? 'Heaviest: <b style="color:var(--text-1)">'+mw+' × '+mws.r+'</b> · ' : '')
-      + 'Best e1RM: <b style="color:var(--text-1)">'+Math.round(me)+(ex.bw && !mw ? ' reps' : ' lb')+'</b></p>';
+      + 'Best e1RM: <b style="color:var(--text-1)">'+Math.round(me)+(ex.bw && !mw ? ' reps' : ' lb')+'</b></p>'
+      + liftOutliers(exId).map(o =>
+        '<p class="hint" style="margin-top:6px;color:var(--warn);cursor:pointer" data-act="hist-goto" data-date="'+o.date+'">⚠ Ignoring '
+        + (o.w ? o.w : "BW")+'×'+o.r+' ('+fmtShort(o.date)+') — '+o.pct+'% above every other session, which usually means a typo. Tap to review it in History; if it was real, it counts again once you repeat something close.</p>').join("");
   }
   openModal('<h3>'+esc(ex.n)+(isUni(exId) ? ' <span class="tgt">/side</span>' : '')+'</h3>'
     + howtoHTML(exId)
@@ -4438,8 +4499,11 @@ function claudeText(){
     for (const [id, dl] of Object.entries(S.dl))
       L.push("TARGETED DELOAD: " + exInfo(id).n + " at " + dl.w + " lb (base " + dl.base + ") through " + dl.until);
     L.push("STRENGTH LEVELS (Strength Level community percentiles vs ~" + Math.round(bodyweight()) + " lb bodyweight; e1RM = Epley capped past 10 reps):");
-    for (const sc of scores)
+    for (const sc of scores){
       L.push("  " + sc.name + ": " + (sc.lv.idx<0?"Beginner":LVLS[sc.lv.idx]) + " — e1RM " + sc.e1 + (sc.bwTotal?" added":sc.db?" per hand":"") + " lb (" + sc.ratio.toFixed(2) + "×BW" + (sc.src ? ", from " + sc.src : "") + ")");
+      for (const o of sc.flags || [])
+        L.push("    NOTE: ignoring a likely typo set " + (o.w||"BW") + "×" + o.r + " on " + o.date + " (" + o.pct + "% above every other session)");
+    }
   }
   const {per} = regionVolume(addDays(todayStr(),-6), todayStr());
   if (Object.keys(per).length){
@@ -5124,6 +5188,15 @@ document.addEventListener("click", ev => {
     btn.textContent = el.hidden ? "Growth-zone check — anything to change? ›" : "Hide the growth-zone check";
   }
   else if (act === "hist-more"){ histShow += 25; render(); }
+  else if (act === "hist-goto"){
+    // jump straight to the workout a flagged set lives in, opened for editing
+    const dstr = btn.dataset.date;
+    closeModal();
+    histMonth = dstr.slice(0,7); histShow = 15; tab = "history"; render();
+    const w = S.workouts.find(x => x.date === dstr);
+    if (w){ const el = document.getElementById("h-"+w.id);
+      if (el){ el.classList.add("open"); el.scrollIntoView({block:"center"}); } }
+  }
   else if (act === "hist-month-open"){ openHistMonthModal(); }
   else if (act === "hist-month-pick"){ histMonth = btn.dataset.m; histShow = 15; closeModal(); render(); }
   else if (act === "ttab"){ S.trendTab = btn.dataset.t; save(); render(); }
