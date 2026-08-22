@@ -340,6 +340,21 @@
   .intel-li{font-size:13.5px;color:var(--text-2);margin-top:7px;line-height:1.5}
   .intel-li b{color:var(--text-1);font-weight:650}
   .intel-li .k{color:var(--text-3);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.07em;margin-right:6px}
+  /* exercise how-to diagram: static figure in slate, start position dim, end position accent,
+     equipment darker, motion path amber */
+  .exdiag{width:100%;max-width:250px;display:block;margin:10px auto 0}
+  .exdiag .fg{stroke:#7A86B8;fill:none;stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round}
+  .exdiag .hd{fill:#7A86B8}
+  .exdiag .mv1{stroke:#586180;fill:none;stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round;opacity:.6}
+  .exdiag .h1{fill:#586180;opacity:.6}
+  .exdiag .mv2{stroke:var(--accent);fill:none;stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round}
+  .exdiag .h2{fill:var(--accent)}
+  .exdiag .eq{stroke:#39415C;fill:none;stroke-width:3;stroke-linecap:round}
+  .exdiag .eqf{fill:#333B55;stroke:none}
+  .exdiag .cbl{stroke:#4A5578;fill:none;stroke-width:1.6;stroke-dasharray:4 3}
+  .exdiag .arr{stroke:#FFB020;fill:none;stroke-width:1.8}
+  .exdiag .arh{fill:#FFB020;stroke:none}
+  .exdiag text{fill:var(--text-3);font-size:8.5px;letter-spacing:.06em}
   .coach-q{background:var(--accent-dim);border:1px solid rgba(44,224,139,.25);
     border-radius:14px 14px 4px 14px;padding:11px 14px;margin:16px 0 8px 36px;font-size:14px}
   .coach-a{background:var(--bg-1);border:1px solid var(--stroke);border-radius:14px 14px 14px 4px;
@@ -755,6 +770,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
+const APP_VER = "8.7"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -1694,7 +1710,7 @@ function renderHome(){
     + [["Today",0],["1 day",1],["2 days",2],["Ready",4],["8+ days",9]].map(([l,d]) =>
         '<span><i style="background:'+freshFill(d)+'"></i>'+l+'</span>').join("")
     + '</div><div id="fresh-detail" class="num">tap a muscle</div></div>';
-  html += '<div class="card tap tint" style="--tint:rgba(255,176,32,.17)" data-act="goto-trends"><span class="lbl">Volume</span>'+weekBulletHTML()
+  html += '<div class="card tap tint" style="--tint:rgba(255,176,32,.17)" data-act="goto-lab"><span class="lbl">Volume</span>'+weekBulletHTML()
     + '<div class="cap" style="margin-top:8px">vs your 4-week typical</div></div>';
   html += '<div class="card tap tint" style="--tint:rgba(255,214,10,.17)" data-act="goto-insights"><span class="lbl">PRs · 28 days</span>'
     + '<div class="tile-num num"><span class="gold-ink">'+pr.n+'</span></div>'
@@ -1902,7 +1918,8 @@ function renderWorkout(d){
 
   html += '<div class="btnrow" style="margin:2px 0 10px">'
     + '<button class="addset" style="margin:0" data-act="add-ex">+ Add exercise</button>'
-    + '<button class="addset" style="margin:0" data-act="tpl-save">Save as template</button></div>';
+    + '<button class="addset" style="margin:0" data-act="tpl-load-open">Use template</button>'
+    + '<button class="addset" style="margin:0" data-act="tpl-save">Save template</button></div>';
   html += '<div class="card rowline">'
     + '<label class="grow rowline" style="gap:8px"><input type="checkbox" id="cardio-on" style="width:20px;height:20px"'+(d.cardio.on?" checked":"")+'>'
     + '<span style="font-size:14px">Incline treadmill</span></label>'
@@ -2186,12 +2203,17 @@ function finishDraft(dateStr, silent){
 }
 
 /* ================= HISTORY ================= */
+let histShow = 15; // page the list — years of workouts shouldn't render in one go
 function renderHistory(){
   let html = '<button class="big" data-act="past-workout" style="margin-bottom:12px">+ Log a past workout</button>';
   if (!S.workouts.length){
     $("#view").innerHTML = html + '<div class="card hint">No workouts yet — finished sessions land here.</div>'; return;
   }
-  const list = [...S.workouts].sort((a,b) => b.date.localeCompare(a.date));
+  const all = [...S.workouts].sort((a,b) => b.date.localeCompare(a.date));
+  const list = all.slice(0, histShow);
+  const more = all.length > histShow
+    ? '<button class="big" data-act="hist-more" style="margin-top:4px">Show earlier workouts · '+(all.length - histShow)+' more</button>'
+    : '';
   $("#view").innerHTML = html + list.map(w => {
     const setsN = w.exercises.reduce((a,e) => a + e.sets.length, 0);
     const ton = tonOf(w);
@@ -2219,7 +2241,7 @@ function renderHistory(){
       + '<button class="small" data-act="tpl-from-hist" data-id="'+w.id+'">Make template</button>'
       + '<button class="small danger" data-act="hist-del" data-id="'+w.id+'">Delete</button></div>'
       + '</div></div>';
-  }).join("");
+  }).join("") + more;
 }
 
 /* ================= TRENDS ================= */
@@ -2537,6 +2559,18 @@ function trendsInsights(){
             + (Math.round(a.v*2)/2)+' <span class="cap">/ 10–20</span></b></div>'
             + '<div class="cap" style="margin:1px 0 0 15px">'+a.note+'</div>').join("")
         : '<p class="hint" style="margin-top:6px">Every muscle you train sat inside the 10–20 set growth zone this week — exactly where you want to live.</p>'))(volAdvice())
+    + '<button class="link" data-act="volnums" style="margin-top:12px;font-size:12.5px">See every muscle\'s exact numbers ›</button>'
+    + '<div id="volnums" hidden>'
+    + (() => { const {per:pv} = regionVolume(addDays(todayStr(),-6), todayStr());
+        let b = '<div class="cap" style="margin:8px 0 2px">hard sets, last 7 days · secondary work = half credit</div>';
+        for (const [r, label] of Object.entries(REGIONS)){
+          const v = pv[r] || 0;
+          b += '<div class="vol-row"><span class="nm"><i class="gdot" style="background:'+REG_COL[r]+'"></i>'+label+'</span>'
+            + '<span class="bar'+(v>0 && v<10?" low":"")+'"><i style="width:'+Math.min(100, v/25*100).toFixed(0)+'%;background:'+REG_COL[r]+'"></i></span>'
+            + '<span class="v num">'+(v ? (Math.round(v*2)/2) : 0)+'</span></div>';
+        }
+        return b; })()
+    + '</div>'
     + '</div>';
 
   // highlights
@@ -2584,19 +2618,6 @@ function trendsInsights(){
     }
     html += '</div>';
   }
-
-  // volume bars
-  const {per} = regionVolume(addDays(todayStr(),-6), todayStr());
-  html += '<div class="card"><span class="lbl">Weekly sets by muscle</span>'
-    + '<div class="cap" style="margin:4px 0 2px">hard sets, last 7 days · shaded band = 10–20 growth zone</div>';
-  for (const [r, label] of Object.entries(REGIONS)){
-    const v = per[r] || 0;
-    const pct = Math.min(100, v/25*100);
-    html += '<div class="vol-row"><span class="nm"><i class="gdot" style="background:'+REG_COL[r]+'"></i>'+label+'</span>'
-      + '<span class="bar'+(v>0 && v<10?" low":"")+'"><i style="width:'+pct.toFixed(0)+'%;background:'+REG_COL[r]+'"></i></span>'
-      + '<span class="v num">'+(v ? (Math.round(v*2)/2) : 0)+'</span></div>';
-  }
-  html += '</div>';
 
   // consistency
   const st = streakWeeks();
@@ -3026,7 +3047,7 @@ function trendsLab(){
 
   const rdy = readiness();
   if (rdy.nSleep >= 6 || rdy.nEnergy >= 6){
-    html += '<div class="card"><span class="lbl">Readiness · sleep & energy vs performance</span>';
+    html += '<div class="card"><span class="lbl">Sleep & performance</span>';
     if (rdy.sHi && rdy.sLo){
       const gap = rdy.sHi.avg - rdy.sLo.avg;
       html += '<div class="recap-li"><span>Score on 7.5h+ sleep · '+rdy.sHi.n+' days</span><b class="num">'+rdy.sHi.avg.toFixed(0)+'</b></div>'
@@ -3121,17 +3142,7 @@ function trendsLab(){
     + (+S.settings.bodyFat > 0 ? '' : '<p class="cap" style="margin-top:8px">Set body-fat % in Settings to upgrade the BMR formula and unlock lean-mass tracking.</p>')
     + '</div>';
 
-  const bf = +S.settings.bodyFat;
-  if (bf > 0 && bf < 60){
-    const kg = bodyweight()*0.45359, lbm = kg*(1-bf/100), h = heightCm()/100;
-    const ffmi = lbm/(h*h), norm = ffmi + 6.1*(1.8 - h);
-    const band = norm < 18 ? "below average" : norm < 20 ? "average" : norm < 22 ? "above average"
-      : norm < 23.5 ? "excellent" : norm < 25 ? "near the natural ceiling" : "beyond typical natural limits";
-    html += '<div class="card"><span class="lbl">Lean mass & FFMI</span>'
-      + '<div class="recap-li"><span>Lean body mass</span><b class="num">'+(lbm/0.45359).toFixed(1)+' lb</b></div>'
-      + '<div class="recap-li"><span>FFMI (normalized)</span><b class="num">'+norm.toFixed(1)+'</b></div>'
-      + '<p class="cap" style="margin-top:8px">'+norm.toFixed(1)+' is '+band+' for a natural lifter (most max out 24–25). On a cut, watch lean mass hold while weight falls.</p></div>';
-  }
+  /* lean mass / FFMI now live on the Strength page's "You" card only */
   return html;
 }
 function labBars(pts, fmt){
@@ -3375,6 +3386,44 @@ function templateFromExercises(exs){
     return t;
   });
 }
+/* switch to a template / program session mid-workout — anything already logged stays put,
+   the rest of the day becomes the chosen plan (his "started before picking a template" case) */
+function openTplLoadModal(){
+  const item = (k, name, n) => '<button class="menu-item" data-act="tpl-load" data-k="'+k+'">'
+    + esc(name)+' <span class="cap">· '+n+' lifts</span></button>';
+  let h = '<h3>Use a template</h3>'
+    + '<p class="hint">Lifts you\'ve already logged sets on stay exactly as they are — the rest of the workout becomes the plan you pick. Untouched lifts are replaced.</p>';
+  const tpl = Object.entries(S.templates);
+  if (tpl.length) h += '<div class="mgroup">My templates</div>'
+    + tpl.map(([k,v]) => item(k, v.name, v.plan.length)).join("");
+  h += '<div class="mgroup">Program</div>'
+    + Object.entries(SESSIONS).map(([k,v]) => item(k, v.name, v.plan.length)).join("");
+  h += '<div class="btnrow"><button data-act="modal-close">Cancel</button></div>';
+  openModal(h);
+}
+function applyTemplate(key){
+  const d = curDraft(), def = sesDef(key);
+  if (!def) return;
+  const kept = d.exercises.filter(e => e.sets.some(s => s.done || +s.r > 0));
+  const have = new Set(kept.map(e => e.id));
+  for (const p of def.plan){
+    if (have.has(p[0])){
+      const e = kept.find(x => x.id === p[0]);
+      e.plan = {n:p[1], lo:p[2], hi:p[3]};
+      if (p[4]) e.ss = p[4];
+      continue;
+    }
+    kept.push({id:p[0], plan:{n:p[1],lo:p[2],hi:p[3]}, note:"", open:false,
+      ss:p[4] || undefined, sets:setsFor(p[0], p[1])});
+  }
+  d.exercises = kept;
+  d.session = key; delete d.bname;
+  d.exercises.forEach(e => e.open = false);
+  const nxt = d.exercises.find(e => !e.sets.some(setLogged));
+  if (nxt) nxt.open = true;
+  save(); render();
+  showToast('Loaded "'+def.name+'"'+(have.size ? " — what you'd logged stayed put." : "."));
+}
 function openTplModal(plan, defName){
   if (!plan.length){ showToast("Nothing to save — add some exercises first."); return; }
   pendingTpl = plan;
@@ -3436,7 +3485,8 @@ function renderMore(){
     + '<input type="file" id="importfile" accept=".json" style="display:none">'
     + '<p class="cap" style="margin-top:10px">“Copy for Claude” puts your recent training + body data on the clipboard — paste into a Claude chat for coaching. Data lives on this device only; back up occasionally.</p>'
     + '<div class="btnrow"><button class="danger" data-act="reset">Erase all data</button></div></div>'
-    + '<p class="cap" style="margin:16px 2px">Ghost numbers in the inputs are your target — last time’s sets, bumped when you max the rep range. Type reps and a set is logged (blank weight adopts the ghost number at finish); with check-off on, tap the check instead. Tap a set number to mark it a warm-up.</p>';
+    + '<p class="cap" style="margin:16px 2px">Ghost numbers in the inputs are your target — last time’s sets, bumped when you max the rep range. Type reps and a set is logged (blank weight adopts the ghost number at finish); with check-off on, tap the check instead. Tap a set number to mark it a warm-up.</p>'
+    + '<p class="cap num" style="margin:4px 2px;color:var(--text-3)">LiftLog v'+APP_VER+' — after an update, close and reopen the app twice and this number changes.</p>';
 }
 
 /* ================= modal ================= */
@@ -3691,6 +3741,304 @@ function openClassifyModal(ei){
   $("#clsg").addEventListener("change", fill);
 }
 /* research-backed card: what a lift builds, what it's good/bad at, the receipt */
+/* ================= exercise how-to: diagrams + form cues =================
+   One diagram per movement archetype (side view unless labeled), reused across the
+   lifts that share it. Slate = static body · dim = start position · green = end
+   position · amber arrow = the path. Customs resolve through their base lift. */
+const dgHd = (x,y,c) => '<circle cx="'+x+'" cy="'+y+'" r="6" class="'+(c||"hd")+'"/>';
+const dgW = (x,y,c) => '<circle cx="'+x+'" cy="'+y+'" r="4.5" class="'+c+'"/>';
+const dgArr = (d,tx,ty,ang) => '<path d="'+d+'" class="arr"/>'
+  + '<polygon class="arh" points="0,-3.4 6,0 0,3.4" transform="translate('+tx+','+ty+') rotate('+ang+')"/>';
+const DIAG = {
+  bench: '<rect x="38" y="86" width="120" height="7" rx="2" class="eqf"/><path d="M48 93 L48 114 M148 93 L148 114" class="eq"/>'
+    + dgHd(52,78) + '<path d="M60 80 L112 82 L128 96 L128 114 L136 114" class="fg"/>'
+    + '<path d="M78 80 L96 72 L90 58" class="mv1"/>' + dgW(89,53,"h1")
+    + '<path d="M78 80 L78 46" class="mv2"/>' + dgW(78,40,"h2")
+    + dgArr("M98 54 Q94 42 86 41", 84, 41, 190),
+  incpress: '<path d="M46 112 L100 66" class="eq" style="stroke-width:9"/><path d="M46 112 L70 116" class="eq"/>'
+    + dgHd(104,58) + '<path d="M98 66 L64 94 L86 104 L86 120" class="fg"/>'
+    + '<path d="M92 70 L108 78 L114 64" class="mv1"/>' + dgW(115,59,"h1")
+    + '<path d="M92 70 L98 40" class="mv2"/>' + dgW(99,34,"h2")
+    + dgArr("M120 56 Q116 42 106 36", 104, 36, 195),
+  dip: '<path d="M128 66 L128 118" class="eq"/><path d="M120 66 L136 66" class="eq"/>'
+    + dgHd(104,44,"h1") + '<path d="M104 52 L110 84 L102 100 L108 112" class="mv1"/>'
+    + '<path d="M106 56 L122 52 L128 66" class="mv1"/>'
+    + dgHd(102,22,"h2") + '<path d="M102 30 L106 64 L98 84 L104 96" class="mv2"/>'
+    + '<path d="M103 34 L128 66" class="mv2"/>'
+    + dgArr("M86 88 Q82 62 86 44", 86, 42, 280),
+  ohp: '<path d="M60 58 L60 112 L88 112" class="eq"/>'
+    + dgHd(74,38) + '<path d="M74 46 L74 90 L96 92 L96 114" class="fg"/>'
+    + '<path d="M74 52 L90 58 L98 46" class="mv1"/>' + dgW(100,40,"h1")
+    + '<path d="M74 52 L88 22" class="mv2"/>' + dgW(90,16,"h2")
+    + dgArr("M106 38 Q104 24 98 16", 96, 15, 210),
+  fly: '<text x="110" y="14" text-anchor="middle">TOP VIEW</text>'
+    + dgHd(110,56) + '<path d="M80 64 L140 64" class="fg"/>'
+    + '<path d="M80 64 L50 76" class="mv1"/>' + dgW(46,78,"h1")
+    + '<path d="M140 64 L170 76" class="mv1"/>' + dgW(174,78,"h1")
+    + '<path d="M80 64 L96 100" class="mv2"/>' + dgW(98,105,"h2")
+    + '<path d="M140 64 L124 100" class="mv2"/>' + dgW(122,105,"h2")
+    + dgArr("M172 86 Q152 108 128 108", 126, 108, 180),
+  rearfly: '<text x="110" y="14" text-anchor="middle">TOP VIEW</text>'
+    + dgHd(110,56) + '<path d="M80 64 L140 64" class="fg"/>'
+    + '<path d="M80 64 L96 100" class="mv1"/>' + dgW(98,105,"h1")
+    + '<path d="M140 64 L124 100" class="mv1"/>' + dgW(122,105,"h1")
+    + '<path d="M80 64 L50 76" class="mv2"/>' + dgW(46,78,"h2")
+    + '<path d="M140 64 L170 76" class="mv2"/>' + dgW(174,78,"h2")
+    + dgArr("M128 106 Q156 104 172 86", 173, 84, 300),
+  ohext: dgHd(88,44) + '<path d="M88 52 L88 96 L80 120 M88 96 L96 120" class="fg"/>'
+    + '<path d="M88 56 L106 36" class="fg"/>'
+    + '<path d="M106 36 L92 24" class="mv1"/>' + dgW(88,21,"h1")
+    + '<path d="M106 36 L116 15" class="mv2"/>' + dgW(118,10,"h2")
+    + dgArr("M96 14 Q108 2 116 6", 117, 7, 30),
+  pushdown: '<circle cx="150" cy="14" r="3.5" class="eqf"/><path d="M150 14 L138 50" class="cbl"/>'
+    + dgHd(110,34) + '<path d="M110 42 L110 94 L102 120 M110 94 L118 120" class="fg"/>'
+    + '<path d="M110 48 L124 64" class="fg"/>'
+    + '<path d="M124 64 L137 49" class="mv1"/>' + dgW(139,46,"h1")
+    + '<path d="M124 64 L138 84" class="mv2"/>' + dgW(140,88,"h2")
+    + '<path d="M150 14 L140 86" class="cbl"/>'
+    + dgArr("M146 52 Q154 68 148 80", 147, 82, 110),
+  skull: '<rect x="38" y="86" width="120" height="7" rx="2" class="eqf"/><path d="M48 93 L48 114 M148 93 L148 114" class="eq"/>'
+    + dgHd(52,78) + '<path d="M60 80 L112 82 L128 96 L128 114 L136 114" class="fg"/>'
+    + '<path d="M78 80 L78 56" class="fg"/>'
+    + '<path d="M78 56 L60 46" class="mv1"/>' + dgW(56,44,"h1")
+    + '<path d="M78 56 L82 32" class="mv2"/>' + dgW(83,26,"h2")
+    + dgArr("M58 38 Q64 24 76 26", 78, 27, 15),
+  pullup: '<path d="M60 18 L160 18" class="eq"/>'
+    + dgHd(110,40,"h1") + '<path d="M96 18 L104 48 M124 18 L116 48" class="mv1"/>'
+    + '<path d="M110 48 L110 86 L104 108" class="mv1"/>'
+    + dgHd(110,24,"h2") + '<path d="M96 18 L100 32 L106 32 M124 18 L120 32 L114 32" class="mv2"/>'
+    + '<path d="M110 32 L110 66 L100 84 L106 98" class="mv2"/>'
+    + dgArr("M138 62 Q142 44 136 30", 135, 28, 250),
+  pulldown: '<circle cx="146" cy="8" r="3.5" class="eqf"/><path d="M92 96 L128 96" class="eq"/>'
+    + dgHd(108,46) + '<path d="M108 54 L108 92 L130 94 L130 116" class="fg"/>'
+    + '<path d="M108 58 L126 32" class="mv1"/><path d="M120 26 L136 30" class="mv1"/>'
+    + '<path d="M146 8 L129 28" class="cbl"/>'
+    + '<path d="M108 58 L118 78 L132 66" class="mv2"/><path d="M126 60 L140 68" class="mv2"/>'
+    + dgArr("M144 34 Q152 48 144 60", 143, 62, 115),
+  row: '<path d="M60 96 L120 96" class="eq"/><path d="M132 100 L132 118" class="eq"/>'
+    + '<circle cx="196" cy="64" r="3.5" class="eqf"/>'
+    + dgHd(86,40) + '<path d="M86 48 L88 92 L118 90 L124 114" class="fg"/>'
+    + '<path d="M87 54 L120 62" class="mv1"/>' + dgW(125,63,"h1")
+    + '<path d="M87 54 L74 70 L96 67" class="mv2"/>' + dgW(101,67,"h2")
+    + '<path d="M196 64 L103 67" class="cbl"/>'
+    + dgArr("M122 54 Q108 46 98 58", 97, 60, 120),
+  csrow: '<path d="M70 106 L110 58" class="eq" style="stroke-width:9"/><path d="M70 106 L92 112" class="eq"/>'
+    + dgHd(116,48) + '<path d="M112 58 L84 96 L98 112" class="fg"/>'
+    + '<path d="M106 64 L112 94" class="mv1"/>' + dgW(113,99,"h1")
+    + '<path d="M106 64 L126 62 L122 74" class="mv2"/>' + dgW(121,80,"h2")
+    + dgArr("M124 96 Q133 86 127 78", 126, 76, 235),
+  bbrow: dgHd(52,52) + '<path d="M96 88 L60 58" class="fg"/><path d="M96 88 L92 116 M96 88 L104 116" class="fg"/>'
+    + '<path d="M66 62 L70 90" class="mv1"/>' + dgW(70,96,"h1")
+    + '<path d="M66 62 L78 76 L72 80" class="mv2"/>' + dgW(71,85,"h2")
+    + dgArr("M80 94 Q86 86 80 82", 79, 80, 235),
+  sapd: '<circle cx="176" cy="10" r="3.5" class="eqf"/>'
+    + dgHd(86,30) + '<path d="M90 38 L98 90 L92 116 M98 90 L108 116" class="fg"/>'
+    + '<path d="M92 44 L132 24" class="mv1"/>' + dgW(137,22,"h1")
+    + '<path d="M176 10 L136 23" class="cbl"/>'
+    + '<path d="M92 44 L120 86" class="mv2"/>' + dgW(123,90,"h2")
+    + dgArr("M146 30 Q162 60 134 84", 132, 86, 160),
+  shrug: dgHd(110,30) + '<path d="M110 38 L110 92 L102 118 M110 92 L118 118" class="fg"/>'
+    + '<path d="M100 50 L120 50" class="mv1"/><path d="M119 50 L127 80" class="mv1"/>' + dgW(128,86,"h1")
+    + '<path d="M100 43 L120 43" class="mv2"/><path d="M119 43 L127 74" class="mv2"/>' + dgW(128,80,"h2")
+    + dgArr("M136 78 L136 62", 136, 60, 270),
+  curl: dgHd(100,30) + '<path d="M100 38 L100 92 L92 118 M100 92 L108 118" class="fg"/>'
+    + '<path d="M100 46 L106 68" class="fg"/>'
+    + '<path d="M106 68 L110 92" class="mv1"/>' + dgW(111,97,"h1")
+    + '<path d="M106 68 L94 52" class="mv2"/>' + dgW(91,48,"h2")
+    + dgArr("M118 92 Q134 68 102 52", 100, 51, 195),
+  incurl: '<path d="M70 110 L112 58" class="eq" style="stroke-width:9"/><path d="M70 110 L92 116" class="eq"/>'
+    + dgHd(118,48) + '<path d="M112 58 L88 98 L106 106 L106 120" class="fg"/>'
+    + '<path d="M108 64 L106 84" class="fg"/>'
+    + '<path d="M106 84 L102 104" class="mv1"/>' + dgW(101,109,"h1")
+    + '<path d="M106 84 L90 72" class="mv2"/>' + dgW(86,69,"h2")
+    + dgArr("M96 106 Q78 90 84 74", 85, 72, 300),
+  preacher: '<path d="M84 62 L104 92" class="eq" style="stroke-width:9"/><path d="M96 96 L96 118" class="eq"/>'
+    + dgHd(74,44) + '<path d="M78 52 L74 92" class="fg"/>'
+    + '<path d="M80 56 L100 84" class="fg"/>'
+    + '<path d="M100 84 L124 96" class="mv1"/>' + dgW(129,98,"h1")
+    + '<path d="M100 84 L104 60" class="mv2"/>' + dgW(105,54,"h2")
+    + dgArr("M130 90 Q130 62 112 56", 110, 56, 190),
+  latraise: '<text x="110" y="14" text-anchor="middle">FRONT VIEW</text>'
+    + dgHd(110,28) + '<path d="M110 36 L110 90 L100 118 M110 90 L120 118" class="fg"/>'
+    + '<path d="M110 44 L122 78" class="mv1"/>' + dgW(124,83,"h1")
+    + '<path d="M110 44 L98 78" class="mv1"/>' + dgW(96,83,"h1")
+    + '<path d="M110 44 L144 46" class="mv2"/>' + dgW(150,47,"h2")
+    + '<path d="M110 44 L76 46" class="mv2"/>' + dgW(70,47,"h2")
+    + dgArr("M130 76 Q150 68 152 56", 152, 54, 260),
+  cfront: '<circle cx="58" cy="118" r="3.5" class="eqf"/>'
+    + dgHd(96,28) + '<path d="M96 36 L96 92 L88 118 M96 92 L104 118" class="fg"/>'
+    + '<path d="M96 44 L104 80" class="mv1"/>' + dgW(106,85,"h1")
+    + '<path d="M58 118 L105 84" class="cbl"/>'
+    + '<path d="M96 44 L132 40" class="mv2"/>' + dgW(138,40,"h2")
+    + '<path d="M58 118 L136 42" class="cbl"/>'
+    + dgArr("M114 78 Q138 66 140 50", 140, 48, 260),
+  facepull: '<circle cx="176" cy="26" r="3.5" class="eqf"/>'
+    + dgHd(92,34) + '<path d="M92 42 L96 96 L88 120 M96 96 L104 120" class="fg"/>'
+    + '<path d="M94 48 L130 38" class="mv1"/>' + dgW(135,37,"h1")
+    + '<path d="M176 26 L136 36" class="cbl"/>'
+    + '<path d="M94 48 L116 46 L104 34" class="mv2"/>' + dgW(101,31,"h2")
+    + '<path d="M176 26 L105 32" class="cbl"/>'
+    + dgArr("M134 30 Q122 20 110 26", 108, 27, 155),
+  squat: dgHd(62,30,"h1") + dgW(62,42,"eqf")
+    + '<path d="M62 38 L62 78 L56 118 M62 78 L68 118" class="mv1"/>'
+    + dgHd(148,58,"h2") + dgW(150,70,"eqf")
+    + '<path d="M148 66 L144 88 L166 92 L162 118" class="mv2"/>'
+    + dgArr("M96 56 Q112 74 126 82", 128, 83, 20),
+  sled: '<path d="M42 102 L74 70" class="eq" style="stroke-width:9"/><path d="M42 102 L68 112" class="eq"/>'
+    + '<path d="M152 28 L172 82" class="eq" style="stroke-width:7"/>'
+    + dgHd(48,62) + '<path d="M56 72 L80 94" class="fg"/>'
+    + '<path d="M80 94 L112 64 L154 46" class="mv1"/>'
+    + '<path d="M80 94 L102 88 L161 66" class="mv2"/>'
+    + dgArr("M116 56 Q104 66 102 80", 102, 82, 100),
+  split: '<rect x="140" y="88" width="44" height="8" rx="2" class="eqf"/><path d="M148 96 L148 116 M176 96 L176 116" class="eq"/>'
+    + dgHd(96,28,"h1") + '<path d="M96 36 L98 78 L96 96 L96 118 M98 78 L124 84 L146 87" class="mv1"/>'
+    + dgHd(100,44,"h2") + '<path d="M100 52 L102 90 L92 102 L94 120 M102 90 L128 100 L148 88" class="mv2"/>'
+    + dgArr("M70 56 L70 82", 70, 84, 90),
+  rdl: '<path d="M100 80 L96 118 M100 80 L106 118" class="fg"/>'
+    + dgHd(100,28,"h1") + '<path d="M100 80 L100 36" class="mv1"/>'
+    + '<path d="M100 48 L102 76" class="mv1"/>' + dgW(102,82,"h1")
+    + dgHd(56,52,"h2") + '<path d="M100 80 L64 58" class="mv2"/>'
+    + '<path d="M72 62 L74 94" class="mv2"/>' + dgW(74,100,"h2")
+    + dgArr("M86 30 Q58 32 50 44", 50, 46, 110),
+  backext: '<path d="M72 112 L108 82" class="eq" style="stroke-width:9"/><path d="M90 98 L90 120" class="eq"/>'
+    + '<path d="M108 82 L78 108" class="fg"/>'
+    + dgHd(128,114,"h1") + '<path d="M108 82 L124 108" class="mv1"/>'
+    + dgHd(148,52,"h2") + '<path d="M108 82 L142 58" class="mv2"/>'
+    + dgArr("M138 102 Q158 88 152 66", 151, 64, 250),
+  curlH: '<path d="M64 54 L64 96 L110 96" class="eq"/>'
+    + dgHd(76,40) + '<path d="M78 48 L76 92" class="fg"/><path d="M76 92 L112 90" class="fg"/>'
+    + '<path d="M112 90 L144 84" class="mv1"/>' + dgW(148,86,"h1")
+    + '<path d="M112 90 L126 114" class="mv2"/>' + dgW(129,118,"h2")
+    + dgArr("M150 94 Q150 112 138 118", 136, 118, 175),
+  legext: '<path d="M64 54 L64 96 L110 96" class="eq"/>'
+    + dgHd(76,40) + '<path d="M78 48 L76 92" class="fg"/><path d="M76 92 L112 90" class="fg"/>'
+    + '<path d="M112 90 L118 116" class="mv1"/>' + dgW(119,121,"h1")
+    + '<path d="M112 90 L146 80" class="mv2"/>' + dgW(151,79,"h2")
+    + dgArr("M126 114 Q152 106 152 88", 152, 86, 260),
+  hipthrust: '<rect x="36" y="70" width="40" height="8" rx="2" class="eqf"/><path d="M44 78 L44 98 M68 78 L68 98" class="eq"/>'
+    + dgHd(58,58) + '<path d="M128 84 L128 116" class="fg"/>'
+    + '<path d="M72 72 L104 96 L128 86" class="mv1"/>' + dgW(104,88,"h1")
+    + '<path d="M72 72 L108 74 L128 84" class="mv2"/>' + dgW(108,64,"h2")
+    + dgArr("M96 96 Q100 84 104 78", 105, 76, 290),
+  abduct: '<text x="110" y="14" text-anchor="middle">FRONT VIEW</text>'
+    + '<path d="M86 100 L134 100" class="eq"/>'
+    + dgHd(110,42) + '<path d="M110 50 L110 96" class="fg"/>'
+    + '<path d="M108 96 L102 124 M112 96 L118 124" class="mv1"/>'
+    + '<path d="M108 96 L80 118 M112 96 L140 118" class="mv2"/>'
+    + dgArr("M126 118 Q136 120 142 112", 143, 110, 300),
+  calfS: '<rect x="84" y="106" width="52" height="8" rx="2" class="eqf"/>'
+    + dgHd(104,14) + '<path d="M104 22 L104 60 L106 84" class="fg"/>'
+    + '<path d="M106 84 L112 110 L96 104" class="mv1"/>'
+    + '<path d="M106 84 L102 96 L92 106" class="mv2"/>'
+    + dgArr("M122 108 Q126 96 118 90", 116, 89, 200),
+  calfSeat: '<path d="M70 74 L70 112" class="eq"/><rect x="102" y="72" width="22" height="7" rx="2" class="eqf"/><rect x="98" y="112" width="20" height="6" rx="2" class="eqf"/>'
+    + dgHd(84,32) + '<path d="M84 40 L84 88 L116 84" class="fg"/>'
+    + '<path d="M116 84 L120 112 L104 108" class="mv1"/>'
+    + '<path d="M116 84 L112 100 L102 108" class="mv2"/>'
+    + dgArr("M130 108 Q132 96 124 92", 122, 91, 200),
+  hlr: '<path d="M70 16 L150 16" class="eq"/>'
+    + dgHd(110,28) + '<path d="M102 16 L108 36 M118 16 L112 36" class="fg"/><path d="M110 36 L110 72" class="fg"/>'
+    + '<path d="M110 72 L110 112" class="mv1"/>'
+    + '<path d="M110 72 L128 56 L140 68" class="mv2"/>'
+    + dgArr("M124 104 Q152 92 142 70", 141, 68, 240),
+  crunch: '<circle cx="170" cy="16" r="3.5" class="eqf"/>'
+    + '<path d="M96 112 L76 116" class="fg"/><path d="M96 112 L104 86" class="fg"/>'
+    + dgHd(112,38,"h1") + '<path d="M104 86 L110 46" class="mv1"/>' + dgW(121,40,"h1")
+    + '<path d="M170 16 L123 39" class="cbl"/>'
+    + dgHd(138,60,"h2") + '<path d="M104 86 Q120 70 132 64" class="mv2"/>' + dgW(145,55,"h2")
+    + dgArr("M124 30 Q148 32 152 46", 152, 48, 80),
+};
+const EXDIAG = {bench:"bench",flatdb:"bench",machchest:"bench",cgbp:"bench",incbb:"incpress",
+  incdb:"incpress",dip:"dip",cfly:"fly",pec:"fly",l2h:"fly",rpd:"rearfly",sarpd:"rearfly",
+  dbohp:"ohp",machohp:"ohp",smithohp:"ohp",arnold:"ohp",bbohp:"ohp",ohext:"ohext",
+  dbohext:"ohext",ropeoh:"ohext",pushdown:"pushdown",rope:"pushdown",xbody:"pushdown",
+  jm:"skull",skull:"skull",pullup:"pullup",latpd:"pulldown",ngpd:"pulldown",cablerow:"row",
+  csrow:"csrow",dbrow:"csrow",bbrow:"bbrow",tbar:"bbrow",sapd:"sapd",pullover:"sapd",
+  shrug:"shrug",ezcurl:"curl",bbcurl:"curl",cablecurl:"curl",hammer:"curl",revcurl:"curl",
+  incurl:"incurl",bayes:"incurl",preacher:"preacher",latraise:"latraise",clat:"latraise",
+  mlat:"latraise",cfront:"cfront",facepull:"facepull",squat:"squat",legpress:"sled",
+  hack:"sled",bss:"split",lunge:"split",rdl:"rdl",backext:"backext",legcurl:"curlH",
+  seatedcurl:"curlH",legext:"legext",hipthrust:"hipthrust",abduct:"abduct",scalf:"calfS",
+  seatcalf:"calfSeat",hlr:"hlr",cablecrunch:"crunch"};
+/* form cues — setup · execution · the common mistake. Kept to what changes the outcome. */
+const TIPS = {
+  bench:["Shoulder blades pinched back and down, slight arch — the chest stays proud","Bar touches at the nipple line, forearms vertical from the side","Feet planted; drive them into the floor as you press"],
+  incbb:["Set the bench ~30° — steeper turns it into a shoulder press","Touch just below the collarbones, elbows ~45° from your sides","Control the descent for a full stretch across the upper chest"],
+  incdb:["~30° bench; start each rep from the deepest stretch you can control","Press up and slightly together without clanking","The bottom stretch is the growth signal — don't cut it short"],
+  flatdb:["Kick the DBs up with your knees as you lie back","Sink deeper than a barbell allows — that stretch is the point","Press up and slightly in; wrists stacked over elbows"],
+  dip:["Lean the torso forward for chest, stay upright for triceps","Down until the upper arm is about parallel — deeper only if the shoulders are happy","Squeeze to lockout without slamming the elbows"],
+  cfly:["Pulleys at chest height, small forward step and lean","Big arc with soft elbows locked at one angle throughout","Cross slightly at the midline, squeeze, then let the stretch open you back up"],
+  l2h:["Pulleys low; sweep low-to-high, finishing at shoulder height","Think scoop up and together — the upper chest does the lifting","Keep the elbow angle fixed; it's a fly, not a press"],
+  pec:["Seat height so the handles sit at mid-chest","Elbows just below hands; squeeze the pads together, don't push them","Pause a beat at full stretch — that's the half that grows you"],
+  machchest:["Seat height: handles at the nipple line","Shoulder blades pinned to the pad for the whole set","A safe place to push right up to failure — use it"],
+  ohext:["Face away from the low pulley, arm overhead, elbow pointing up","Only the forearm moves — lower to a deep triceps stretch","Full lockout overhead; don't let the elbow drift out"],
+  dbohext:["Both hands under one DB, elbows up by your ears","Lower behind the head to a deep stretch","The elbows will want to flare as you tire — keep them in"],
+  ropeoh:["Face away from the pulley, rope behind your head","Elbows high and forward; extend to lockout","Let the rope pull a one-beat stretch before each rep"],
+  pushdown:["Elbows pinned to your sides — they don't drift forward","Push to full lockout and squeeze","Stand tall; no leaning on the cable with body weight"],
+  rope:["Split the rope apart at the bottom for a harder squeeze","Elbows glued to your sides","Control the return — the cable shouldn't yank you up"],
+  cgbp:["Hands about shoulder width — narrower just bends the wrists","Elbows tucked ~30°, touch low on the chest","Lock out hard: the top is the triceps' half of the rep"],
+  jm:["Halfway between a skullcrusher and a close-grip press","Lower the bar toward the chin with elbows high and tucked","Press back up along the same slanted path"],
+  skull:["Lower behind the top of the head, not to the forehead — bigger stretch","Elbows point at the ceiling and stay tucked","Only the forearm moves"],
+  xbody:["Cable at upper-chest height; pull down and across to the opposite hip","Lock the upper arm — the forearm does the sweeping","Full stretch at the start, hard lockout at the end"],
+  pullup:["Full dead hang at the bottom — lats grow at length","Drive the elbows down and back; chin clears the bar","Add weight once 8+ clean reps are easy"],
+  latpd:["Grip a touch wider than shoulders; lean back ~15° and hold that angle","Pull to the collarbones, elbows down and slightly back","Let the weight stretch you completely at the top of every rep"],
+  ngpd:["Neutral grip is the shoulder-friendly angle","Pull to the upper chest, elbows tracking close","No half reps at the top — the stretch is the good part"],
+  csrow:["Chest glued to the pad — if it peels off, the weight is too heavy","Row toward the hips with elbows ~45° out","Let the shoulder blades slide fully forward at the bottom"],
+  bbrow:["Hinge to ~45° or lower, flat back, brace before every rep","Pull to the lower chest / upper stomach","If you have to heave with the hips, drop the weight"],
+  tbar:["Chest angle stays fixed the entire set","Pull the handle to your stomach and squeeze the mid-back","Big stretch at the bottom without rounding"],
+  dbrow:["Hand and knee on the bench, back flat","Row to the hip, not the armpit","Let the shoulder blade slide fully down at the bottom — that's the lat stretch"],
+  cablerow:["Sit tall; the torso moves only a few degrees","Pull to the belly with elbows tight","Full reach forward between reps — stretch, then squeeze"],
+  sapd:["Arms straight with soft elbows — it's a lat sweep, not a pushdown","Sweep from overhead down to the thighs","Feel the lats lengthen completely at the top"],
+  pullover:["One DB, both hands cupped under the top plate, upper back across the bench","Lower behind the head to a deep lat stretch","Slight elbow bend, fixed the whole rep"],
+  shrug:["Straight up and slightly back — no rolling","Hold a full second at the top","Let the traps stretch at a dead hang between reps"],
+  ezcurl:["Elbows at your sides — they don't swing forward","The lowering is half the exercise — control it","Full elbow extension at the bottom every rep"],
+  bbcurl:["Shoulder-width grip, elbows pinned","No hip swing — brace and strict-curl it","Lower slow to a dead hang"],
+  incurl:["Bench at ~45–60°; let the arms hang behind your body","That behind-body stretch is the entire point — don't shorten it","Curl without letting the elbows drift forward"],
+  hammer:["Neutral grip, elbows pinned","Thumbs up the whole rep","Strict up, two seconds down"],
+  cablecurl:["Step back so there's tension even at full extension","Elbows at your sides; curl to a full squeeze","The cable stays heavy at the top where dumbbells go slack — use that"],
+  preacher:["Armpits snug against the top of the pad","Lower to just shy of straight — never bounce out of the stretch","The bottom half is where the preacher earns its keep"],
+  bayes:["Face away from a low pulley, arm angled slightly behind you","Curl while the upper arm stays still","Maximum stretch at the bottom — that's the whole idea"],
+  revcurl:["Palms down on an EZ bar; go lighter than you think","Wrists straight and locked — don't let them curl","Strict tempo; the brachialis grows from control, not load"],
+  dbohp:["Seat back near vertical; DBs start at shoulder height","Press up and slightly in — biceps by the ears at the top","Don't let the DBs drift forward on the way down"],
+  machohp:["Seat height: handles level with the shoulders","Full lockout without shrugging into your ears","A good machine to ride all the way to failure"],
+  smithohp:["Set the seat so the bar path clears your face by an inch","Grip just outside the shoulders, forearms vertical","Bar to chin level at the bottom, full lockout at the top"],
+  arnold:["Start palms facing you at shoulder height","Rotate outward as you press; finish palms forward overhead","Slower than a normal press — the rotation is the point"],
+  bbohp:["Glutes squeezed, abs braced — no backbend heave","Bar goes straight up: head back, then push it through","Elbows slightly in front of the bar to start"],
+  latraise:["Lead with the elbows; tip the pinky slightly up at the top","Raise to shoulder height — higher just becomes traps","Control the descent; no swinging out of the bottom"],
+  clat:["Cable runs behind your body to the far hand","The bottom third has tension dumbbells can't give — work it","Elbow leads, wrist follows"],
+  mlat:["Pads just above the elbows, arms relaxed","Drive the elbows out and up to shoulder height","Easy to take to true failure — do it"],
+  cfront:["Rope from a low pulley; raise to shoulder height","Stop at eye level — higher turns into a shrug","Usually optional volume: pressing already trains the front delts"],
+  rpd:["Chest on the pad, thumbs-up neutral grip","Wide arc back; squeeze the rear delts","Stop when the arms reach the line of the shoulders"],
+  sarpd:["Sit sideways for the bigger reach — your setup","Let the working arm cross fully in front for maximum stretch","One side at a time, strict"],
+  facepull:["Cable at face height, rope grip with thumbs toward you","Pull toward the bridge of the nose, elbows high and wide","Finish with hands beside the ears and a one-second squeeze"],
+  squat:["Bar on the traps; brace hard before every descent","Sit down between the knees to full depth — depth is the stimulus","Knees track over the toes; drive the whole foot into the floor"],
+  legpress:["Feet mid-platform, about shoulder width","As deep as possible WITHOUT the lower back curling off the pad","Stop just short of slamming lockout"],
+  hack:["Shoulders under the pads, back flat against the pad","Sink deep — the stretched bottom is why this machine wins","Drive through mid-foot with knees over toes"],
+  legext:["Seat set so the knee lines up with the machine's pivot","Pause a beat at full lockout — that's the rectus femoris rep","If the seat reclines, recline it: more stretch, more growth"],
+  bss:["Rear foot laces-down on the bench; front foot well forward","Drop the back knee straight down, front shin near vertical","A fingertip on the rack kills the wobble — use it"],
+  lunge:["Long steps — the front heel does the work","Back knee kisses the floor; slight forward lean biases glutes","Push off the front foot, not the back"],
+  rdl:["Push the hips BACK — the bar slides down the thighs","Soft knees, flat back; stop where the hamstring stretch peaks","Stand by driving the hips forward, not lifting the chest"],
+  legcurl:["Hips stay pressed down — no butt lift as you curl","Curl to full contraction and pause","Slow negative all the way to full extension"],
+  seatedcurl:["Thigh pad snug — the hips must not move","Sit tall: hips flexed is what puts the hamstrings on stretch","Full stretch at the top of every rep"],
+  backext:["Pad at the hip crease so the hips can hinge freely","Squeeze the glutes to rise; stop in line with the legs — no hyperextending","Slight round in the upper back + tucked chin biases glutes"],
+  hipthrust:["Bench at the bottom of the shoulder blades; pad the bar","Drive through the heels to a flat tabletop — full lockout","Chin tucked, ribs down; one-second squeeze at the top"],
+  abduct:["Lean the torso slightly FORWARD to bias the upper glutes","Push out against the pads and pause at the widest point","Control the return — don't let the stack slam"],
+  scalf:["Ball of the foot on the edge; sink the heel to a deep stretch","Pause two full seconds at the bottom — calves grow at length","Knees straight; rise to full tiptoe"],
+  seatcalf:["Pad snug on the lower thighs","Deep heel drop, pause, then a full raise","Optional lift — standing raises grow the soleus just as well"],
+  hlr:["Curl the PELVIS up toward the ribs — not just a leg swing","Bent knees are fine; the pelvic curl is what matters","Lower slow; no swinging between reps"],
+  cablecrunch:["Kneel with the rope held at your forehead","Crunch the ribs toward the pelvis — the hips don't move","It's a spine curl, not a bow: round down, don't hinge"],
+};
+const howtoOf = id => TIPS[id] || (S.custom[id] && S.custom[id].base && TIPS[S.custom[id].base]) || null;
+const diagOf = id => { const k = EXDIAG[id] || (S.custom[id] && EXDIAG[S.custom[id].base]);
+  return k ? DIAG[k] : null; };
+function howtoHTML(exId){
+  const dg = diagOf(exId), tips = howtoOf(exId);
+  if (!dg && !tips) return "";
+  let h = '<div class="mgroup">How to</div>';
+  if (dg) h += '<svg class="exdiag" viewBox="0 0 220 130">'+dg+'</svg>';
+  if (tips) h += tips.map((t,i) => '<p class="intel-li"><span class="k">'+(i+1)+'</span>'+t+'</p>').join("");
+  return h;
+}
 function intelHTML(exId){
   const ex = exInfo(exId), i = intelOf(exId), m = muscOf(exId);
   const rn = r => REGIONS[r] || r;
@@ -3727,6 +4075,7 @@ function openExDetail(exId){
       + 'Best e1RM: <b style="color:var(--text-1)">'+Math.round(me)+(ex.bw && !mw ? ' reps' : ' lb')+'</b></p>';
   }
   openModal('<h3>'+esc(ex.n)+(isUni(exId) ? ' <span class="tgt">/side</span>' : '')+'</h3>'
+    + howtoHTML(exId)
     + intelHTML(exId)
     + (hist.length ? '<div class="chartwrap" style="margin-top:14px">'+e1rmChart(pts)+'</div>' + rec
       + '<div class="mgroup">Recent sessions</div>'
@@ -4169,6 +4518,8 @@ document.addEventListener("click", ev => {
   else if (act === "addset"){
     d.exercises[ei].sets.push({w:"", r:"", done:false, warm:false}); save(); render();
   }
+  else if (act === "tpl-load-open"){ openTplLoadModal(); }
+  else if (act === "tpl-load"){ closeModal(); applyTemplate(btn.dataset.k); }
   else if (act === "rest-cycle"){
     const opts = [60,90,120,150,180,240];
     const id = d.exercises[ei].id, cur = restFor(id);
@@ -4569,7 +4920,13 @@ document.addEventListener("click", ev => {
   else if (act === "score-why"){ openScoreModal(btn.dataset.id); }
   else if (act === "goto-trends"){ tab = "trends"; S.trendTab = "body"; render(); }
   else if (act === "goto-insights"){ tab = "trends"; S.trendTab = "ins"; render(); }
+  else if (act === "goto-lab"){ tab = "trends"; S.trendTab = "lab"; render(); }
   else if (act === "goto-history"){ tab = "history"; render(); }
+  else if (act === "volnums"){
+    const el = $("#volnums"); el.hidden = !el.hidden;
+    btn.textContent = el.hidden ? "See every muscle's exact numbers ›" : "Hide the numbers";
+  }
+  else if (act === "hist-more"){ histShow += 25; render(); }
   else if (act === "ttab"){ S.trendTab = btn.dataset.t; save(); render(); }
   else if (act === "lab-group"){ labGroup = btn.dataset.g; render(); }
   else if (act === "range"){ S.range = +btn.dataset.r; save(); render(); }
