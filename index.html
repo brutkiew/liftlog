@@ -828,22 +828,27 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.2"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.2.1"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
   age:30, bodyFat:"", cardioKcal:7.8, autoReg:true};
 let S = {workouts:[], drafts:{}, custom:{}, templates:{}, coach:[], milestone:0, uniO:{},
-  body:{weights:{}, kcals:{}},
+  body:{weights:{}, kcals:{}, meas:{}, sleep:{}, energy:{}},
   settings:Object.assign({}, DEF_SET),
   progSel:null, editing:null, trendTab:"ins", range:30, recapSeen:""};
 let storeOK = true;
 try { const raw = localStorage.getItem(KEY); if (raw){
   const d = JSON.parse(raw);
   S = Object.assign(S, d);
-  S.body = Object.assign({weights:{},kcals:{},meas:{},sleep:{},energy:{}}, d.body||{});
   S.settings = Object.assign({}, DEF_SET, d.settings||{});
 }} catch(e){ storeOK = false; }
+/* body sub-objects are normalized on EVERY path — fresh install, loaded data, and
+   corrupt-storage fallback alike. The old literal lacked meas/sleep/energy, so a truly
+   fresh device (no stored data at all) crashed in the morning check-in before Home could
+   paint: the 2026-08-22 blank-screen bug, hidden for weeks because every real device
+   already had data. */
+S.body = Object.assign({weights:{},kcals:{},meas:{},sleep:{},energy:{}}, S.body||{});
 S.templates = S.templates || {}; S.coach = S.coach || []; S.milestone = S.milestone || 0;
 S.uniO = S.uniO || {};
 S.dl = S.dl || {}; // per-lift targeted deloads: {base, w, n, until}
