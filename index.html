@@ -19,8 +19,11 @@
     /* liquid glass — one material system (v9.0): translucent fill over the aurora,
        backdrop blur + saturation, a specular top edge and a soft inner shade at the
        bottom, so every surface reads as a pane of glass with light hitting its rim */
-    --glass:rgba(26,32,53,.46); --glass-2:rgba(31,38,62,.51);
+    --glass:rgba(26,32,53,.34); --glass-2:rgba(31,38,62,.38);
     --glass-stroke:rgba(165,180,255,.17);
+    /* apple-style rim light: gradient ring around the edge — bright where light hits
+       (top-left), faint on the sides, a soft re-light at the bottom */
+    --rim:linear-gradient(155deg,rgba(255,255,255,.38),rgba(165,180,255,.10) 28%,rgba(140,150,200,.06) 55%,rgba(255,255,255,.20) 94%);
     --glass-blur:blur(22px) saturate(1.7);
     --spec:inset 0 1px 0 rgba(255,255,255,.10), inset 0 -1px 0 rgba(8,10,18,.30);
     /* text */
@@ -74,7 +77,7 @@
     background:radial-gradient(130% 100% at 18% 0%,var(--tint),transparent 55%)}
   /* ===== chrome ===== */
   #topbar{position:sticky;top:0;z-index:5;
-    background:rgba(14,17,30,.46);backdrop-filter:blur(26px) saturate(1.8);-webkit-backdrop-filter:blur(26px) saturate(1.8);
+    background:rgba(14,17,30,.34);backdrop-filter:blur(26px) saturate(1.8);-webkit-backdrop-filter:blur(26px) saturate(1.8);
     border-bottom:1px solid rgba(165,180,255,.14);
     padding:calc(12px + env(safe-area-inset-top)) 20px 12px;display:flex;align-items:center;gap:9px}
   #topbar .mark{color:var(--accent);display:flex}
@@ -88,8 +91,9 @@
      scrolling underneath it */
   #tabs{position:fixed;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:6;
     max-width:456px;margin:0 auto;
-    background:rgba(24,29,50,.50);backdrop-filter:blur(28px) saturate(1.8);-webkit-backdrop-filter:blur(28px) saturate(1.8);
-    border:1px solid rgba(165,180,255,.20);border-radius:30px;display:flex;
+    background:linear-gradient(rgba(24,29,50,.38),rgba(24,29,50,.38)) padding-box,var(--rim) border-box;
+    backdrop-filter:blur(28px) saturate(1.8);-webkit-backdrop-filter:blur(28px) saturate(1.8);
+    border:1px solid transparent;border-radius:30px;display:flex;
     padding:7px;box-shadow:inset 0 1px 0 rgba(255,255,255,.13), 0 18px 44px rgba(0,0,0,.5)}
   #tabs button{flex:1;background:none;border:none;color:var(--text-3);font-size:10.5px;
     font-weight:600;padding:8px 0 5px;letter-spacing:.03em;border-radius:23px;
@@ -112,11 +116,18 @@
     backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
     border:1px solid var(--glass-stroke);border-radius:var(--r-card);
     padding:18px;margin-bottom:12px;transition:transform .35s var(--ease);
-    box-shadow:var(--spec), 0 10px 30px rgba(0,0,0,.25)}
+    box-shadow:var(--spec), 0 10px 30px rgba(0,0,0,.25);position:relative}
+  /* rim ring drawn over the card's own border (inset:-1px lines the two up); masked to a
+     1px band so it survives every card background variant. pointer-events:none — pure light */
+  .card::after{content:"";position:absolute;inset:-1px;border-radius:inherit;pointer-events:none;
+    border:1px solid transparent;background:var(--rim) border-box;
+    -webkit-mask:linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor;
+    mask:linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0);mask-composite:exclude}
   .card.tap{cursor:pointer}
   .card.tap:active{transform:scale(.97)}
   .hero{border:1px solid transparent;
-    background:linear-gradient(180deg,rgba(33,41,66,.66),rgba(21,26,45,.60)) padding-box,
+    background:linear-gradient(180deg,rgba(33,41,66,.54),rgba(21,26,45,.48)) padding-box,
       linear-gradient(135deg,rgba(44,224,139,.55),rgba(139,124,246,.5)) border-box;
     backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
     box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 10px 36px rgba(23,185,160,.10)}
@@ -188,7 +199,7 @@
   .spark{margin-top:10px;display:block}
   /* ===== workout ===== */
   #sessbar{position:sticky;top:calc(49px + env(safe-area-inset-top));z-index:4;
-    background:rgba(14,17,30,.46);backdrop-filter:blur(24px) saturate(1.7);-webkit-backdrop-filter:blur(24px) saturate(1.7);
+    background:rgba(14,17,30,.34);backdrop-filter:blur(24px) saturate(1.7);-webkit-backdrop-filter:blur(24px) saturate(1.7);
     display:flex;align-items:center;gap:10px;padding:10px 8px;border-bottom:1px solid var(--stroke);
     margin:0 -20px 14px;padding-left:14px;padding-right:14px}
   #sessbar .t{font-size:13px;color:var(--text-3)}
@@ -291,7 +302,8 @@
   .h-body p b{color:var(--text-1);font-weight:600}
   .banner{border-color:rgba(255,214,10,.3)}
   /* ===== trends ===== */
-  .seg{display:flex;background:rgba(24,29,50,.46);border:1px solid rgba(165,180,255,.20);border-radius:999px;padding:3px;margin-bottom:14px;
+  .seg{display:flex;background:linear-gradient(rgba(24,29,50,.35),rgba(24,29,50,.35)) padding-box,var(--rim) border-box;
+    border:1px solid transparent;border-radius:999px;padding:3px;margin-bottom:14px;
     backdrop-filter:blur(24px) saturate(1.7);-webkit-backdrop-filter:blur(24px) saturate(1.7);
     box-shadow:inset 0 1px 0 rgba(255,255,255,.10), 0 10px 30px rgba(0,0,0,.30)}
   /* Trends keeps its segment pill floating under the topbar — just the glass pill, no strip */
@@ -378,7 +390,7 @@
   .exdiag text{fill:var(--text-3);font-size:8.5px;letter-spacing:.06em}
   .coach-q{background:var(--accent-dim);border:1px solid rgba(44,224,139,.25);
     border-radius:14px 14px 4px 14px;padding:11px 14px;margin:16px 0 8px 36px;font-size:14px}
-  .coach-a{background:rgba(26,32,53,.42);backdrop-filter:blur(18px) saturate(1.6);-webkit-backdrop-filter:blur(18px) saturate(1.6);
+  .coach-a{background:rgba(26,32,53,.32);backdrop-filter:blur(18px) saturate(1.6);-webkit-backdrop-filter:blur(18px) saturate(1.6);
     border:1px solid var(--glass-stroke);border-radius:14px 14px 14px 4px;
     padding:14px 15px;font-size:14px;line-height:1.55;color:var(--text-2);margin-right:16px;
     box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
@@ -395,8 +407,9 @@
     overscroll-behavior:contain;touch-action:none}
   #ovl.show{display:flex}
   /* sheets are the heaviest glass in the app — thick blur, bright rim, content showing through */
-  #modal{background:rgba(23,28,49,.62);backdrop-filter:blur(34px) saturate(1.8);-webkit-backdrop-filter:blur(34px) saturate(1.8);
-    border:1px solid rgba(165,180,255,.22);border-radius:26px 26px 0 0;width:100%;max-width:480px;
+  #modal{background:linear-gradient(rgba(23,28,49,.50),rgba(23,28,49,.50)) padding-box,var(--rim) border-box;
+    backdrop-filter:blur(34px) saturate(1.8);-webkit-backdrop-filter:blur(34px) saturate(1.8);
+    border:1px solid transparent;border-radius:26px 26px 0 0;width:100%;max-width:480px;
     max-height:84vh;overflow-y:auto;overflow-x:hidden;padding:20px 18px calc(20px + env(safe-area-inset-bottom));
     box-shadow:inset 0 1px 0 rgba(255,255,255,.12), 0 -18px 60px rgba(0,0,0,.5);overscroll-behavior:contain;touch-action:pan-y}
   /* sheets slide up like the native ones; the dim fades in behind (fresh opens only —
@@ -829,7 +842,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.4.1"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.5"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -3998,7 +4011,6 @@ function openVariantModal(ei){
   $("#varname").addEventListener("input", () => {
     if (!$("#varuni").dataset.touched && UNI_RE.test($("#varname").value)) $("#varuni").checked = true;
   });
-  $("#varname").focus();
 }
 function openClassifyModal(ei){
   const e = curDraft().exercises[ei], c = S.custom[e.id];
