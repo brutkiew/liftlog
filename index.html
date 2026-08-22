@@ -770,7 +770,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "8.7"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "8.8"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -2203,15 +2203,26 @@ function finishDraft(dateStr, silent){
 }
 
 /* ================= HISTORY ================= */
-let histShow = 15; // page the list — years of workouts shouldn't render in one go
+let histShow = 15;  // page the list — years of workouts shouldn't render in one go
+let histMonth = ""; // "" = recent (paged) · "2026-08" = that month only
 function renderHistory(){
   let html = '<button class="big" data-act="past-workout" style="margin-bottom:12px">+ Log a past workout</button>';
   if (!S.workouts.length){
     $("#view").innerHTML = html + '<div class="card hint">No workouts yet — finished sessions land here.</div>'; return;
   }
   const all = [...S.workouts].sort((a,b) => b.date.localeCompare(a.date));
-  const list = all.slice(0, histShow);
-  const more = all.length > histShow
+  // month picker — every month that has a workout, newest first
+  const byMonth = {};
+  for (const w of all) byMonth[w.date.slice(0,7)] = (byMonth[w.date.slice(0,7)]||0) + 1;
+  if (histMonth && !byMonth[histMonth]) histMonth = ""; // month emptied by deletes
+  const mLbl = m => new Date(m+"-15T12:00:00").toLocaleString(undefined, {month:"long", year:"numeric"});
+  html += '<div class="card" style="padding:12px;margin-bottom:12px"><select id="hist-month">'
+    + '<option value=""'+(histMonth ? "" : " selected")+'>Recent — newest first</option>'
+    + Object.keys(byMonth).sort().reverse().map(m =>
+        '<option value="'+m+'"'+(m === histMonth ? " selected" : "")+'>'+mLbl(m)+' · '+byMonth[m]+' workout'+(byMonth[m]>1?"s":"")+'</option>').join("")
+    + '</select></div>';
+  const list = histMonth ? all.filter(w => w.date.slice(0,7) === histMonth) : all.slice(0, histShow);
+  const more = !histMonth && all.length > histShow
     ? '<button class="big" data-act="hist-more" style="margin-top:4px">Show earlier workouts · '+(all.length - histShow)+' more</button>'
     : '';
   $("#view").innerHTML = html + list.map(w => {
@@ -5011,6 +5022,7 @@ document.addEventListener("change", ev => {
   }
   else if (t.id === "cardio-on"){ curDraft().cardio.on = t.checked; save(); }
   else if (t.id === "cardio-min"){ curDraft().cardio.min = Math.max(0, +t.value||0); save(); }
+  else if (t.id === "hist-month"){ histMonth = t.value; histShow = 15; render(); }
   else if (t.id === "prog-sel"){ S.progSel = t.value; save(); render(); }
   else if (t.id === "st-kcal"){ S.settings.kcalTarget = Math.max(0, +t.value||0) || 2510; save(); }
   else if (t.id === "st-goal"){ S.settings.goalWeight = t.value; save(); }
