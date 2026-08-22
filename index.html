@@ -368,6 +368,9 @@
   .pick{display:flex;align-items:center;width:100%;text-align:left;margin-top:6px;justify-content:space-between}
   .pick small{color:var(--text-3)}
   .mgroup{margin:15px 2px 3px;color:var(--text-3);font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+  .qbtn{display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;border-radius:50%;
+    padding:0;margin-left:6px;vertical-align:-5px;font-size:11px;font-weight:700;color:var(--text-3);
+    background:none;border:1px solid var(--stroke);letter-spacing:0;text-transform:none}
   .menu-item{display:block;width:100%;text-align:left;margin-top:8px;padding:13px 15px;font-size:14.5px}
   .wk td:first-child{width:52px}
   .setrow-lab{display:flex;justify-content:space-between;align-items:center;font-size:14px;color:var(--text-2);margin-top:13px}
@@ -761,6 +764,7 @@ try { const raw = localStorage.getItem(KEY); if (raw){
 }} catch(e){ storeOK = false; }
 S.templates = S.templates || {}; S.coach = S.coach || []; S.milestone = S.milestone || 0;
 S.uniO = S.uniO || {};
+S.dl = S.dl || {}; // per-lift targeted deloads: {base, w, n, until}
 S.coach.forEach(x => { x.pending = false; if (x.a === "") x.a = "(interrupted)"; });
 /* names that clearly mean one limb at a time — used to auto-set the per-side flag */
 const UNI_RE = /\b(single|one|1)[ -]?(arm|leg|hand)\b|unilateral|per side|each side|alternat/i;
@@ -844,7 +848,7 @@ function perfHistory(exId){
   const out = [];
   for (const w of [...S.workouts].sort((a,b) => b.date.localeCompare(a.date))){
     const e = w.exercises.find(x => x.id === exId);
-    if (e){ const sets = workSets(e.sets); if (sets.length) out.push({date:w.date, sets}); }
+    if (e){ const sets = workSets(e.sets); if (sets.length) out.push({date:w.date, sets, dl:!!e.dl}); }
   }
   return out;
 }
@@ -869,24 +873,34 @@ function analyze(exId, plan){
   const hist = perfHistory(exId);
   if (!hist.length) return {first:true, prev:[], gW:si=>"", gR:si=>String(p.lo), chip:null, ex, p};
   const last = hist[0], prev = last.sets;
+  const gRprev = si => { const s = prev[si] || prev[prev.length-1]; return String(s ? s.r : p.lo); };
+  /* an active targeted deload owns the suggestions: −10% while it runs, then the old top
+     weight comes straight back for the return week */
+  const dl = S.dl[exId];
+  if (dl){
+    const active = todayStr() <= dl.until;
+    const w = active ? dl.w : dl.base;
+    return {first:false, prev, ex, p, fired:false, dl:active ? "on" : "back",
+      gW: () => String(w || ""), gR: gRprev,
+      chip: {cls: active ? "stall" : "sug", txt: active ? "deload · "+w : "back to "+dl.base+" ▲", act:"plateau"}};
+  }
   const topW = Math.max(...prev.map(s => +s.w || 0));
   const top = prev.filter(s => (+s.w||0) === topW);
   const fired = top.length >= p.n && top.every(s => +s.r >= p.hi) && ex.inc > 0;
   let chip = null;
   if (fired) chip = {cls:"sug", txt:(topW||0)+" → "+(topW+ex.inc)+" ▲"};
-  else if (hist.length >= 3){
-    const ms = hist.slice(0,3).map(h => bestMetric(h.sets, ex));
-    if (ms[0] <= ms[1] && ms[0] <= ms[2]) chip = {cls:"stall", txt:"3× no gain"};
-  }
+  else if (ex.inc > 0 && topW > 0 && top.length >= p.n && top.every(s => +s.r >= p.hi - 1))
+    chip = {cls:"sug", txt:"1 rep → "+(topW+ex.inc)};   // one rep shy on every top set
+  else if (isStalled(exId)) chip = {cls:"stall", txt:"3× no gain", act:"plateau"};
   return {first:false, prev, ex, p, fired,
     gW: si => { const s = prev[si] || prev[prev.length-1];
       return fired ? String(topW+ex.inc) : String(s && s.w ? s.w : (topW||"")); },
-    gR: si => { if (fired) return String(p.lo);
-      const s = prev[si] || prev[prev.length-1]; return String(s ? s.r : p.lo); },
+    gR: si => { if (fired) return String(p.lo); return gRprev(si); },
     chip};
 }
 function isStalled(exId){
-  const ex = exInfo(exId), hist = perfHistory(exId);
+  const ex = exInfo(exId);
+  const hist = perfHistory(exId).filter(h => !h.dl); // deload weeks don't count as stalling
   if (hist.length < 3) return false;
   const ms = hist.slice(0,3).map(h => bestMetric(h.sets, ex));
   return ms[0] <= ms[1] && ms[0] <= ms[2];
@@ -1073,7 +1087,7 @@ function recapCard(r, dismissable){
   // strength
   if (r.prs.length || r.anchors.length){
     h += '<div class="recap-block"><span class="lbl">Strength</span>';
-    if (r.prs.length) h += '<div class="recap-li"><span>PRs</span><b>'+r.prs.map(p => esc(p.name)).join(", ")+'</b></div>';
+    if (r.prs.length) h += '<div class="recap-li"><span>PRs</span><b>'+[...new Set(r.prs.map(p => esc(p.name)))].join(", ")+'</b></div>';
     for (const a of r.anchors.slice(0,4))
       h += '<div class="recap-li"><span>'+esc(a.name)+'</span><b class="num '+(a.pct>1?"up":a.pct<-3?"dn":"fl")+'">'
         + (a.pct>1?"▲":a.pct<-3?"▼":"▬")+" "+(a.pct>0?"+":"")+a.pct.toFixed(1)+'%</b></div>';
@@ -1138,6 +1152,8 @@ function rateWorkout(w){
     }
     if (prev === null){ res.push({id:e.id, name:ex.n, cls:"new"}); return; }
     const pct = (now - prev) / prev * 100;
+    // a planned targeted-deload session is a hold by definition — never a strength miss
+    if (e.dl){ res.push({id:e.id, name:ex.n, pct, why:["planned deload"], cls:"hold"}); return; }
     const prim = muscOf(e.id).p;
     let pre = 0;
     for (let j = 0; j < pos; j++) pre += hardOf(w.exercises[j]).length * creditTo(w.exercises[j].id, prim);
@@ -1288,7 +1304,10 @@ function blankSets(n){
   return Array.from({length:n}, () => ({w:"",r:"",done:false,warm:false}));
 }
 function setsFor(id, planN){
-  // start with however many sets you actually did last time, not the plan's number
+  // a targeted deload halves the set count; the return week restores the pre-deload count
+  const dl = S.dl[id];
+  if (dl) return blankSets(todayStr() <= dl.until ? Math.max(1, Math.ceil((dl.n || 3)/2)) : (dl.n || planN || 3));
+  // otherwise start with however many sets you actually did last time, not the plan's number
   const hist = perfHistory(id);
   return blankSets(hist.length ? Math.max(1, hist[0].sets.length) : (planN || 3));
 }
@@ -1768,6 +1787,9 @@ function renderWorkout(d){
   // superset groups get a letter in order of appearance — ⧉ A pairs stay visually linked
   const ssLetters = {}; let ssN = 0;
   d.exercises.forEach(e => { if (e.ss && ssLetters[e.ss] === undefined) ssLetters[e.ss] = String.fromCharCode(65 + ssN++); });
+  // suggestion/stall chips; a chip with an action (plateau sheet) stays tappable via data-act
+  const chipHTML = (a, i) => !a.chip ? '' :
+    '<span class="chip '+a.chip.cls+' num"'+(a.chip.act ? ' data-act="'+a.chip.act+'" data-ei="'+i+'" style="cursor:pointer"' : '')+'>'+a.chip.txt+'</span>';
   d.exercises.forEach((e, i) => {
     const a = analyze(e.id, e.plan);
     const uni = isUni(e.id);
@@ -1788,7 +1810,7 @@ function renderWorkout(d){
         + '<div class="xminrow"><span class="grip" data-grip>'+GRIP+'</span>'
         + '<button class="xrow" data-act="ex-open" data-ei="'+i+'">'
         + ssChip + '<span class="xn">'+esc(a.ex.n)+uniTag+'</span>'
-        + '<span class="xsum num">'+sum+'</span><span class="cap">▾</span></button></div></div>';
+        + '<span class="xsum num">'+sum+'</span>'+(ls.length ? '' : chipHTML(a, i))+'<span class="cap">▾</span></button></div></div>';
       return;
     }
     html += '<div class="card xcard'+ssCls+'" data-ei="'+i+'"><div class="xhead">'
@@ -1796,7 +1818,7 @@ function renderWorkout(d){
       + '<button class="xname" data-act="ex-detail" data-exid="'+e.id+'">'+esc(a.ex.n)+uniTag
       + (tgt ? ' <span class="tgt num">'+tgt+'</span>' : '')+'</button>'
       + ssChip
-      + (a.chip ? '<span class="chip '+a.chip.cls+' num">'+a.chip.txt+'</span>' : '')
+      + chipHTML(a, i)
       + (chk ? '<button class="chip num" data-act="rest-cycle" data-ei="'+i+'">'+fmtSec(restFor(e.id))+'</button>' : '')
       + '<button class="ghost" data-act="ex-close" data-ei="'+i+'" title="Collapse">▴</button>'
       + '<button class="ghost" data-act="ex-menu" data-ei="'+i+'">⋯</button></div>'
@@ -1982,22 +2004,56 @@ function showToast(html){
 }
 
 /* ================= finish ================= */
+/* PR taxonomy — three ways a session can be a record, checked in priority order:
+   e1RM (the headline single-set strength estimate), rep-max (heaviest weight ever moved
+   for ≥N reps — catches "same top weight, more reps at 8" days the e1RM can miss when a
+   lower-rep set dominates), and session volume (most total lb in one session of the lift).
+   At most 2 per lift so a big day doesn't spam the toast. Deload sessions never PR-check. */
 function computePRs(kept){
   const prs = [];
   for (const e of kept){
+    if (e.dl) continue;
     const ex = exInfo(e.id), sets = workSets(e.sets);
     if (!sets.length) continue;
     const hist = perfHistory(e.id);
     if (!hist.length) continue;
+    let n = 0;
     const prev = Math.max(...hist.map(h => bestMetric(h.sets, ex)));
     const now = bestMetric(sets, ex);
     if (now > prev + 0.01){
       const bs = bestSet(sets, ex);
-      prs.push({id:e.id, name:ex.n, str:(ex.bw && !+bs.w ? "BW" : (+bs.w||0))+" × "+bs.r});
+      prs.push({id:e.id, name:ex.n, kind:"e1rm", str:(ex.bw && !+bs.w ? "BW" : (+bs.w||0))+" × "+bs.r});
+      n++;
+    }
+    // rep-max: best weight held for at least r reps, vs all history (2+ prior sessions)
+    if (!n && hist.length >= 2){
+      const histRM = r => { let m = 0;
+        for (const h of hist) for (const s of h.sets) if (+s.r >= r) m = Math.max(m, +s.w || 0);
+        return m; };
+      let best = null;
+      for (const s of sets){
+        const w = +s.w || 0, r = +s.r;
+        if (!(w > 0) || r < 1 || r > 15) continue;
+        const pm = histRM(r);
+        if (pm > 0 && w > pm + 0.01 && (!best || r > best.r || (r === best.r && w > best.w)))
+          best = {w, r};
+      }
+      if (best){ prs.push({id:e.id, name:ex.n, kind:"rm", rm:best.r, str:best.w+" × "+best.r}); n++; }
+    }
+    // session-volume record (3+ prior sessions so early noise doesn't count)
+    if (n < 2 && hist.length >= 3){
+      const vol = ss => ss.reduce((a, s) => a + (+s.w||0)*(+s.r||0), 0);
+      const nowV = vol(sets), prevV = Math.max(...hist.map(h => vol(h.sets)));
+      if (prevV > 0 && nowV > prevV * 1.02)
+        prs.push({id:e.id, name:ex.n, kind:"vol", str:Math.round(nowV).toLocaleString()+" lb"});
     }
   }
   return prs;
 }
+/* how a PR reads in toasts / history / exports */
+const prLabel = p => !p.kind || p.kind === "e1rm" ? p.name+" "+p.str
+  : p.kind === "rm" ? p.name+" · "+p.rm+"-rep best "+p.str
+  : p.name+" · volume PR "+p.str;
 let lastAutoWarm = 0;
 function finishDraft(dateStr, silent){
   const d = S.drafts[dateStr];
@@ -2044,7 +2100,9 @@ function finishDraft(dateStr, silent){
   }
   const kept = d.exercises
     .map(e => Object.assign({id:e.id, note:e.note||"", sets:e.sets.filter(s => (chk ? s.done : true) && +s.r > 0)
-      .map(s => ({w:+s.w||0, r:+s.r, warm:!!s.warm}))}, e.ss ? {ss:e.ss} : {}))
+      .map(s => ({w:+s.w||0, r:+s.r, warm:!!s.warm}))},
+      e.ss ? {ss:e.ss} : {},
+      S.dl[e.id] && dateStr <= S.dl[e.id].until ? {dl:1} : {}))
     .filter(e => e.sets.length);
   if (!kept.length){ if (!silent) alert("Check off at least one set first."); return false; }
   const prs = computePRs(kept);
@@ -2054,6 +2112,8 @@ function finishDraft(dateStr, silent){
     exercises:kept, cardio:d.cardio.on ? {min:+d.cardio.min || 20} : null,
     note:(d.note||"").trim(), prs,
     durMin:(dateStr === todayStr() && d.startedAt) ? Math.round((Date.now()-d.startedAt)/60000) : null});
+  // a finished return-week session closes out that lift's targeted deload
+  for (const e of kept){ const dl = S.dl[e.id]; if (dl && dateStr > dl.until) delete S.dl[e.id]; }
   delete S.drafts[dateStr];
   if (S.editing === dateStr) S.editing = null;
   if (wl){ try{ wl.release(); }catch(e){} wl = null; }
@@ -2084,6 +2144,7 @@ function renderHistory(){
       + w.exercises.map((e,i) => '<p class="num"><b>'+(i+1)+'. '+(e.ss ? '<span style="color:#A99BFF">⧉</span> ' : '')+esc(exInfo(e.id).n)+'</b> — '
           + e.sets.map(s => (s.warm?"w:":"")+setStr(s, exInfo(e.id))).join(", ")
           + (isUni(e.id) ? ' <span class="cap">per side</span>' : '')+'</p>').join("")
+      + (w.prs && w.prs.length ? '<p class="cap wr" style="margin-top:6px;font-weight:600">PR — '+w.prs.map(p => esc(prLabel(p))).join(" · ")+'</p>' : '')
       + (rt && rt.notes.length
           ? '<div style="margin-top:8px"><span class="lbl">Session score '+rt.score+' · '+rt.grade+'</span>'
             + ' <button class="link" data-act="score-why" data-id="'+w.id+'" style="font-size:11px">Why this grade?</button>'
@@ -2184,9 +2245,9 @@ function strengthOverviewHTML(){
     const cur = si[si.length-1].val;
     const d4 = cur - si[Math.max(0, si.length-5)].val, all = cur - 100;
     html += '<div class="card hero"><span class="lbl">Overall strength'
-      + (labGroup ? ' · '+GROUPS_L.find(g => g[0] === labGroup)[1] : '')+'</span>'
+      + (labGroup ? ' · '+GROUPS_L.find(g => g[0] === labGroup)[1] : '')+qBtn("ovr")+'</span>'
       + '<div class="xl grad-ink num" style="margin-top:6px">'+cur.toFixed(1)+'</div>'
-      + '<div class="cap">100 = your first logged week · weekly best e1RM per lift, averaged</div>'
+      + '<div class="cap">100 = your first logged week</div>'
       + '<div class="rowline num" style="margin-top:10px;gap:16px;font-size:13.5px;font-weight:600">'
       + '<span class="'+lc(d4)+'">'+ls(d4)+' last 4 wk</span>'
       + '<span class="'+lc(all)+'">'+ls(all)+' all-time</span></div>'
@@ -2198,10 +2259,10 @@ function strengthOverviewHTML(){
   const rs = relStrength();
   if (!labGroup && rs.length >= 2){
     const cur = rs[rs.length-1].val, d = cur - rs[0].val;
-    html += '<div class="card"><span class="lbl">Relative strength · pound-for-pound</span>'
+    html += '<div class="card"><span class="lbl">Relative strength · pound-for-pound'+qBtn("rel")+'</span>'
       + '<div class="stat num" style="margin-top:6px">'+cur.toFixed(1)
       + ' <small class="'+lc(d)+'" style="font-size:13px">'+ls(d)+' all-time</small></div>'
-      + '<div class="cap" style="margin:2px 0 6px">strength index corrected for bodyweight change — on a cut, THIS is the win condition</div>'
+
       + '<div class="chartwrap">'+e1rmChart(rs.map(p => ({date:p.d, val:+p.val.toFixed(1), lbl:""})))+'</div></div>';
   }
 
@@ -2214,10 +2275,9 @@ function strengthOverviewHTML(){
     const norm = lbm/(h*h) + 6.1*(1.8 - h);
     youBits += cell("Body fat", bf+"%") + cell("Lean mass", (lbm/0.45359).toFixed(0)+" lb") + cell("FFMI", norm.toFixed(1));
   }
-  html += '<div class="card"><span class="lbl">You</span>'
+  html += '<div class="card"><span class="lbl">You'+qBtn("you")+'</span>'
     + '<div class="rowline" style="flex-wrap:wrap;gap:12px 18px;margin-top:9px">'+youBits+'</div>'
-    + '<p class="cap" style="margin-top:9px">Weight here is your smoothed trend — each morning weigh-in nudges it a little, so strength-per-pound doesn\'t jump with scale noise.</p>'
-    + (bf > 0 ? '' : '<p class="cap" style="margin-top:5px">Set Body fat % in Settings to unlock lean mass + FFMI here.</p>')+'</div>';
+    + (bf > 0 ? '' : '<p class="cap" style="margin-top:9px">Set Body fat % in Settings to unlock lean mass + FFMI here.</p>')+'</div>';
 
   // benchmark scorecard — cut to the selected muscle-group chip, so each group grades on its own
   const inGroup = g => !labGroup || (labGroup === "arms" ? (g === "biceps" || g === "triceps") : g === labGroup);
@@ -2228,7 +2288,7 @@ function strengthOverviewHTML(){
     const med = [...scores].sort((a,b) => a.lv.score - b.lv.score)[Math.floor(scores.length/2)];
     const overall = med.lv.idx < 0 ? "Getting started" : LVLS[med.lv.idx];
     html += '<div class="card hero"><span class="lbl">Strength scorecard'+(gLbl ? ' · '+gLbl : '')+' · men at '+Math.round(bw)+' lb'
-      + (S.settings.height ? ' · '+esc(S.settings.height) : '')+'</span>'
+      + (S.settings.height ? ' · '+esc(S.settings.height) : '')+qBtn("score")+'</span>'
       + '<div class="xl grad-ink" style="margin-top:6px">'+overall+'</div>'
       + '<div class="cap" style="margin-top:2px">'+(gLbl ? gLbl.toLowerCase()+' — ' : 'overall ')+'across '+scores.length+' benchmark lift'+(scores.length>1?"s":"")+'</div>';
     for (const sc of scores){
@@ -2241,7 +2301,7 @@ function strengthOverviewHTML(){
             const fill = Math.max(0, Math.min(1, sc.lv.score - i));
             return '<span><i style="transform:scaleX('+fill.toFixed(2)+')"></i></span>'; }).join("")+'</div></div>';
     }
-    html += '<p class="cap" style="margin-top:14px">Community-average standards for your bodyweight — orientation, not gospel. Dumbbell and machine work counts through volume in Insights.</p></div>';
+    html += '</div>';
 
     const weakest = scores[scores.length-1];
     html += '<div class="card focus-card"><span class="lbl">Where to focus'+(gLbl ? ' · '+gLbl.toLowerCase() : '')+'</span>'
@@ -2414,7 +2474,7 @@ function trendsInsights(){
   // muscle report card
   const mrep = muscleReport();
   if (mrep.length){
-    html += '<div class="card"><span class="lbl">Muscle report card · last 28 days</span>'
+    html += '<div class="card"><span class="lbl">Muscle report card · last 28 days'+qBtn("musrep")+'</span>'
       + '<div class="cap" style="margin:4px 0 2px">volume dose + e1RM progress per muscle — grades update live as you log</div>';
     for (const m of mrep){
       const g = m.untrained ? "—" : gradeFor(m.score);
@@ -2428,14 +2488,14 @@ function trendsInsights(){
             + (m.avgP !== null ? ' · e1RM '+(m.avgP>0?'+':'')+m.avgP.toFixed(1)+'% / 28d' : ' · no comparable history yet')+'</div>')
         + '</div>';
     }
-    html += '<p class="cap" style="margin-top:12px">Grade = volume in the growth zone (10–20 sets/wk for a muscle, ~4–12 for a sub-region) + whether its lifts\' e1RMs are climbing.</p></div>';
+    html += '</div>';
   }
 
   // exercise report card
   const exIds = trainedIds(28).filter(id => perfHistory(id).length >= 2)
     .sort((a,b) => (exScore(exProgress(a))||0) - (exScore(exProgress(b))||0));
   if (exIds.length >= 3){
-    html += '<div class="card"><span class="lbl">Exercise report card · last 28 days</span>'
+    html += '<div class="card"><span class="lbl">Exercise report card · last 28 days'+qBtn("exrep")+'</span>'
       + '<div class="cap" style="margin:4px 0 4px">every lift you\'ve trained, worst first — so the fix is at the top</div>';
     const byG = {};
     for (const id of exIds) (byG[exInfo(id).g] = byG[exInfo(id).g] || []).push(id);
@@ -2449,7 +2509,7 @@ function trendsInsights(){
           + (p.since ? ' · best '+p.since+' ago' : ' · at best')+'</span></b></div>';
       }
     }
-    html += '<p class="cap" style="margin-top:12px">Grade = how much this lift\'s best e1RM climbed over the last 28 days (the % shown), docked when you haven\'t matched your all-time best in 3+ sessions of it. Recomputed live from your log every time this page renders.</p></div>';
+    html += '</div>';
   }
 
   // volume bars
@@ -2932,14 +2992,13 @@ function trendsLab(){
     const prev = cw.slice(0, -1).filter(p => p.val > 0);
     const typ = prev.length ? Math.round(prev.reduce((a,p) => a+p.val, 0) / prev.length) : null;
     const kc = Math.round(thisWk.val * (+S.settings.cardioKcal || 7.8));
-    html += '<div class="card"><span class="lbl">Cardio · incline treadmill</span>'
+    html += '<div class="card"><span class="lbl">Cardio · incline treadmill'+qBtn("cardio")+'</span>'
       + '<div class="stat num" style="margin-top:6px">'+thisWk.val+'<small> min this week</small>'
       + ' <small class="cap" style="font-size:12px">· '+thisWk.n+' session'+(thisWk.n===1?"":"s")
       + (kc ? ' · ≈'+kc.toLocaleString()+' kcal' : '')+'</small></div>'
       + (typ !== null ? '<div class="cap" style="margin-top:2px">typical week: ~'+typ+' min'
           + (thisWk.val >= typ*0.85 ? ' — on pace' : ' — room to walk')+'</div>' : '')
-      + labBars(cw, v => Math.round(v)+"m")
-      + '<p class="cap" style="margin-top:8px">Counted per workout ("Incline treadmill" on the log screen) — it feeds the energy model below and earns a session-score bonus.</p></div>';
+      + labBars(cw, v => Math.round(v)+"m") + '</div>';
   }
 
   const em = energyModel(), real = impliedTDEE();
@@ -3375,6 +3434,43 @@ function linkSS(ei, j){
   save(); render();
   showToast("Superset — alternate sets between the two, rest after the pair.");
 }
+/* "?" about-sheets — the long explanations live here instead of cluttering the cards */
+const HELP = {
+  exrep:{t:"Exercise report card", b:"Every lift trained in the last 28 days with at least 2 logged sessions, graded on two things: <b>(1)</b> how much its best e1RM climbed over those 28 days — that's the %, where +3% and up is an A and a drop pulls toward C/D — and <b>(2)</b> staleness: not matching your all-time best for 3+ sessions caps the grade. Sorted worst-first so the lift that needs attention sits on top. Recomputed live from your log every time the page renders."},
+  musrep:{t:"Muscle report card", b:"Each muscle's grade = volume dose + progress. <b>Volume:</b> 10–20 hard sets a week is the growth zone for a whole muscle, roughly 4–12 for a sub-region. <b>Progress:</b> whether that muscle's lifts pushed their e1RMs up over the last 28 days. \"Untrained\" flags a sub-region with no direct sets at all."},
+  score:{t:"Strength scorecard", b:"Community-average standards for a man at your bodyweight — your best-ever e1RM per benchmark lift, as a multiple of bodyweight, mapped Beginner → Elite. Dips and pull-ups count bodyweight + added load; dumbbell lifts grade per hand. Orientation, not gospel — dumbbell and machine work still counts through volume in Insights."},
+  ovr:{t:"Overall strength index", b:"Each lift's best e1RM per week, divided by its own first-week baseline (that's 100), then averaged across every lift — one line answering \"am I actually getting stronger?\". Weeks you skip a lift, its last value carries forward. The chips cut the same math to one muscle group."},
+  rel:{t:"Pound-for-pound", b:"The strength index corrected for bodyweight change. On a cut this is the win condition: if it climbs while the scale falls, you're holding or gaining strength in a smaller body."},
+  you:{t:"Your numbers", b:"The denominator behind every grade on this page. Weight is your smoothed <b>trend</b> — each morning weigh-in only nudges it a little — so strength-per-pound doesn't jump around with scale noise. Set body-fat % in Settings to unlock lean mass and FFMI."},
+  cardio:{t:"Cardio tracking", b:"Counted from the \"Incline treadmill\" line on the workout screen. Minutes feed the daily-energy model below (minutes × your kcal/min setting), earn a small session-score bonus, and show in the weekly recap."},
+};
+const qBtn = k => '<button class="qbtn" data-act="help" data-h="'+k+'">?</button>';
+/* plateau watch — status of a running targeted deload, or the offer to start one */
+const dlWeight = base => Math.max(2.5, Math.round(base*0.9/2.5)*2.5);
+function openPlateauModal(ei){
+  const e = curDraft().exercises[ei], id = e.id, ex = exInfo(id);
+  const dl = S.dl[id];
+  if (dl){
+    const active = todayStr() <= dl.until;
+    openModal('<h3>'+esc(ex.n)+' — targeted deload</h3>'
+      + (active
+        ? '<p class="hint">Running through <b>'+fmtDate(dl.until)+'</b> — work at <b>'+dl.w+' lb</b> (−10%) with about half your usual sets. Fatigue clears while everything else trains normally.</p>'
+        : '<p class="hint">Deload done — come back at <b>'+dl.base+' lb</b> this session. It should feel crisp; plateaus usually break on the return week.</p>')
+      + '<div class="btnrow"><button class="danger" data-act="dl-end" data-id="'+id+'">End it now</button>'
+      + '<button data-act="modal-close">Close</button></div>');
+    return;
+  }
+  const p = exProgress(id), base = histTopW(id);
+  openModal('<h3>'+esc(ex.n)+' — plateau watch</h3>'
+    + '<p class="hint">Best e1RM hasn\'t moved across your last 3 sessions of this lift'
+    + (p && p.since ? ' — the all-time best was '+p.since+' sessions ago' : '')+'.</p>'
+    + '<p class="hint" style="margin-top:8px">The usual fix: a <b>targeted deload</b> — one week at <b>−10% load</b>'
+    + (base > 0 ? ' (≈'+dlWeight(base)+' lb)' : '')+' and <b>half the sets</b>, just for this lift. '
+    + 'Then the old weight comes straight back. Alternative: switch the rep range for two weeks.</p>'
+    + '<div class="btnrow">'
+    + (base > 0 ? '<button class="primary" data-act="dl-start" data-id="'+id+'">Deload this lift · 1 week</button>' : '')
+    + '<button data-act="modal-close">Not now</button></div>');
+}
 /* superset picker — link this lift with a partner; pairs alternate sets, rest after the pair */
 function openSSModal(ei){
   const d = curDraft(), e = d.exercises[ei];
@@ -3626,6 +3722,8 @@ function claudeText(){
   const scores = liftScores();
   if (scores.length){
     L.push("");
+    for (const [id, dl] of Object.entries(S.dl))
+      L.push("TARGETED DELOAD: " + exInfo(id).n + " at " + dl.w + " lb (base " + dl.base + ") through " + dl.until);
     L.push("STRENGTH LEVELS (vs ~" + Math.round(bodyweight()) + " lb bodyweight):");
     for (const sc of scores)
       L.push("  " + sc.name + ": " + (sc.lv.idx<0?"Beginner":LVLS[sc.lv.idx]) + " — e1RM " + sc.e1 + (sc.bwTotal?" added":"") + " lb (" + sc.ratio.toFixed(2) + "×BW)");
@@ -3688,7 +3786,7 @@ function claudeText(){
     const rt = rateWorkout(w);
     L.push(w.date + " — " + (w.sesName||"Custom") + (w.durMin ? " (" + w.durMin + " min)" : "")
       + (rt ? " · session score " + rt.score + " (" + rt.grade + ")" : "")
-      + (w.prs && w.prs.length ? "  PRs: " + w.prs.map(p => p.name).join(", ") : ""));
+      + (w.prs && w.prs.length ? "  PRs: " + w.prs.map(prLabel).join("; ") : ""));
     w.exercises.forEach((e,i) =>
       L.push("  " + (i+1) + ". " + exInfo(e.id).n + (isUni(e.id) ? " (per side)" : "") + (e.ss ? " [superset]" : "") + ": " + e.sets.map(s => (s.warm?"w:":"")+setStr(s, exInfo(e.id))).join(", ")));
     if (w.cardio) L.push("  cardio: incline treadmill " + w.cardio.min + " min");
@@ -3898,6 +3996,21 @@ document.addEventListener("click", ev => {
     save(); closeModal(); render();
   }
   else if (act === "ss-with"){ closeModal(); linkSS(ei, +btn.dataset.j); }
+  else if (act === "plateau"){ openPlateauModal(ei); }
+  else if (act === "dl-start"){
+    const id = btn.dataset.id, base = histTopW(id);
+    if (!(base > 0)){ showToast("Targeted deloads need a weighted history for this lift."); return; }
+    const hist = perfHistory(id);
+    S.dl[id] = {base, w:dlWeight(base), n:hist.length ? hist[0].sets.length : 3, until:addDays(todayStr(), 6)};
+    save(); closeModal(); render();
+    showToast("Deload set — <b>"+S.dl[id].w+" lb</b>, about half the sets, through "+fmtDate(S.dl[id].until)+".");
+  }
+  else if (act === "dl-end"){ delete S.dl[btn.dataset.id]; save(); closeModal(); render(); }
+  else if (act === "help"){
+    const h = HELP[btn.dataset.h];
+    if (h) openModal('<h3>'+h.t+'</h3><p class="hint">'+h.b+'</p>'
+      + '<div class="btnrow"><button data-act="modal-close">Got it</button></div>');
+  }
   else if (act === "add-ex"){ openAddModal(null); }
   else if (act === "builder-open"){ openBuilderModal(btn.dataset.for || null); }
   else if (act === "tsel"){
@@ -4017,7 +4130,7 @@ document.addEventListener("click", ev => {
     const w = S.workouts.find(x => x.date === fdate);
     const rt = w && rateWorkout(w);
     let msg = rt ? "Session score <b class='grad-ink'>"+rt.score+" · "+rt.grade+"</b>" : "";
-    if (prs.length) msg += (msg ? "<br>" : "") + "<b class='wr'>"+prs.length+" PR"+(prs.length>1?"s":"")+"</b> — "+prs.map(p => esc(p.name)).join(", ");
+    if (prs.length) msg += (msg ? "<br>" : "") + "<b class='wr'>"+prs.length+" PR"+(prs.length>1?"s":"")+"</b> — "+prs.map(p => esc(prLabel(p))).join(" · ");
     if (lastAutoWarm) msg += (msg ? "<br>" : "") + '<span style="font-size:12.5px;color:var(--text-2)">'
       + lastAutoWarm+" light lead-in set"+(lastAutoWarm>1?"s":"")+" counted as warm-ups — tap a set number to change.</span>";
     const ton = S.workouts.reduce((a,x) => a + tonOf(x), 0);
