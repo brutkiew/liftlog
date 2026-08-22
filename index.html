@@ -490,8 +490,10 @@ const EX = {
   incbb:{n:"Incline Barbell Press",g:"chest",inc:5,rest:150,bb:1,sub:"chest_up"},
   incdb:{n:"Incline DB Press",g:"chest",inc:5,db:1,rest:120,sub:"chest_up"},
   flatdb:{n:"Flat DB Press",g:"chest",inc:5,db:1,rest:120,sub:"chest_low"},
-  /* dips live under triceps (Strength Level's convention, and upright dips are
-     triceps-led per EMG) — chest still gets half credit via MUSC; lean forward for more */
+  /* dips count + grade under triceps — upright dips are triceps-led per EMG and his own
+     read; forward-lean chest dips still earn chest at half credit via MUSC. (Honest note
+     from the 2026-08-22 audit: sites genuinely split on the label — Strength Level files
+     dips under chest — but their standards NUMBERS are what STD.dip uses either way.) */
   dip:{n:"Weighted Dip",g:"triceps",inc:5,bw:1,rest:120,sub:"tri_lat"},
   cfly:{n:"Cable Fly",g:"chest",inc:5,sub:"chest_low"},
   l2h:{n:"Low-to-High Cable Fly",g:"chest",inc:5,sub:"chest_up"},
@@ -567,20 +569,38 @@ const SESSIONS = {
 };
 const WEEK = ["ls-a","bb-a","ct-a","ls-b","bb-b","ct-b",null]; // Sun..Sat
 
-/* strength standards (approximate community thresholds, ×BW, male) */
+/* strength standards — REBUILT 2026-08-22 from ONE source so grades are comparable
+   ACROSS lifts: Strength Level community percentiles (strengthlevel.com, male tables,
+   160 & 170 lb rows averaged → expressed as ×BW). Level meaning on that site: Beginner ≈
+   stronger than 5% of people who log that lift, Novice 20%, Intermediate 50%, Advanced
+   80%, Elite 95% (top ~5%). The old table mixed sources — barbell thresholds ran HARDER
+   than the community data (old bench Elite 2.30×BW vs the real 1.92) while dips ran
+   EASIER (old 2.25 total vs the real 2.42) — which is exactly why dips read Elite next
+   to Intermediate benches. Every number below is that site's, one convention:
+   - plain lifts: barbell 1RM ×BW
+   - db:1 lifts: ONE dumbbell ×BW (site lists per-dumbbell incl. handle)
+   - bwTotal:1 lifts (dips, pull-ups): site lists ADDED weight; converted here to
+     (BW + added)/BW so the ratio grades total load moved. At 165 lb their dip ladder is
+     +7 / +54 / +109 / +170 / +233 added.
+   Female factor stays the global 0.72 approximation (their female tables vary by lift;
+   revisit if a female user ever matters). */
 const STD = {
-  bench:{t:[.65,.95,1.35,1.80,2.30]},
-  incbb:{t:[.55,.80,1.15,1.55,1.95]},
-  cgbp:{t:[.60,.85,1.20,1.60,2.05]},
-  squat:{t:[.85,1.25,1.75,2.30,2.95]},
-  rdl:{t:[.80,1.20,1.70,2.20,2.80]},
-  bbrow:{t:[.50,.75,1.05,1.40,1.80]},
-  bbohp:{t:[.40,.60,.85,1.15,1.50]},
-  pullup:{t:[1.00,1.15,1.40,1.70,2.05],bwTotal:1},
-  dip:{t:[1.00,1.20,1.50,1.85,2.25],bwTotal:1},
-  bbcurl:{t:[.23,.37,.55,.75,.98]},
-  dbohp:{t:[.15,.27,.42,.60,.80],db:1},
-  dbrow:{t:[.18,.33,.51,.73,.98],db:1},
+  bench:{t:[.68,.93,1.22,1.56,1.92]},
+  incbb:{t:[.60,.82,1.08,1.37,1.69]},
+  cgbp:{t:[.67,.89,1.15,1.45,1.76]},
+  flatdb:{t:[.23,.35,.50,.68,.87],db:1},
+  incdb:{t:[.26,.36,.49,.63,.79],db:1},
+  squat:{t:[.92,1.25,1.66,2.12,2.62]},
+  rdl:{t:[.80,1.14,1.56,2.05,2.59]},
+  hipthrust:{t:[.67,1.18,1.85,2.68,3.62]},
+  bbrow:{t:[.58,.82,1.10,1.43,1.78]},
+  latpd:{t:[.59,.81,1.08,1.38,1.71]},
+  bbohp:{t:[.40,.57,.78,1.02,1.28]},
+  pullup:{t:[.97,1.18,1.43,1.70,1.98],bwTotal:1},
+  dip:{t:[1.04,1.33,1.66,2.03,2.42],bwTotal:1},
+  bbcurl:{t:[.27,.41,.58,.80,1.03]},
+  dbohp:{t:[.18,.28,.39,.53,.68],db:1},
+  dbrow:{t:[.23,.37,.54,.74,.97],db:1},
 };
 const LVLS = ["Beginner","Novice","Intermediate","Advanced","Elite"];
 
@@ -610,8 +630,8 @@ const MAJOR_COL = {Chest:"#FF6B6B", Back:"#5AA7F0", Delts:"#FFB020", Arms:"#B085
    - Pushdowns/extensions get core + lats: the trunk and lats brace against the cable
      (his upper-abs-during-pushdowns intuition — credited at region level).
    - Dips: triceps prime, chest + front delts at 0.5 — upright dips are triceps-dominant
-     (EMG + Strength Level's classification); forward-lean chest dips still earn chest
-     credit through the half tier.
+     per EMG (torso angle decides; classification sites split on the label); forward-lean
+     chest dips still earn chest credit through the half tier.
    - Straight-arm work (sapd, pullover) hits the triceps long head (shoulder extension).
    - Overhead pressing/raises get upper_back (traps upwardly rotate the scapula).
    - Squat patterns add hamstrings (co-contraction) + calves (ankle stability); single-leg
@@ -808,7 +828,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.1"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.2"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -900,7 +920,17 @@ const tonOf = w => w.exercises.reduce((a,e) => a + e.sets.reduce((x,s) =>
   x + (+s.w||0)*(+s.r||0)*(isUni(e.id)?2:1), 0), 0);
 
 /* ================= smart logic ================= */
-const metric = (s, ex) => { const w=+s.w||0, r=+s.r||0; return (ex.bw && !w) ? r : w*(1+r/30); };
+/* estimated 1RM from one set (v9.2 audit). Epley (w × (1 + r/30)) through 10 reps — the
+   range where prediction equations are actually validated; accuracy degrades sharply
+   above ~10 reps and Epley specifically OVERestimates there (validation studies; a 2026
+   fit on 303k near-failure sets found the rep effect is sub-linear, not Epley's straight
+   line). Past 10 reps each extra rep earns HALF the Epley credit, so a 12–15-rep set can
+   no longer fabricate a max — this is what made weighted-dip e1RMs read "wild": Epley's
+   full slope applied to bodyweight+added at 12 reps, with all the error landing in the
+   displayed "added" number after bodyweight is subtracted. Still monotonic (more reps
+   never reads weaker), so stall detection can't false-fire. */
+const e1Mult = r => r <= 10 ? 1 + r/30 : 1 + 10/30 + (r - 10)/60;
+const metric = (s, ex) => { const w=+s.w||0, r=+s.r||0; return (ex.bw && !w) ? r : w*e1Mult(r); };
 /* how a logged set reads: "185×8", "BW×10" on bodyweight lifts, "12 reps" otherwise */
 const setStr = (s, ex) => +s.w ? s.w+"×"+s.r : (ex && ex.bw ? "BW×"+s.r : s.r+" reps");
 const workSets = sets => sets.filter(s => +s.r > 0 && !s.warm);
@@ -1035,17 +1065,19 @@ function liftScores(){
   for (const [id, std] of Object.entries(STD)){
     const ex = exInfo(id), hist = perfHistory(id);
     if (!hist.length) continue;
-    let e1 = 0, bs = null;
+    let e1 = 0, bs = null, bd = null;
     for (const h of hist) for (const s of workSets(h.sets)){
-      const v = std.bwTotal ? (bw + (+s.w||0))*(1+(+s.r)/30) : (+s.w||0)*(1+(+s.r)/30);
-      if (v > e1){ e1 = v; bs = s; }
+      const v = std.bwTotal ? (bw + (+s.w||0))*e1Mult(+s.r) : (+s.w||0)*e1Mult(+s.r);
+      if (v > e1){ e1 = v; bs = s; bd = h.date; }
     }
     if (!e1) continue;
     const ratio = e1 / bw / fem;
     const lv = lvlOf(ratio, std.t);
     const shown = std.bwTotal ? Math.max(0, Math.round(e1 - bw)) : Math.round(e1);
     const nextLb = lv.next ? Math.round(lv.next * fem * bw - (std.bwTotal ? bw : 0)) : null;
-    out.push({id, name:ex.n, e1:shown, ratio, lv, bwTotal:!!std.bwTotal, db:!!std.db, nextLb, g:ex.g});
+    // src = the receipt: exactly which logged set produced this estimate
+    const src = bs ? (std.bwTotal ? (+bs.w ? "BW+"+bs.w : "BW") : bs.w)+"×"+bs.r+" · "+fmtShort(bd) : "";
+    out.push({id, name:ex.n, e1:shown, ratio, lv, bwTotal:!!std.bwTotal, db:!!std.db, nextLb, g:ex.g, src});
   }
   return out.sort((a,b) => b.lv.score - a.lv.score);
 }
@@ -2057,7 +2089,7 @@ function toggleSet(ei, si){
         const std = STD[e.id];
         if (std){
           const bw = bodyweight(), fem = S.settings.sex === "female" ? 0.72 : 1;
-          const rNew = (std.bwTotal ? (bw + (+s.w||0))*(1+(+s.r)/30) : m) / bw / fem;
+          const rNew = (std.bwTotal ? (bw + (+s.w||0))*e1Mult(+s.r) : m) / bw / fem;
           // old level from the same standards basis (bwTotal lifts grade on body + added
           // weight, while plain PR tracking uses added only) — else dips "level up" nonstop
           const iNew = lvlOf(rNew, std.t).idx;
@@ -2285,11 +2317,10 @@ function renderHistory(){
   for (const w of all) byMonth[w.date.slice(0,7)] = (byMonth[w.date.slice(0,7)]||0) + 1;
   if (histMonth && !byMonth[histMonth]) histMonth = ""; // month emptied by deletes
   const mLbl = m => new Date(m+"-15T12:00:00").toLocaleString(undefined, {month:"long", year:"numeric"});
-  html += '<div class="card" style="padding:12px;margin-bottom:12px"><select id="hist-month">'
-    + '<option value=""'+(histMonth ? "" : " selected")+'>Recent — newest first</option>'
-    + Object.keys(byMonth).sort().reverse().map(m =>
-        '<option value="'+m+'"'+(m === histMonth ? " selected" : "")+'>'+mLbl(m)+' · '+byMonth[m]+' workout'+(byMonth[m]>1?"s":"")+'</option>').join("")
-    + '</select></div>';
+  // month filter opens a glass sheet instead of a native dropdown
+  html += '<div class="card" style="padding:6px 8px;margin-bottom:12px"><button class="pick" data-act="hist-month-open" style="margin:0">'
+    + (histMonth ? mLbl(histMonth) : 'Recent — newest first')
+    + '<small class="num">'+(histMonth ? byMonth[histMonth]+' workout'+(byMonth[histMonth]>1?'s':'') : all.length+' total')+' ▾</small></button></div>';
   const list = histMonth ? all.filter(w => w.date.slice(0,7) === histMonth) : all.slice(0, histShow);
   const more = !histMonth && all.length > histShow
     ? '<button class="big" data-act="hist-more" style="margin-top:4px">Show earlier workouts · '+(all.length - histShow)+' more</button>'
@@ -2322,6 +2353,20 @@ function renderHistory(){
       + '<button class="small danger" data-act="hist-del" data-id="'+w.id+'">Delete</button></div>'
       + '</div></div>';
   }).join("") + more;
+}
+
+function openHistMonthModal(){
+  const byMonth = {};
+  for (const w of S.workouts) byMonth[w.date.slice(0,7)] = (byMonth[w.date.slice(0,7)]||0) + 1;
+  const mLbl = m => new Date(m+"-15T12:00:00").toLocaleString(undefined, {month:"long", year:"numeric"});
+  const row = (m, label, n) => '<button class="menu-item" data-act="hist-month-pick" data-m="'+m+'">'
+    + label+' <span class="cap num">· '+n+' workout'+(n===1?'':'s')+'</span>'
+    + (m === histMonth ? ' <span style="color:var(--accent);float:right">✓</span>' : '')+'</button>';
+  openModal('<h3>Show workouts from…</h3>'
+    + '<button class="menu-item" data-act="hist-month-pick" data-m="">Recent — newest first'
+    + (histMonth ? '' : ' <span style="color:var(--accent);float:right">✓</span>')+'</button>'
+    + Object.keys(byMonth).sort().reverse().map(m => row(m, mLbl(m), byMonth[m])).join("")
+    + '<div class="btnrow"><button data-act="modal-close">Cancel</button></div>');
 }
 
 /* ================= TRENDS ================= */
@@ -2400,7 +2445,8 @@ function trendsBody(){
 function strengthOverviewHTML(){
   const lc = v => v > 0.05 ? "up" : v < -0.05 ? "dn" : "fl";
   const ls = v => (v > 0 ? "+" : "")+v.toFixed(1);
-  const GROUPS_L = [["","All"],["chest","Chest"],["back","Back"],["shoulders","Delts"],["arms","Arms"],["quads","Quads"],["hamstrings","Hams"]];
+  const GROUPS_L = [["","All"],["chest","Chest"],["back","Back"],["shoulders","Delts"],["arms","Arms"],
+    ["quads","Quads"],["hamstrings","Hams"],["glutes","Glutes"],["calves","Calves"],["abs","Core"]];
   let html = '<div class="chips">'+GROUPS_L.map(([k,l]) =>
     '<button data-act="lab-group" data-g="'+k+'"'
     + (labGroup === k ? ' style="color:var(--accent);border-color:rgba(44,224,139,.4);background:var(--accent-dim)"' : '')
@@ -2465,6 +2511,7 @@ function strengthOverviewHTML(){
       html += '<div class="lift-row"><div class="rowline"><b>'+esc(sc.name)+'</b>'
         + '<span class="lvl" style="color:'+(sc.lv.idx>=2?"var(--accent)":sc.lv.idx>=1?"var(--text-2)":"var(--warn)")+'">'+label+'</span></div>'
         + '<div class="sub num">e1RM '+sc.e1+(sc.bwTotal?" lb added":sc.db?" lb / hand":" lb")+' · '+sc.ratio.toFixed(2)+'×BW'
+        + (sc.src ? ' · from '+sc.src : '')
         + (sc.nextLb !== null ? ' · next level ~'+sc.nextLb+(sc.bwTotal?" added":"")+' lb' : ' · maxed the chart')+'</div>'
         + '<div class="lbar">'+[0,1,2,3,4].map(i => {
             const fill = Math.max(0, Math.min(1, sc.lv.score - i));
@@ -2479,9 +2526,9 @@ function strengthOverviewHTML(){
       + (weakest.nextLb !== null ? ' — ~'+Math.max(1, Math.round(weakest.nextLb - weakest.e1))+' lb of e1RM to the next level' : '')+'). Keep it first in its session; add a set there before adding anywhere else.</p></div>';
   } else if (allScores.length && labGroup){
     const would = Object.keys(STD).filter(id => inGroup(exInfo(id).g)).map(id => exInfo(id).n);
-    html += '<div class="card hint">No benchmark lifts logged for '+gLbl.toLowerCase()+' yet'
-      + (would.length ? ' — '+would.join(", ")+' grade here once you log them.' : '.')
-      + ' It builds as you enter more workouts.</div>';
+    html += '<div class="card hint">'+(would.length
+      ? 'No benchmark lifts logged for '+gLbl.toLowerCase()+' yet — '+would.join(", ")+' grade here once you log them.'
+      : 'No community strength standards exist for '+gLbl.toLowerCase()+' — it still counts fully through volume, the muscle report card and the strength-index chart above.')+'</div>';
   }
   return html;
 }
@@ -2507,7 +2554,8 @@ function trendsStrength(){
   const best = pts.reduce((a,b) => b.val >= a.val ? b : a);
   const delta = pts[pts.length-1].val - pts[0].val;
   let html = strengthOverviewHTML();
-  const chipLbl = labGroup ? ({chest:"Chest",back:"Back",shoulders:"Delts",arms:"Arms",quads:"Quads",hamstrings:"Hams"})[labGroup] : "";
+  const chipLbl = labGroup ? ({chest:"Chest",back:"Back",shoulders:"Delts",arms:"Arms",quads:"Quads",
+    hamstrings:"Hams",glutes:"Glutes",calves:"Calves",abs:"Core"})[labGroup] : "";
   html += '<h2>Lift by lift'+(chipLbl ? ' · '+chipLbl.toLowerCase() : '')+'</h2>';
   html += '<div class="card" style="padding:12px"><select id="prog-sel">'
     + ids.map(id => '<option value="'+id+'"'+(id===sel?" selected":"")+'>'+esc(exInfo(id).n)+'</option>').join("")+'</select></div>';
@@ -2828,7 +2876,7 @@ function measChart(es){
       + '<text x="'+(L-6)+'" y="'+(y+4)+'" text-anchor="end" font-size="10" fill="rgba(255,255,255,.38)">'+v.toFixed(1)+'</text>'; }
   const path = es.map((e,i) => (i?"L":"M")+X(i).toFixed(1)+" "+Y(e.v).toFixed(1)).join(" ");
   const dots = es.map((e,i) =>
-    '<circle class="pt" cx="'+X(i).toFixed(1)+'" cy="'+Y(e.v).toFixed(1)+'" r="4" fill="#2CE08B" stroke="#14161A" stroke-width="2" data-d="'+e.d+'" data-v="'+e.v.toFixed(1)+'&quot;" data-l="waist"/>').join("");
+    '<circle class="pt" cx="'+X(i).toFixed(1)+'" cy="'+Y(e.v).toFixed(1)+'" r="4" fill="#2CE08B" stroke="rgba(10,13,25,.9)" stroke-width="2" data-d="'+e.d+'" data-v="'+e.v.toFixed(1)+'&quot;" data-l="waist"/>').join("");
   const xl = [0, es.length-1].map(i =>
     '<text x="'+X(i).toFixed(1)+'" y="'+(H-7)+'" text-anchor="middle" font-size="10" fill="rgba(255,255,255,.38)">'+fmtShort(es[i].d)+'</text>').join("");
   return '<div class="chartwrap"><svg viewBox="0 0 '+W+' '+H+'">'+g
@@ -2945,7 +2993,7 @@ function stdE1UpTo(id, dateEnd){
   for (const w of S.workouts){ if (w.date > dateEnd) continue;
     const e = w.exercises.find(x => x.id === id); if (!e) continue;
     for (const s of workSets(e.sets)){
-      const v = std.bwTotal ? (bw + (+s.w||0))*(1+(+s.r)/30) : (+s.w||0)*(1+(+s.r)/30);
+      const v = std.bwTotal ? (bw + (+s.w||0))*e1Mult(+s.r) : (+s.w||0)*e1Mult(+s.r);
       if (v > m) m = v; } }
   return m;
 }
@@ -3356,7 +3404,7 @@ function e1rmChart(pts){
       + '<text x="'+(L-6)+'" y="'+(y+4)+'" text-anchor="end" font-size="10" fill="rgba(255,255,255,.38)">'+Math.round(v)+'</text>'; }
   const path = pts.map((p,i) => (i?"L":"M")+X(i).toFixed(1)+" "+Y(p.val).toFixed(1)).join(" ");
   const dots = pts.map((p,i) =>
-    '<circle class="pt" cx="'+X(i).toFixed(1)+'" cy="'+Y(p.val).toFixed(1)+'" r="4.5" fill="#2CE08B" stroke="#14161A" stroke-width="2" data-d="'+p.date+'" data-v="'+p.val+'" data-l="'+esc(p.lbl)+'"/>').join("");
+    '<circle class="pt" cx="'+X(i).toFixed(1)+'" cy="'+Y(p.val).toFixed(1)+'" r="4.5" fill="#2CE08B" stroke="rgba(10,13,25,.9)" stroke-width="2" data-d="'+p.date+'" data-v="'+p.val+'" data-l="'+esc(p.lbl)+'"/>').join("");
   const xi = [...new Set([0, Math.floor((pts.length-1)/2), pts.length-1])];
   const xlab = xi.map(i => '<text x="'+X(i).toFixed(1)+'" y="'+(H-8)+'" text-anchor="middle" font-size="10" fill="rgba(255,255,255,.38)">'+fmtShort(pts[i].date)+'</text>').join("");
   return '<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="strength trend">'
@@ -3457,26 +3505,59 @@ async function askCoach(q){
         model: "claude-opus-5",
         max_tokens: 16000,
         output_config: {effort: "medium"},
+        stream: true,
         system: sys,
         messages: msgs
       })
     });
-    const data = await res.json().catch(() => null);
     if (!res.ok){
+      const data = await res.json().catch(() => null);
       entry.err = true;
       entry.a = res.status === 401
         ? "That API key was rejected — double-check it in Settings."
         : "The coach couldn't answer (" + (data && data.error ? data.error.message : "HTTP " + res.status) + ").";
-    } else if (data.stop_reason === "refusal"){
-      entry.err = true;
-      entry.a = "The coach declined that one — try rephrasing.";
     } else {
-      entry.a = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("\n").trim() || "(no answer)";
-      if (data.stop_reason === "max_tokens") entry.a += "\n\n(…answer was cut short)";
+      /* stream the answer in as it's written (SSE) — the last bubble repaints live,
+         throttled so a fast stream doesn't thrash the DOM */
+      entry.a = "";
+      const rd = res.body.getReader(), dec = new TextDecoder();
+      let buf = "", stop = null, paint = 0;
+      const live = () => {
+        if (tab !== "coach") return;
+        const bs = document.querySelectorAll(".coach-a");
+        const el = bs[bs.length-1];
+        if (el) el.innerHTML = mdLite(entry.a) || '<span class="thinking">…</span>';
+      };
+      while (true){
+        const {done, value} = await rd.read();
+        if (done) break;
+        buf += dec.decode(value, {stream:true});
+        let i;
+        while ((i = buf.indexOf("\n")) >= 0){
+          const line = buf.slice(0, i).trim(); buf = buf.slice(i+1);
+          if (!line.startsWith("data:")) continue;
+          const js = line.slice(5).trim();
+          if (!js) continue;
+          let ev = null; try { ev = JSON.parse(js); } catch(e){ continue; }
+          if (ev.type === "content_block_delta" && ev.delta && ev.delta.type === "text_delta"){
+            entry.a += ev.delta.text;
+            const now = Date.now();
+            if (now - paint > 120){ paint = now; live(); }
+          }
+          else if (ev.type === "message_delta" && ev.delta && ev.delta.stop_reason) stop = ev.delta.stop_reason;
+          else if (ev.type === "error"){ entry.err = true;
+            entry.a = (entry.a ? entry.a + "\n\n" : "") + "(stream error: " + ((ev.error && ev.error.message) || "unknown") + ")"; }
+        }
+      }
+      entry.a = (entry.a || "").trim();
+      if (stop === "refusal"){ entry.err = true; entry.a = entry.a || "The coach declined that one — try rephrasing."; }
+      if (!entry.a){ entry.err = true; entry.a = "(no answer)"; }
+      if (stop === "max_tokens") entry.a += "\n\n(…answer was cut short)";
     }
   } catch(e){
     entry.err = true;
-    entry.a = "Network error — are you online?";
+    // a drop mid-stream keeps whatever already arrived
+    entry.a = (entry.a ? entry.a + "\n\n(…connection dropped)" : "Network error — are you online?");
   }
   entry.pending = false; save();
   if (tab === "coach") renderCoach();
@@ -3722,7 +3803,7 @@ function linkSS(ei, j){
 const HELP = {
   exrep:{t:"Exercise report card", b:"Every lift trained in the last 28 days with at least 2 logged sessions, graded on two things: <b>(1)</b> how much its best e1RM climbed over those 28 days — that's the %, where +3% and up is an A and a drop pulls toward C/D — and <b>(2)</b> staleness: not matching your all-time best for 3+ sessions caps the grade. Sorted worst-first so the lift that needs attention sits on top. Recomputed live from your log every time the page renders."},
   musrep:{t:"Muscle report card", b:"Each muscle's grade = volume dose + progress. <b>Volume:</b> counted sets vs that muscle's own growth zone (~10–20 for most, wider for pooled regions like delts, ~4–12 for a sub-region). Sitting <i>above</i> the zone barely costs — volume you recover from is a choice; sitting under it does. <b>Progress:</b> whether that muscle's lifts pushed their e1RMs up over the last 28 days. \"Untrained\" flags a sub-region with no direct sets at all."},
-  score:{t:"Strength scorecard", b:"Community-average standards for a man at your bodyweight — your best-ever e1RM per benchmark lift, as a multiple of bodyweight, mapped Beginner → Elite. The group headline is the <b>middle</b> of that group's benchmarks, and ties break down, never up. Dips and pull-ups count bodyweight + added load; dumbbell lifts grade per hand. Dips grade under <b>triceps</b> — upright dips are triceps-led (chest assists at half credit in the volume math). Orientation, not gospel — dumbbell and machine work still counts through volume in Insights."},
+  score:{t:"Strength scorecard", b:"All 16 benchmarks grade against <b>one source</b>: Strength Level's community percentiles for a man at your bodyweight (Beginner ≈ top 95% … Elite ≈ top 5% of people who actually log that lift), so a level means the same thing on every lift. <b>The max estimate:</b> Epley (weight × (1 + reps/30)) through 10 reps — the range where the formula is validated — with only half credit per rep beyond 10, because prediction equations provably overestimate from high-rep sets. Each line shows the exact set the estimate came from, so you can judge it yourself. Dips and pull-ups grade on bodyweight + added load (their standards ladders converted the same way); dumbbell lifts grade per hand. The group headline is the middle of its benchmarks; ties break down, never up. Orientation, not gospel."},
   ovr:{t:"Overall strength index", b:"Each lift's best e1RM per week, divided by its own first-week baseline (that's 100), then averaged across every lift — one line answering \"am I actually getting stronger?\". Weeks you skip a lift, its last value carries forward. The chips cut the same math to one muscle group."},
   rel:{t:"Pound-for-pound", b:"The strength index corrected for bodyweight change. On a cut this is the win condition: if it climbs while the scale falls, you're holding or gaining strength in a smaller body."},
   you:{t:"Your numbers", b:"The denominator behind every grade on this page. Weight is your smoothed <b>trend</b> — each morning weigh-in only nudges it a little — so strength-per-pound doesn't jump around with scale noise. Set body-fat % in Settings to unlock lean mass and FFMI."},
@@ -4351,9 +4432,9 @@ function claudeText(){
     L.push("");
     for (const [id, dl] of Object.entries(S.dl))
       L.push("TARGETED DELOAD: " + exInfo(id).n + " at " + dl.w + " lb (base " + dl.base + ") through " + dl.until);
-    L.push("STRENGTH LEVELS (vs ~" + Math.round(bodyweight()) + " lb bodyweight):");
+    L.push("STRENGTH LEVELS (Strength Level community percentiles vs ~" + Math.round(bodyweight()) + " lb bodyweight; e1RM = Epley capped past 10 reps):");
     for (const sc of scores)
-      L.push("  " + sc.name + ": " + (sc.lv.idx<0?"Beginner":LVLS[sc.lv.idx]) + " — e1RM " + sc.e1 + (sc.bwTotal?" added":"") + " lb (" + sc.ratio.toFixed(2) + "×BW)");
+      L.push("  " + sc.name + ": " + (sc.lv.idx<0?"Beginner":LVLS[sc.lv.idx]) + " — e1RM " + sc.e1 + (sc.bwTotal?" added":sc.db?" per hand":"") + " lb (" + sc.ratio.toFixed(2) + "×BW" + (sc.src ? ", from " + sc.src : "") + ")");
   }
   const {per} = regionVolume(addDays(todayStr(),-6), todayStr());
   if (Object.keys(per).length){
@@ -4419,7 +4500,7 @@ function claudeText(){
     L.push("LAB METRICS:");
     const cur = si[si.length-1].val, d4 = cur - si[Math.max(0, si.length-5)].val;
     L.push("  strength index (100 = first logged week): " + cur.toFixed(1) + " (" + (d4>0?"+":"") + d4.toFixed(1) + " last 4wk)");
-    const grpLine = [["chest","Chest"],["back","Back"],["shoulders","Delts"],["arms","Arms"],["quads","Quads"],["hamstrings","Hams"]]
+    const grpLine = [["chest","Chest"],["back","Back"],["shoulders","Delts"],["arms","Arms"],["quads","Quads"],["hamstrings","Hams"],["glutes","Glutes"],["calves","Calves"],["abs","Core"]]
       .map(([k,l]) => { const s = strengthIndex(k); return s.length >= 2 ? l+" "+s[s.length-1].val.toFixed(0) : null; })
       .filter(Boolean).join(" · ");
     if (grpLine) L.push("  by muscle group: " + grpLine);
@@ -5038,6 +5119,8 @@ document.addEventListener("click", ev => {
     btn.textContent = el.hidden ? "Growth-zone check — anything to change? ›" : "Hide the growth-zone check";
   }
   else if (act === "hist-more"){ histShow += 25; render(); }
+  else if (act === "hist-month-open"){ openHistMonthModal(); }
+  else if (act === "hist-month-pick"){ histMonth = btn.dataset.m; histShow = 15; closeModal(); render(); }
   else if (act === "ttab"){ S.trendTab = btn.dataset.t; save(); render(); }
   else if (act === "lab-group"){ labGroup = btn.dataset.g; render(); }
   else if (act === "range"){ S.range = +btn.dataset.r; save(); render(); }
@@ -5122,7 +5205,6 @@ document.addEventListener("change", ev => {
   }
   else if (t.id === "cardio-on"){ curDraft().cardio.on = t.checked; save(); }
   else if (t.id === "cardio-min"){ curDraft().cardio.min = Math.max(0, +t.value||0); save(); }
-  else if (t.id === "hist-month"){ histMonth = t.value; histShow = 15; render(); }
   else if (t.id === "prog-sel"){ S.progSel = t.value; save(); render(); }
   else if (t.id === "st-kcal"){ S.settings.kcalTarget = Math.max(0, +t.value||0) || 2510; save(); }
   else if (t.id === "st-goal"){ S.settings.goalWeight = t.value; save(); }
@@ -5198,18 +5280,48 @@ document.addEventListener("focusin", ev => {
     setTimeout(() => { try { t.scrollIntoView({block:"center", behavior:"smooth"}); } catch(e){} }, 250);
   }
 });
+/* chart tooltip — the tip element that lives in the SAME chartwrap wins (two charts on a
+   page each carry their own #ctip; positioning against the wrong one put tips in space) */
+function showChartTip(c, cx, cy){
+  const wrapEl = c.closest(".chartwrap");
+  const tip = wrapEl.querySelector("#ctip") || $("#ctip");
+  if (!tip) return;
+  tip.innerHTML = "<b>" + fmtDate(c.dataset.d) + "</b><br>" + c.dataset.v + (c.dataset.l ? " · " + c.dataset.l : "");
+  tip.style.display = "block";
+  const wrap = wrapEl.getBoundingClientRect();
+  let x = cx - wrap.left + 12, y = cy - wrap.top - 34;
+  if (x > wrap.width - 140) x -= 160;
+  tip.style.left = x + "px"; tip.style.top = Math.max(0, y) + "px";
+}
 document.addEventListener("pointerover", ev => {
   const c = ev.target.closest && ev.target.closest(".pt");
   const tip = $("#ctip");
   if (!tip) return;
   if (!c){ tip.style.display = "none"; return; }
-  tip.innerHTML = "<b>" + fmtDate(c.dataset.d) + "</b><br>" + c.dataset.v + (c.dataset.l ? " · " + c.dataset.l : "");
-  tip.style.display = "block";
-  const wrap = c.closest(".chartwrap").getBoundingClientRect();
-  let x = ev.clientX - wrap.left + 12, y = ev.clientY - wrap.top - 34;
-  if (x > wrap.width - 140) x -= 160;
-  tip.style.left = x + "px"; tip.style.top = Math.max(0, y) + "px";
+  showChartTip(c, ev.clientX, ev.clientY);
 });
+/* touch scrub — pointerover is a mouse idea; on a phone, touch a chart and slide to walk
+   its points (nearest point by x, within 48px) */
+let scrubbing = null;
+function scrubAt(wrap, clientX, clientY){
+  let best = null, bd = Infinity;
+  for (const p of wrap.querySelectorAll(".pt")){
+    const b = p.getBoundingClientRect(), d = Math.abs((b.left + b.right)/2 - clientX);
+    if (d < bd){ bd = d; best = p; }
+  }
+  if (best && bd < 48) showChartTip(best, clientX, clientY);
+}
+document.addEventListener("pointerdown", ev => {
+  const wrap = ev.target.closest && ev.target.closest(".chartwrap");
+  if (!wrap || !wrap.querySelector("#ctip")) return;
+  scrubbing = {wrap, id: ev.pointerId};
+  scrubAt(wrap, ev.clientX, ev.clientY);
+}, true);
+document.addEventListener("pointermove", ev => {
+  if (scrubbing && ev.pointerId === scrubbing.id) scrubAt(scrubbing.wrap, ev.clientX, ev.clientY);
+}, true);
+document.addEventListener("pointerup", ev => { if (scrubbing && ev.pointerId === scrubbing.id) scrubbing = null; }, true);
+document.addEventListener("pointercancel", ev => { if (scrubbing && ev.pointerId === scrubbing.id) scrubbing = null; }, true);
 $("#ovl").addEventListener("click", ev => { if (ev.target.id === "ovl") closeModal(); });
 /* swipe down to dismiss a sheet — drag starts only when the sheet is scrolled to its top,
    so normal scrolling inside long pickers (like Swap exercise) is untouched */
