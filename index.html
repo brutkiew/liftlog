@@ -361,6 +361,14 @@
     box-shadow:0 16px 48px rgba(0,0,0,.55);overscroll-behavior:contain;touch-action:pan-y}
   body.mlock{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   #modal input,#modal select,#modal textarea{min-width:0;max-width:100%}
+  /* auto-regulation: readiness sliders + pump/soreness check-in */
+  .rdrow{margin-top:14px}
+  .rdrow input[type=range]{width:100%;accent-color:var(--accent);height:28px;margin:2px 0 0;padding:0;background:none;border:none}
+  .fbrow{margin-top:12px;padding-top:12px;border-top:1px solid var(--stroke-soft)}
+  .fbrow .rowline{margin-top:8px;gap:8px}
+  .fbseg{display:flex;gap:6px;flex:1}
+  .fbseg button{flex:1;padding:8px 4px;font-size:12.5px;border-radius:10px}
+  .fbseg button.on{background:var(--accent-dim);border-color:rgba(44,224,139,.5);color:var(--accent-hi);font-weight:650}
   #modal input[type="date"],#plan-date{display:block;width:100%;-webkit-appearance:none;appearance:none;
     min-height:46px;text-align:left;-webkit-min-logical-width:0}
   #modal h3{font-size:16px;font-weight:700;letter-spacing:-.01em;margin-bottom:12px}
@@ -750,7 +758,7 @@ const MYTHS = [
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
-  age:30, bodyFat:"", cardioKcal:7.8};
+  age:30, bodyFat:"", cardioKcal:7.8, autoReg:true};
 let S = {workouts:[], drafts:{}, custom:{}, templates:{}, coach:[], milestone:0, uniO:{},
   body:{weights:{}, kcals:{}},
   settings:Object.assign({}, DEF_SET),
@@ -765,6 +773,7 @@ try { const raw = localStorage.getItem(KEY); if (raw){
 S.templates = S.templates || {}; S.coach = S.coach || []; S.milestone = S.milestone || 0;
 S.uniO = S.uniO || {};
 S.dl = S.dl || {}; // per-lift targeted deloads: {base, w, n, until}
+S.fb = S.fb || {}; // post-workout check-ins: {date: {region: {p:0-2 pump, s:0-2 soreness}}}
 S.coach.forEach(x => { x.pending = false; if (x.a === "") x.a = "(interrupted)"; });
 /* names that clearly mean one limb at a time — used to auto-set the per-side flag */
 const UNI_RE = /\b(single|one|1)[ -]?(arm|leg|hand)\b|unilateral|per side|each side|alternat/i;
@@ -867,6 +876,16 @@ function bestE1InRange(id, a, b){
     const e = w.exercises.find(x => x.id === id); if (!e) continue;
     const ss = workSets(e.sets); if (ss.length) m = Math.max(m, bestMetric(ss, ex)); }
   return m || null;
+}
+/* pre-workout readiness (Juggernaut-style): 4 sliders → a multiplier on today's ghost
+   targets, ±5–10%. Lives on the draft so past-date logging is never affected. The same
+   scaleW must run everywhere a ghost is shown OR adopted, so display and finish agree. */
+const readyMult = d => (d && d.ready && d.ready.m) || 1;
+function scaleW(w, m){
+  const v = +w;
+  if (!v || !m || m === 1) return w === undefined || w === null ? "" : String(w);
+  const step = v >= 50 ? 5 : 2.5;
+  return String(Math.max(step, Math.round(v*m/step)*step));
 }
 function analyze(exId, plan){
   const ex = exInfo(exId), p = plan || {n:3, lo:8, hi:12};
@@ -1480,26 +1499,50 @@ function freshDays(){
   return {reg:Object.fromEntries(Object.entries(lastR).map(([r,d]) => [r, dd(d)])),
           sub:Object.fromEntries(Object.entries(lastS).map(([k,d]) => [k, dd(d)]))};
 }
-/* graded recovery ramp, hot → ready → dormant (mirrors the heat map's bucket idea) */
+/* which major region each sub-region rolls up to — check-in feedback is collected per
+   region, so a sub inherits its parent's tuned recovery clock */
+const SUB_REG = {chest_up:"chest", chest_low:"chest", delt_front:"shoulders", delt_side:"shoulders",
+  delt_rear:"shoulders", tri_long:"triceps", tri_lat:"triceps", bi_curl:"biceps", bi_brach:"biceps",
+  back_lat:"lats", back_mid:"upper_back", quad_comp:"quads", quad_iso:"quads",
+  ham_hinge:"hamstrings", ham_curl:"hamstrings", calf_stand:"calves", calf_seat:"calves",
+  abs_low:"core", abs_crunch:"core"};
+/* per-region recovery tuning from post-workout check-ins: "still sore coming in" slows that
+   muscle's freshness clock (+1 day), "wasn't sore" speeds it up (−0.7). Last 3 ratings,
+   recency-weighted, clamped to [−1, +1.5] days. */
+function recovAdj(r){
+  const es = Object.entries(S.fb).filter(([,m]) => m[r] && m[r].s !== undefined)
+    .sort((a,b) => b[0].localeCompare(a[0])).slice(0,3);
+  if (!es.length) return 0;
+  let num = 0, den = 0, w = 1;
+  for (const [,m] of es){ num += w * (m[r].s === 2 ? 1 : m[r].s === 0 ? -0.7 : 0); den += w; w *= 0.6; }
+  return Math.max(-1, Math.min(1.5, num/den));
+}
+/* effective recovery age: raw days shifted by the tuned clock. Trained-today always reads
+   hot; anything older never drops below "recovering". */
+const adjD = (raw, r) => raw === null ? null : raw <= 0 ? raw : Math.max(0.5, raw - recovAdj(r));
+/* graded recovery ramp, hot → ready → dormant (mirrors the heat map's bucket idea);
+   takes fractional days now that check-ins shift each muscle's clock */
 const freshFill = d => d === null ? "hsl(224 48% 30%)" /* never trained = clear blue */
-  : d <= 0 ? "hsl(18 88% 55%)"     // trained today
-  : d === 1 ? "hsl(42 95% 55%)"    // yesterday — recovering
-  : d === 2 ? "hsl(75 60% 50%)"    // almost ready
-  : d <= 7 ? "hsl(152 60% 45%)"    // ready
+  : d <= 0.25 ? "hsl(18 88% 55%)"  // trained today
+  : d < 1.75 ? "hsl(42 95% 55%)"   // recovering
+  : d < 2.75 ? "hsl(75 60% 50%)"   // almost ready
+  : d <= 7.5 ? "hsl(152 60% 45%)"  // ready
   : "hsl(210 25% 34%)";            // 8+ days — due again
 function paintFresh(id){
   const svg = document.getElementById(id); if (!svg) return;
   freshD = freshDays();
   for (const el of svg.querySelectorAll("[data-region]")){
     const sub = el.dataset.sub;
-    const days = sub !== undefined
+    const r = sub !== undefined ? (SUB_REG[sub] || el.dataset.region) : el.dataset.region;
+    const raw = sub !== undefined
       ? (freshD.sub[sub] !== undefined ? freshD.sub[sub] : null)
       : (freshD.reg[el.dataset.region] !== undefined ? freshD.reg[el.dataset.region] : null);
+    const days = adjD(raw, r);
     el.setAttribute("fill", freshFill(days));
     el.style.filter = days === null ? ""
-      : days <= 1 ? "drop-shadow(0 0 5px rgba(255,150,60,.45))"
-      : days === 2 ? "drop-shadow(0 0 4px rgba(190,220,90,.3))"
-      : days <= 7 ? "drop-shadow(0 0 4px rgba(44,224,139,.3))" : "";
+      : days < 1.75 ? "drop-shadow(0 0 5px rgba(255,150,60,.45))"
+      : days < 2.75 ? "drop-shadow(0 0 4px rgba(190,220,90,.3))"
+      : days <= 7.5 ? "drop-shadow(0 0 4px rgba(44,224,139,.3))" : "";
   }
 }
 function weekBulletHTML(){
@@ -1562,6 +1605,7 @@ function scoreHeroInner(done){
     + '<div class="cap num" style="margin-top:3px">'+done.exercises.length+' exercises · '+setsN+' sets</div>'
     + (done.prs && done.prs.length ? '<div class="wr" style="font-size:12.5px;font-weight:650;margin-top:5px">'+done.prs.length+' PR'+(done.prs.length>1?"s":"")+' — '+esc(done.prs.map(p=>p.name).slice(0,2).join(", "))+'</div>' : '')
     + (rt ? '<div class="cap" style="margin-top:5px;cursor:pointer" data-act="score-why" data-id="'+done.id+'">Why this grade ›</div>' : '')
+    + (S.fb[done.date] === undefined ? '<div class="cap" style="margin-top:5px;cursor:pointer" data-act="fb-open" data-date="'+done.date+'">Rate pump &amp; soreness ›</div>' : '')
     + '</div></div>'
     + (tp ? '<div class="hint" style="margin-top:10px"><span class="ok-dot"></span>Tomorrow — '
         + esc((sesDef(tmr.session)||{}).name || tmr.bname || "Custom")+(tmr.exercises.length ? ' · '+tmr.exercises.length+' exercises' : '')+'</div>' : '')
@@ -1638,7 +1682,7 @@ function renderHome(){
     + weekStripHTML()
     + (st ? '<div class="cap num" style="text-align:center;margin-top:8px">'+st+'-wk streak at 5+</div>' : '')
     + '</div>';
-  html += '<div class="card span2"><span class="lbl">Muscle freshness</span>'+freshSVG("freshmap")
+  html += '<div class="card span2"><span class="lbl">Muscle freshness'+qBtn("fresh")+'</span>'+freshSVG("freshmap")
     + '<div class="freshleg">'
     + [["Today",0],["1 day",1],["2 days",2],["Ready",4],["8+ days",9]].map(([l,d]) =>
         '<span><i style="background:'+freshFill(d)+'"></i>'+l+'</span>').join("")
@@ -1761,6 +1805,7 @@ function renderWorkout(d){
   const isToday = d.date === todayStr();
   const planning = !!d.planned && d.date > todayStr();
   const chk = S.settings.checkOff;
+  const rm = readyMult(d);
   const total = d.exercises.reduce((a,e) => a + e.sets.length, 0);
   const doneN = d.exercises.reduce((a,e) => a + e.sets.filter(setLogged).length, 0);
   let html = '<div id="sessbar"><button class="ghost" data-act="pause" title="Save & exit">‹</button>'
@@ -1784,6 +1829,17 @@ function renderWorkout(d){
       + '<button class="ghost" data-act="builder-open" data-for="'+d.date+'" style="width:100%;margin-top:8px;font-size:13px">Or let the Target builder fill this day →</button>'
       + '</div>';
 
+  // readiness banner — set: show the effect; unset: a one-tap invitation (today only)
+  if (!planning && isToday){
+    if (d.ready && d.ready.m !== 1)
+      html += '<div class="card banner rowline" data-act="ready-open" style="cursor:pointer;margin-bottom:12px"><span class="grow hint">'
+        + (d.ready.m > 1 ? '<b class="up">Readiness high</b> — today\'s targets +5%. Green light.'
+          : '<b class="wr">Readiness low</b> — targets '+Math.round((1 - d.ready.m)*100)+'% lighter today. Showing up still wins.')
+        + '</span><span class="cap">edit ›</span></div>';
+    else if (!d.ready && S.settings.autoReg)
+      html += '<button class="ghost" data-act="ready-open" style="width:100%;margin:0 0 10px;font-size:13px">Readiness check — four sliders tune today\'s targets →</button>';
+  }
+
   // superset groups get a letter in order of appearance — ⧉ A pairs stay visually linked
   const ssLetters = {}; let ssN = 0;
   d.exercises.forEach(e => { if (e.ss && ssLetters[e.ss] === undefined) ssLetters[e.ss] = String.fromCharCode(65 + ssN++); });
@@ -1801,7 +1857,7 @@ function renderWorkout(d){
       const ls = e.sets.map((s,si) => ({s,si})).filter(x => setLogged(x.s));
       const sum = ls.length
         ? ls.length+'/'+e.sets.length+' · <b>'+ls.map(({s,si}) => { if (a.ex.bw) return +s.w ? s.w+'×'+s.r : 'BW×'+s.r;
-            const w = +s.w || +a.gW(si) || 0;
+            const w = +s.w || +scaleW(a.gW(si), rm) || 0;
             return w ? w+'×'+s.r : s.r; }).join(' · ')+'</b>'
         : (a.prev.length
             ? 'last '+a.prev.map(s => (+s.w ? s.w+'×'+s.r : (a.ex.bw ? 'BW×'+s.r : s.r))).join(' · ')
@@ -1823,13 +1879,13 @@ function renderWorkout(d){
       + '<button class="ghost" data-act="ex-close" data-ei="'+i+'" title="Collapse">▴</button>'
       + '<button class="ghost" data-act="ex-menu" data-ei="'+i+'">⋯</button></div>'
       + (e.note ? '<div class="xnote">'+esc(e.note)+'</div>' : '')
-      + (a.ex.bb && +a.gW(0) ? (ps => ps ? '<div class="cap num" style="margin-top:4px">'+(+a.gW(0))+' lb = '+ps+'</div>' : '')(plateStr(+a.gW(0))) : '')
+      + (a.ex.bb && +scaleW(a.gW(0), rm) ? (ps => ps ? '<div class="cap num" style="margin-top:4px">'+(+scaleW(a.gW(0), rm))+' lb = '+ps+'</div>' : '')(plateStr(+scaleW(a.gW(0), rm))) : '')
       + (a.prev.length ? '<div class="stabs">'
           + '<button class="'+(!e.tabLast ? "on" : "")+'" data-act="stab" data-ei="'+i+'" data-v="cur">This session</button>'
           + '<button class="'+(e.tabLast ? "on" : "")+'" data-act="stab" data-ei="'+i+'" data-v="last">Last time</button></div>' : '')
       + (e.tabLast && a.prev.length ? lastPanel(e, a)
         : '<div class="cols"><span>Set</span><span>Previous</span><span>Lbs</span><span>Reps</span>'+(chk ? '<span></span>' : '')+'</div>'
-          + e.sets.map((s, si) => setRow(e, a, i, si, chk)).join("")
+          + e.sets.map((s, si) => setRow(e, a, i, si, chk, rm)).join("")
           + '<div class="setbtns"><button class="addset" data-act="addset" data-ei="'+i+'">+ Add set</button>'
           + '<button class="addset" data-act="swap" data-ei="'+i+'">⇄ Swap</button>'
           + '<button class="addset" data-act="ss-open" data-ei="'+i+'">⧉ Superset</button></div>')
@@ -1861,7 +1917,7 @@ function plateStr(total){
     while (per >= p - 0.01){ out.push(p); per -= p; }
   return out.length ? "bar + " + out.join(" + ") + " / side" + (per > 0.3 ? " ≈" : "") : "";
 }
-function setRow(e, a, ei, si, chk){
+function setRow(e, a, ei, si, chk, rm){
   const s = e.sets[si];
   const prev = a.prev[si] ? ((+a.prev[si].w||0) ? a.prev[si].w+" × "+a.prev[si].r
       : (a.ex.bw ? "BW × "+a.prev[si].r : a.prev[si].r+" reps"))
@@ -1869,7 +1925,7 @@ function setRow(e, a, ei, si, chk){
   return '<div class="srow'+(chk && s.done?" done":"")+(s.warm?" warm":"")+(s.del?" pdel":"")+'" data-ei="'+ei+'" data-si="'+si+'">'
     + '<button class="snum" data-act="warm" data-ei="'+ei+'" data-si="'+si+'">'+(s.del?"⊘":s.warm?"W":si+1)+'</button>'
     + '<div class="prev num">'+prev+'</div>'
-    + '<input class="w num" type="number" inputmode="decimal" step="0.5" min="0" value="'+esc(s.w)+'" placeholder="'+(a.ex.bw && !+a.gW(si) ? "BW" : esc(a.gW(si)))+'" data-ei="'+ei+'" data-si="'+si+'">'
+    + '<input class="w num" type="number" inputmode="decimal" step="0.5" min="0" value="'+esc(s.w)+'" placeholder="'+(a.ex.bw && !+a.gW(si) ? "BW" : esc(scaleW(a.gW(si), rm)))+'" data-ei="'+ei+'" data-si="'+si+'">'
     + '<input class="r num" type="number" inputmode="numeric" min="0" value="'+esc(s.r)+'" placeholder="'+esc(a.gR(si))+'" data-ei="'+ei+'" data-si="'+si+'">'
     + (chk ? '<button class="chk" data-act="chk" data-ei="'+ei+'" data-si="'+si+'">'+icon("check",20,2.4)+'</button>' : '')
     + '</div>';
@@ -2094,7 +2150,7 @@ function finishDraft(dateStr, silent){
       if (exInfo(e.id).bw) continue;
       const a = analyze(e.id, e.plan);
       e.sets.forEach((s, si) => {
-        if (+s.r > 0 && s.w === ""){ const gw = a.gW(si); if (+gw) s.w = gw; }
+        if (+s.r > 0 && s.w === ""){ const gw = scaleW(a.gW(si), readyMult(d)); if (+gw) s.w = gw; }
       });
     }
   }
@@ -2464,7 +2520,16 @@ function trendsInsights(){
     + '<div class="heat-legend">'
     + [["0",heatFill(0)],["1–5",heatFill(3)],["6–10",heatFill(8)],["11–15",heatFill(13)],["16+",heatFill(18)]]
         .map(([l,c]) => '<span><i style="background:'+c+'"></i>'+l+'</span>').join("")
-    + '</div><div id="heat-detail" class="num">tap a muscle</div></div>';
+    + '</div><div id="heat-detail" class="num">tap a muscle</div>'
+    + (va => '<div class="mgroup" style="margin-top:14px">Growth-zone check'+qBtn("volband")+'</div>'
+      + (va.length
+        ? va.map(a => '<div class="rowline" style="margin-top:7px"><span style="font-size:13.5px"><i class="gdot" style="background:'
+            + (REG_COL[a.r]||"#8A93A3")+'"></i>'+REGIONS[a.r]+'</span>'
+            + '<b class="num" style="margin-left:auto;color:'+(a.k === "under" ? "var(--info)" : "var(--warn)")+'">'
+            + (Math.round(a.v*2)/2)+' <span class="cap">/ 10–20</span></b></div>'
+            + '<div class="cap" style="margin:1px 0 0 15px">'+a.note+'</div>').join("")
+        : '<p class="hint" style="margin-top:6px">Every muscle you train sat inside the 10–20 set growth zone this week — exactly where you want to live.</p>'))(volAdvice())
+    + '</div>';
 
   // highlights
   const hl = highlights();
@@ -2852,6 +2917,37 @@ function subVolume(subKey, days){
   for (const w of S.workouts){ if (w.date < a) continue;
     for (const e of w.exercises) if (exInfo(e.id).sub === subKey) n += workSets(e.sets).length; }
   return n;
+}
+/* growth-zone check: last-7-day fractional sets vs the ~10–20 productive band, cross-read
+   with recent pump/soreness check-ins so the advice reflects your recovery, not just math.
+   Only muscles that are actually part of the program (≥8 credited sets over 28d) get advice. */
+function volAdvice(){
+  const {per} = regionVolume(addDays(todayStr(),-6), todayStr());
+  const {per:p28} = regionVolume(addDays(todayStr(),-27), todayStr());
+  const fbAvg = r => {
+    const es = Object.entries(S.fb).filter(([,m]) => m[r]).sort((a,b) => b[0].localeCompare(a[0])).slice(0,3);
+    if (!es.length) return null;
+    const g = k => { const v = es.map(([,m]) => m[r][k]).filter(x => x !== undefined);
+      return v.length ? v.reduce((a,b) => a+b, 0)/v.length : null; };
+    return {p:g("p"), s:g("s")};
+  };
+  const out = [];
+  for (const r of Object.keys(REGIONS)){
+    if ((p28[r]||0) < 8) continue;
+    const v = per[r]||0, fb = fbAvg(r);
+    if (v < 10){
+      let note = v === 0 ? "nothing this week" : "below the growth zone";
+      if (fb && fb.p !== null && fb.p < 0.7) note += " — low pump agrees; add a set or two";
+      out.push({r, v, k:"under", note});
+    } else if (v > 20){
+      out.push({r, v, k:"over", note: fb && fb.s !== null && fb.s >= 1.5
+        ? "high volume + still getting sore — recovery is losing; trim sets"
+        : "past the point of diminishing returns"});
+    } else if (fb && fb.s !== null && fb.s >= 1.8){
+      out.push({r, v, k:"sore", note:"volume is in the zone but it keeps staying sore — hold or trim a set"});
+    }
+  }
+  return out;
 }
 function volScore(wv, isSub){
   if (isSub) return wv >= 4 && wv <= 12 ? 50 : wv >= 3 || (wv > 12 && wv <= 16) ? 42 : wv >= 1.5 ? 28 : wv > 0 ? 15 : 0;
@@ -3290,6 +3386,8 @@ function renderMore(){
     + '<div class="setrow-lab"><span>Timer sound</span><input type="checkbox" id="st-sound" style="width:22px;height:22px"'+(st.sound?" checked":"")+'></div>'
     + '<div class="setrow-lab"><span>Timer vibration</span><input type="checkbox" id="st-vib" style="width:22px;height:22px"'+(st.vibrate?" checked":"")+'></div>'
     + '<div class="setrow-lab"><span>Show session clock</span><input type="checkbox" id="st-clock" style="width:22px;height:22px"'+(st.showClock?" checked":"")+'></div>'
+    + '<div class="setrow-lab"><span>Readiness &amp; recovery check-ins</span><input type="checkbox" id="st-areg" style="width:22px;height:22px"'+(st.autoReg?" checked":"")+'></div>'
+    + '<p class="cap" style="margin-top:4px">Four pre-workout sliders that tune the day\'s targets ±5–10%, and a pump/soreness check after each session that tunes each muscle\'s recovery clock on the freshness map.</p>'
     + '</div>'
     + '<h2>My templates</h2><div class="card">'
     + (Object.keys(S.templates).length
@@ -3320,6 +3418,8 @@ function renderMore(){
 /* ================= modal ================= */
 /* body scroll-lock while a sheet is open — otherwise scrolling the sheet can pan the page behind it */
 let modScrollY = 0;
+/* a toast queued while a sheet is up (the sheet sits above the toast layer) — shown on close */
+let pendingToast = null;
 function openModal(html){
   $("#modal").innerHTML = '<div class="grab"></div>' + html;
   if (!document.body.classList.contains("mlock")){
@@ -3337,6 +3437,7 @@ function closeModal(){
     document.body.style.top = "";
     window.scrollTo(0, modScrollY);
   }
+  if (pendingToast){ const m = pendingToast; pendingToast = null; showToast(m); }
 }
 function exercisePicker(act, ei, prio){
   const q = ($("#exsearch") && $("#exsearch").value || "").toLowerCase();
@@ -3443,6 +3544,10 @@ const HELP = {
   rel:{t:"Pound-for-pound", b:"The strength index corrected for bodyweight change. On a cut this is the win condition: if it climbs while the scale falls, you're holding or gaining strength in a smaller body."},
   you:{t:"Your numbers", b:"The denominator behind every grade on this page. Weight is your smoothed <b>trend</b> — each morning weigh-in only nudges it a little — so strength-per-pound doesn't jump around with scale noise. Set body-fat % in Settings to unlock lean mass and FFMI."},
   cardio:{t:"Cardio tracking", b:"Counted from the \"Incline treadmill\" line on the workout screen. Minutes feed the daily-energy model below (minutes × your kcal/min setting), earn a small session-score bonus, and show in the weekly recap."},
+  ready:{t:"Readiness check", b:"Auto-regulation, Juggernaut-style: rate sleep, energy, food and how fresh your body feels, 1–5 each. A strong day (average ≥ 4.25) nudges today's ghost targets <b>+5%</b>; a rough one pulls them <b>−5 to −10%</b>. It only scales the <i>suggestions</i> — what you actually lift is always your call, and progression math still runs on what you log. Asked once, at the day's first workout start; tap the banner to redo it."},
+  pumpfb:{t:"Pump & soreness check-in", b:"The feedback loop the $200/yr apps run, in two taps per muscle. <b>Pump</b> = did today's volume do its job — a muscle that never pumps and never progresses probably needs more sets. <b>Coming in</b> = had it healed from last time? That answer tunes the muscle's recovery clock on the freshness map: \"still sore\" makes its clock run slower, \"fresh\" makes it run faster. Two or three check-ins per muscle are enough to see the map shift."},
+  volband:{t:"Growth-zone check", b:"Research puts the productive weekly dose near <b>10–20 hard sets</b> per muscle (secondary work counts half, ~4–12 for a sub-region), with diminishing returns above. This reads your last 7 days against that band and only flags what's off — under-stimulated or overreached — cross-checked against your pump &amp; soreness check-ins when you've logged them. Muscles you don't train directly aren't nagged about."},
+  fresh:{t:"Muscle freshness", b:"Days since each muscle last took a real dose (2+ credited sets), on a ramp: trained today → recovering → almost → ready → due again at 8+ days. Your post-workout check-ins tune it per muscle — report a muscle \"still sore\" and its clock runs up to 1 day slower; \"fresh\" up to a day faster. Real recovery data instead of pure day-counting."},
 };
 const qBtn = k => '<button class="qbtn" data-act="help" data-h="'+k+'">?</button>';
 /* plateau watch — status of a running targeted deload, or the offer to start one */
@@ -3470,6 +3575,45 @@ function openPlateauModal(ei){
     + '<div class="btnrow">'
     + (base > 0 ? '<button class="primary" data-act="dl-start" data-id="'+id+'">Deload this lift · 1 week</button>' : '')
     + '<button data-act="modal-close">Not now</button></div>');
+}
+/* pre-workout readiness sheet — 4 sliders, higher = better. Skippable, once per day. */
+const READY_Q = [["Sleep","rough night","slept great"], ["Energy","running on empty","fired up"],
+  ["Food","ran on fumes","well fueled"], ["Body","beat up / sore","fresh"]];
+function openReadySheet(){
+  const d = curDraft(), rv = (d && d.ready && d.ready.v) || [3,3,3,3];
+  openModal('<h3>Readiness'+qBtn("ready")+'</h3>'
+    + '<p class="hint">Four honest sliders — today\'s ghost targets scale ±5–10% to match the day. Auto-regulation beats hero days and wasted ones.</p>'
+    + READY_Q.map((q,i) => '<div class="rdrow"><span class="lbl">'+q[0]+'</span>'
+      + '<input type="range" id="rd'+i+'" min="1" max="5" step="1" value="'+(rv[i]||3)+'">'
+      + '<div class="rowline"><span class="cap">'+q[1]+'</span><span class="cap" style="margin-left:auto">'+q[2]+'</span></div></div>').join("")
+    + '<div class="btnrow" style="margin-top:16px"><button class="primary" data-act="ready-save">Set readiness</button>'
+    + '<button data-act="ready-skip">Skip today</button></div>');
+}
+/* post-workout check-in (RP-lite): pump now + how recovered each muscle was coming in.
+   Majors = primary regions that took 2+ working sets this session. */
+function fbRegions(w){
+  const cr = {};
+  for (const e of w.exercises){
+    const n = workSets(e.sets).length; if (!n) continue;
+    for (const r of muscOf(e.id).p) cr[r] = (cr[r]||0) + n;
+  }
+  return Object.entries(cr).filter(([,c]) => c >= 2).sort((a,b) => b[1]-a[1]).slice(0,6).map(([r]) => r);
+}
+function openFBSheet(date){
+  const w = S.workouts.find(x => x.date === date); if (!w) return;
+  const regs = fbRegions(w);
+  if (!regs.length){ S.fb[date] = S.fb[date] || {}; save(); return; }
+  const prev = S.fb[date] || {};
+  const seg = (r, t, opts, cur) => '<div class="fbseg">'+opts.map((o,i) =>
+    '<button data-act="fb-tap" data-t="'+t+'" data-v="'+i+'" class="'+(cur === i ? "on" : "")+'">'+o+'</button>').join("")+'</div>';
+  openModal('<h3>How did it land?'+qBtn("pumpfb")+'</h3>'
+    + '<p class="hint">Two taps per muscle — skip any you\'re unsure about. <b>Pump</b> says whether today\'s volume did its job; <b>coming in</b> tunes that muscle\'s recovery clock on the freshness map.</p>'
+    + regs.map(r => '<div class="fbrow" data-r="'+r+'"><b style="font-size:14px"><i class="gdot" style="background:'+(REG_COL[r]||"#8A93A3")+'"></i>'+REGIONS[r]+'</b>'
+      + '<div class="rowline"><span class="cap" style="width:76px;flex:none">Pump</span>'+seg(r, "p", ["none","good","crazy"], prev[r] ? prev[r].p : undefined)+'</div>'
+      + '<div class="rowline"><span class="cap" style="width:76px;flex:none">Coming in</span>'+seg(r, "s", ["fresh","sore, healed","still sore"], prev[r] ? prev[r].s : undefined)+'</div>'
+      + '</div>').join("")
+    + '<div class="btnrow" style="margin-top:16px"><button class="primary" data-act="fb-save" data-date="'+date+'">Save check-in</button>'
+    + '<button data-act="fb-skip" data-date="'+date+'">Skip</button></div>');
 }
 /* superset picker — link this lift with a partner; pairs alternate sets, rest after the pair */
 function openSSModal(ei){
@@ -3589,10 +3733,11 @@ function tgtDays(k){
   if (k.startsWith("g:")){
     const regs = (GROUP_M[k.slice(2)] || {p:[]}).p;
     let m = null;
-    for (const r of regs){ const d = freshD.reg[r]; if (d !== undefined && (m === null || d < m)) m = d; }
+    for (const r of regs){ const d = freshD.reg[r];
+      if (d !== undefined){ const a = adjD(d, r); if (m === null || a < m) m = a; } }
     return m;
   }
-  return freshD.sub[k] !== undefined ? freshD.sub[k] : null;
+  return freshD.sub[k] !== undefined ? adjD(freshD.sub[k], SUB_REG[k] || "") : null;
 }
 const tgtLabel = k => k.startsWith("g:") ? "All "+(GROUPS[k.slice(2)]||"") : (TGT_LBL[k]||k);
 function openBuilderModal(fixedDate){
@@ -3639,7 +3784,7 @@ function updateBNotes(){
     const evb = info ? (info.ev === 2 ? ' <span class="evb p">PROVEN</span>' : info.ev === 1 ? ' <span class="evb l">LIKELY</span>' : ' <span class="evb o">OPTIONAL</span>') : "";
     h += '<p class="hint" style="margin-top:10px"><b style="color:var(--text-1)">'+tgtLabel(k)+'</b>'+evb
       + ' — '+(info ? info.note : 'everything for the muscle: stretch-loaded primary + complement.')
-      + (d !== null && d <= 1 ? ' <span class="wr">Trained '+(d === 0 ? "today" : "yesterday")+' — still recovering; go light or pick another target.</span>' : '')+'</p>';
+      + (d !== null && d < 1.75 ? ' <span class="wr">Trained '+(d <= 0.25 ? "today" : "recently")+' — still recovering; go light or pick another target.</span>' : '')+'</p>';
   }
   el.innerHTML = h;
 }
@@ -3830,19 +3975,24 @@ function mapTap(svg, x, y){
     const el = $("#fresh-detail");
     if (el){
       if (!freshD) freshD = freshDays();
-      const days = sub !== undefined
+      const raw = sub !== undefined
         ? (freshD.sub[sub] !== undefined ? freshD.sub[sub] : null)
         : (freshD.reg[r] !== undefined ? freshD.reg[r] : null);
+      const fbR = sub !== undefined ? (SUB_REG[sub] || r) : r;
+      const adj = recovAdj(fbR), days = adjD(raw, fbR);
       const sets = sub !== undefined ? subVolume(sub, 7)
         : (regionVolume(addDays(todayStr(),-6), todayStr()).per[r] || 0);
       const nm = REGIONS[r] + (sub !== undefined && SUB_LBL[sub] ? " · "+SUB_LBL[sub].toLowerCase() : "");
+      const ago = raw === null ? "" : raw === 0 ? "trained today" : raw === 1 ? "trained yesterday" : "trained "+raw+" days ago";
       const st = days === null ? "not trained yet"
-        : days === 0 ? '<span style="color:hsl(18 88% 58%)">trained today</span>'
-        : days === 1 ? '<span class="wr">recovering</span> — trained yesterday'
-        : days === 2 ? '<span style="color:hsl(75 60% 55%)">almost ready</span> — trained 2 days ago'
-        : days <= 7 ? '<span class="up">ready</span> — last trained '+days+' days ago'
-        : '<span class="cap">due again</span> — '+days+' days since trained';
-      el.innerHTML = "<b>"+nm+"</b> — "+st+" · "+(Math.round(sets*2)/2)+" hard sets this week";
+        : days <= 0.25 ? '<span style="color:hsl(18 88% 58%)">trained today</span>'
+        : days < 1.75 ? '<span class="wr">recovering</span> — '+ago
+        : days < 2.75 ? '<span style="color:hsl(75 60% 55%)">almost ready</span> — '+ago
+        : days <= 7.5 ? '<span class="up">ready</span> — '+ago
+        : '<span class="cap">due again</span> — '+raw+' days since trained';
+      el.innerHTML = "<b>"+nm+"</b> — "+st+" · "+(Math.round(sets*2)/2)+" hard sets this week"
+        + (Math.abs(adj) >= 0.5 ? '<br><span class="cap">your check-ins say this recovers '
+          + (adj > 0 ? "slower" : "faster")+' than average — clock adjusted</span>' : "");
     }
     return;
   }
@@ -3856,7 +4006,12 @@ function mapTap(svg, x, y){
     const top = Object.entries(src).sort((a,b) => b[1]-a[1]).slice(0,3)
       .map(([n,c]) => n+" "+(Math.round(c*2)/2)).join(" · ");
     const el = $("#heat-detail");
-    if (el) el.innerHTML = "<b>"+nm+"</b> — "+(Math.round(v*2)/2)+" hard sets"+(top ? "<br><span class='cap'>"+top+"</span>" : "");
+    const band = sub !== undefined ? [4,12] : [10,20];
+    const verdict = !v ? ""
+      : v < band[0] ? ' · <span style="color:var(--info)">below the '+band[0]+'–'+band[1]+' zone</span>'
+      : v > band[1] ? ' · <span class="wr">past the '+band[0]+'–'+band[1]+' zone</span>'
+      : ' · <span class="up">in the growth zone</span>';
+    if (el) el.innerHTML = "<b>"+nm+"</b> — "+(Math.round(v*2)/2)+" hard sets"+verdict+(top ? "<br><span class='cap'>"+top+"</span>" : "");
   }
 }
 let mapDown = null;
@@ -3891,8 +4046,10 @@ document.addEventListener("click", ev => {
   else if (act === "start"){
     const dd = S.drafts[todayStr()] || (S.drafts[todayStr()] = newDraft(todayStr()));
     delete dd.planned;
+    const fresh = !draftHasData(dd);
     dd.active = true; if (!dd.startedAt) dd.startedAt = Date.now();
     save(); render();
+    if (S.settings.autoReg && !dd.ready && fresh) openReadySheet();
   }
   else if (act === "plan-tomorrow"){
     const ds = addDays(todayStr(), 1);
@@ -4010,6 +4167,40 @@ document.addEventListener("click", ev => {
     const h = HELP[btn.dataset.h];
     if (h) openModal('<h3>'+h.t+'</h3><p class="hint">'+h.b+'</p>'
       + '<div class="btnrow"><button data-act="modal-close">Got it</button></div>');
+  }
+  else if (act === "ready-open"){ openReadySheet(); }
+  else if (act === "ready-save"){
+    const v = [0,1,2,3].map(i => +(($("#rd"+i)||{}).value) || 3);
+    const score = v.reduce((a,b) => a+b, 0)/4;
+    const m = score >= 4.25 ? 1.05 : score <= 2 ? 0.9 : score <= 2.75 ? 0.95 : 1;
+    d.ready = {v, score:Math.round(score*10)/10, m};
+    save(); closeModal(); render();
+    showToast(m > 1 ? "Green light — today's targets <b>+5%</b>."
+      : m < 1 ? "Rough day acknowledged — targets <b>−"+Math.round((1-m)*100)+"%</b>. Showing up still wins."
+      : "Readiness solid — normal targets.");
+  }
+  else if (act === "ready-skip"){ d.ready = {skip:1, m:1}; save(); closeModal(); render(); }
+  else if (act === "fb-open"){ openFBSheet(btn.dataset.date); }
+  else if (act === "fb-tap"){
+    const was = btn.classList.contains("on");
+    for (const b of btn.parentElement.children) b.classList.remove("on");
+    if (!was) btn.classList.add("on");
+  }
+  else if (act === "fb-save"){
+    const out = {};
+    for (const row of document.querySelectorAll("#modal .fbrow")){
+      const e = {};
+      for (const b of row.querySelectorAll('[data-act="fb-tap"].on')) e[b.dataset.t] = +b.dataset.v;
+      if (e.s !== undefined || e.p !== undefined) out[row.dataset.r] = e;
+    }
+    S.fb[btn.dataset.date] = out;
+    const hadPending = !!pendingToast;
+    save(); closeModal(); render();
+    if (!hadPending && Object.keys(out).length) showToast("Check-in saved — recovery clocks updated.");
+  }
+  else if (act === "fb-skip"){
+    S.fb[btn.dataset.date] = S.fb[btn.dataset.date] || {};
+    save(); closeModal(); render();
   }
   else if (act === "add-ex"){ openAddModal(null); }
   else if (act === "builder-open"){ openBuilderModal(btn.dataset.for || null); }
@@ -4137,12 +4328,16 @@ document.addEventListener("click", ev => {
     const hit = [1e5, 25e4, 5e5, 1e6, 2e6, 5e6].filter(m => m <= ton && m > S.milestone).pop();
     if (hit){ S.milestone = hit; save();
       msg += (msg ? "<br>" : "") + "<b class='grad-ink'>" + hit.toLocaleString() + " lb</b> lifted lifetime"; }
-    if (msg) showToast(msg);
+    // pump & soreness check-in rides on top; the score toast waits until the sheet closes
+    if (S.settings.autoReg && w && S.fb[fdate] === undefined){
+      pendingToast = msg || null;
+      openFBSheet(fdate);
+    } else if (msg) showToast(msg);
   }
   else if (act === "warmup-gen"){
     const e = d.exercises[ei], ex = exInfo(e.id);
     const a = analyze(e.id, e.plan);
-    const w = +a.gW(0) || 0;
+    const w = +scaleW(a.gW(0), readyMult(d)) || 0;
     if (!w){ closeModal(); showToast("No working weight yet — log this lift once first."); return; }
     const r5 = x => Math.max(ex.bb ? 45 : 5, Math.round(x/5)*5);
     const rows = ex.bb ? [[45,10],[r5(w*0.6),5],[r5(w*0.8),3]] : [[r5(w*0.5),12],[r5(w*0.75),6]];
@@ -4375,6 +4570,7 @@ document.addEventListener("change", ev => {
   else if (t.id === "st-height"){ S.settings.height = t.value; save(); }
   else if (t.id === "st-clock"){ S.settings.showClock = t.checked; save(); }
   else if (t.id === "st-chk"){ S.settings.checkOff = t.checked; save(); render(); }
+  else if (t.id === "st-areg"){ S.settings.autoReg = t.checked; save(); }
   else if (t.id === "st-age"){ S.settings.age = Math.max(14, Math.min(99, +t.value||30)); save(); }
   else if (t.id === "st-bf"){ S.settings.bodyFat = t.value; save(); }
   else if (t.id === "st-cardiok"){ S.settings.cardioKcal = Math.max(0, +t.value||7.8); save(); }
