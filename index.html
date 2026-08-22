@@ -1578,23 +1578,27 @@ function todayHeroInner(today){
   const dow = new Date(today+"T12:00:00").getDay();
   const dd = S.drafts[today] || (S.drafts[today] = newDraft(today));
   const ses = sesDef(dd.session);
+  const restDay = WEEK[dow] === null;
   return '<span class="lbl">Today</span>'
-    + '<div class="today-name grad-ink">'+(ses ? esc(ses.name) : dd.bname ? esc(dd.bname) : (WEEK[dow] === null ? "Rest day" : "Custom workout"))+'</div>'
-    + (dd.planned ? '<div class="cap" style="margin:-2px 0 6px"><span class="ok-dot"></span>Planned ahead — ready to go</div>' : '')
+    + '<div class="today-name grad-ink">'+(ses ? esc(ses.name) : dd.bname ? esc(dd.bname) : dd.planned ? "Planned workout" : (restDay ? "Rest day" : "Custom workout"))+'</div>'
+    + (dd.planned ? '<div class="cap" style="margin:-2px 0 6px"><span class="ok-dot"></span>Planned ahead — ready to go'+(restDay ? ' · usually your rest day' : '')+'</div>' : '')
     + sesFreshLine(ses)
     + '<div class="preview">'+(dd.exercises.length
         ? dd.exercises.map(e => esc(exInfo(e.id).n)).join(" · ")
-        : (ses ? "" : "Off day on the program — recovery is where the growth happens."))+'</div>'
+        : (ses ? "" : dd.planned ? "Nothing picked yet — Start opens it, or let the Target builder fill it."
+          : "Off day on the program — recovery is where the growth happens."))+'</div>'
     + '<select id="session-sel" style="margin-bottom:12px">'+sessionOptions(dd.session)+'</select>'
     + '<button class="primary big" data-act="start">'+(draftHasData(dd) ? "Resume workout" : "Start workout")+'</button>'
-    + '<button class="ghost" data-act="builder-open" style="width:100%;margin-top:8px;font-size:13px">Target builder — a session for exactly what you want to grow →</button>'
+    + (dd.planned ? '<button class="ghost" data-act="plan-delete" data-date="'+today+'" style="width:100%;margin-top:8px;font-size:13px">Remove this plan'+(restDay ? ' — keep the rest day' : '')+' →</button>' : '')
+    + '<button class="ghost" data-act="builder-open" style="width:100%;margin-top:'+(dd.planned ? 2 : 8)+'px;font-size:13px">Target builder — a session for exactly what you want to grow →</button>'
     + '<button class="ghost" data-act="past-workout" style="width:100%;margin-top:2px;font-size:13px">Logging a different day? Pick the date →</button>'
-    + (WEEK[dow] === null ? '<button class="ghost" data-act="plan-tomorrow" style="width:100%;margin-top:2px;font-size:13px">Plan tomorrow\'s workout →</button>' : '');
+    + (restDay ? '<button class="ghost" data-act="plan-tomorrow" style="width:100%;margin-top:2px;font-size:13px">Plan tomorrow\'s workout →</button>' : '');
 }
 function scoreHeroInner(done){
   const rt = rateWorkout(done);
   const setsN = done.exercises.reduce((a,e) => a + e.sets.length, 0);
-  const tmr = S.drafts[addDays(todayStr(),1)], tp = !!(tmr && tmr.planned);
+  const tds = addDays(todayStr(),1), tmr = S.drafts[tds], tp = !!(tmr && tmr.planned);
+  const restTmr = WEEK[new Date(tds+"T12:00:00").getDay()] === null;
   const col = !rt ? "url(#rg2)" : rt.score >= 80 ? "var(--accent)" : rt.score >= 60 ? "var(--info)" : rt.score >= 45 ? "var(--warn)" : "var(--bad)";
   return '<span class="lbl">Session complete</span>'
     + '<div class="scorewrap">'
@@ -1608,8 +1612,11 @@ function scoreHeroInner(done){
     + (S.fb[done.date] === undefined ? '<div class="cap" style="margin-top:5px;cursor:pointer" data-act="fb-open" data-date="'+done.date+'">Rate pump &amp; soreness ›</div>' : '')
     + '</div></div>'
     + (tp ? '<div class="hint" style="margin-top:10px"><span class="ok-dot"></span>Tomorrow — '
-        + esc((sesDef(tmr.session)||{}).name || tmr.bname || "Custom")+(tmr.exercises.length ? ' · '+tmr.exercises.length+' exercises' : '')+'</div>' : '')
-    + '<div class="btnrow"><button class="primary" data-act="plan-tomorrow">'+(tp ? "Edit tomorrow's plan" : "Plan tomorrow")+'</button>'
+        + esc((sesDef(tmr.session)||{}).name || tmr.bname || "Custom")+(tmr.exercises.length ? ' · '+tmr.exercises.length+' exercises' : '')
+        + (restTmr ? ' · usually your rest day' : '')+'</div>'
+      : restTmr ? '<div class="hint" style="margin-top:10px">Tomorrow is your rest day — nothing to plan unless you want to.</div>' : '')
+    + '<div class="btnrow"><button class="primary" data-act="plan-tomorrow">'+(tp ? "Edit tomorrow's plan" : restTmr ? "Plan tomorrow anyway" : "Plan tomorrow")+'</button>'
+    + (tp ? '<button data-act="plan-delete" data-date="'+tds+'">Remove plan</button>' : '')
     + '<button data-act="reopen" data-date="'+todayStr()+'">Reopen &amp; edit</button></div>'
     + '<button class="ghost" data-act="builder-open" style="width:100%;margin-top:8px;font-size:13px">Target builder — build tomorrow around what\'s fresh →</button>';
 }
@@ -1827,6 +1834,7 @@ function renderWorkout(d){
       + '<select id="plan-ses" style="flex:1.2">'+sessionOptions(d.session)+'</select>'
       + '</div>'
       + '<button class="ghost" data-act="builder-open" data-for="'+d.date+'" style="width:100%;margin-top:8px;font-size:13px">Or let the Target builder fill this day →</button>'
+      + '<button class="ghost" data-act="plan-delete" data-date="'+d.date+'" style="width:100%;margin-top:2px;font-size:13px;color:var(--bad)">Delete this plan — no workout that day →</button>'
       + '</div>';
 
   // readiness banner — set: show the effect; unset: a one-tap invitation (today only)
@@ -3270,11 +3278,12 @@ function renderCoach(){
       + '<div class="set-item"><span class="lbl">Anthropic API key</span>'
       + '<input id="coach-key" type="password" placeholder="sk-ant-…" autocomplete="off"></div>'
       + '<div class="btnrow"><button class="primary" data-act="coach-key-save">Save key</button></div>'
-      + '<p class="cap" style="margin-top:10px">The key is stored only on this device and sent only to Anthropic. Get one at console.anthropic.com → API keys. A question typically costs a few cents.</p></div>';
+      + '<p class="cap" style="margin-top:10px">The key is stored only on this device and sent only to Anthropic. Get one at console.anthropic.com → API keys. A question typically costs a few cents.</p>'
+      + '<button class="ghost" data-act="coach-copy-prompt" style="width:100%;margin-top:10px;font-size:13px">No key? Copy a ready-made coaching prompt — paste it into claude.ai free →</button></div>';
     return;
   }
   let html = '<div class="chips">'
-    + ["Review my week", "Why am I stalled?", "Plan next week's tweaks", "Am I eating enough?"].map(q =>
+    + ["Review my week", "How's my recovery?", "Why am I stalled?", "Plan next week's tweaks", "Am I eating enough?"].map(q =>
         '<button data-act="coach-chip" data-q="'+esc(q)+'">'+q+'</button>').join("")
     + '</div>';
   html += '<div class="card" style="padding:12px">'
@@ -3291,11 +3300,26 @@ async function askCoach(q){
   S.coach.push(entry);
   if (S.coach.length > 20) S.coach = S.coach.slice(-20);
   save(); if (tab === "coach") renderCoach();
-  const sys = "You are an evidence-based strength and nutrition coach inside LiftLog, the user's personal workout tracker. "
-    + "Be direct, specific and practical. Reference their actual numbers from the data below. "
-    + "Keep answers tight — a few short paragraphs or bullet points, no filler, no generic disclaimers. "
-    + "The user is a returning lifter on a 6-day split, currently cutting.\n\n"
-    + "Their current data:\n\n" + claudeText();
+  /* grounded coach (phase 4): the app computes, the model narrates — an LLM coach is only
+     trusted when every number it says is one the app derived deterministically */
+  const sys = "You are the coach inside LiftLog, the user's personal workout tracker. "
+    + "Evidence-based strength and nutrition coaching — direct, specific, practical. "
+    + "Keep answers tight: a few short paragraphs or bullet points, no filler, no generic disclaimers. "
+    + "The user is a returning lifter on a 6-day split (Saturday off), currently cutting.\n\n"
+    + "GROUNDING RULES (hard rules):\n"
+    + "- The app has already computed every number in the data block below: e1RMs, trends, session scores, "
+    + "recovery clocks, weekly volume vs the 10-20 hard-set growth zone, readiness scaling, targeted deloads, "
+    + "PR taxonomy, maintenance calories. Your job is to NARRATE and INTERPRET those numbers — never to compute new ones.\n"
+    + "- No arithmetic. Don't add weights, project rates, convert units, or estimate percentages, calories or dates. "
+    + "Every number you state must appear verbatim in the data block.\n"
+    + "- If a question needs data that isn't below, say the app doesn't track it — don't estimate or fill the gap "
+    + "with a made-up personal stat. General training science, technique and exercise-selection advice is welcome; "
+    + "invented numbers about THIS user are not.\n"
+    + "- Load suggestions: point to the app's own targets (its suggested/ghost weights, deload targets, readiness "
+    + "scaling) instead of inventing a load.\n"
+    + "- Respect the RECOVERY CLOCKS, the user's own check-ins, and the rest day — Saturday is the program's rest "
+    + "day; don't prescribe training on it unless the user insists.\n\n"
+    + "Their current data (computed by the app just now):\n\n" + claudeText();
   const msgs = [];
   for (const x of S.coach.slice(-5, -1))
     if (!x.pending && x.a && !x.err){ msgs.push({role:"user", content:x.q}); msgs.push({role:"assistant", content:x.a}); }
@@ -3879,6 +3903,56 @@ function claudeText(){
     L.push("WEEKLY SETS BY MUSCLE (last 7d, secondary = half credit):");
     L.push("  " + Object.entries(REGIONS).filter(([r]) => per[r]).map(([r,n]) => n+" "+(Math.round(per[r]*2)/2)).join(" · "));
   }
+  /* today, plans & auto-regulation — phase 4: the coach narrates these, never recomputes them */
+  const DNAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  const tdow = new Date(todayStr()+"T12:00:00").getDay();
+  const sesToday = sesDef(WEEK[tdow]);
+  const wToday = S.workouts.find(w => w.date === todayStr());
+  const tds2 = addDays(todayStr(),1), tdw = new Date(tds2+"T12:00:00").getDay(), tDr = S.drafts[tds2];
+  L.push("");
+  L.push("TODAY & TOMORROW:");
+  L.push("  today (" + DNAMES[tdow] + "): " + (sesToday ? sesToday.name + " scheduled" : "REST DAY on the program")
+    + (wToday ? " — workout done (" + (wToday.sesName||"Custom") + ")" : ""));
+  L.push("  tomorrow (" + DNAMES[tdw] + "): " + (WEEK[tdw] === null ? "REST DAY on the program" : ((sesDef(WEEK[tdw])||{}).name || "Custom") + " scheduled")
+    + (tDr && tDr.planned ? " · a session is planned ahead (" + ((sesDef(tDr.session)||{}).name || tDr.bname || "Custom") + ")" : ""));
+  const dT = S.drafts[todayStr()];
+  if (dT && dT.ready && !dT.ready.skip && dT.ready.v)
+    L.push("  readiness check-in today (1-5, higher = better): sleep " + dT.ready.v[0] + " · energy " + dT.ready.v[1]
+      + " · food " + dT.ready.v[2] + " · body " + dT.ready.v[3] + " → today's targets scaled ×" + dT.ready.m);
+  const fd = freshDays();
+  const recLines = Object.entries(REGIONS).filter(([r]) => fd.reg[r] !== undefined).map(([r,n]) => {
+    const dys = adjD(fd.reg[r], r);
+    const lbl = dys <= 0.25 ? "trained today" : dys < 1.75 ? "recovering" : dys < 2.75 ? "almost ready" : dys <= 7.5 ? "ready" : "due — 8+ days";
+    return n + " " + (Math.round(dys*10)/10) + "d (" + lbl + ")";
+  });
+  if (recLines.length){
+    L.push("");
+    L.push("RECOVERY CLOCKS (days since trained, tuned by the user's soreness check-ins):");
+    L.push("  " + recLines.join(" · "));
+    for (const [r,n] of Object.entries(REGIONS)){
+      const a = recovAdj(r);
+      if (Math.abs(a) >= 0.5)
+        L.push("  " + n + ": check-ins say it recovers " + (a > 0 ? "SLOWER (+" : "FASTER (−") + Math.abs(Math.round(a*10)/10) + "d vs default)");
+    }
+  }
+  const PUMPL = ["no pump","good pump","crazy pump"], SOREL = ["came in fresh","came in sore but healed","came in still sore"];
+  const fbDates = Object.keys(S.fb).filter(dk => dk > addDays(todayStr(),-8)).sort().reverse().slice(0,4);
+  const fbLines = fbDates.map(dk => {
+    const parts = Object.entries(S.fb[dk]).filter(([,v]) => v.p !== undefined || v.s !== undefined)
+      .map(([r,v]) => REGIONS[r] + ": " + [v.p !== undefined ? PUMPL[v.p] : null, v.s !== undefined ? SOREL[v.s] : null].filter(Boolean).join(", "));
+    return parts.length ? "  " + dk + " — " + parts.join(" · ") : null;
+  }).filter(Boolean);
+  if (fbLines.length){
+    L.push("");
+    L.push("POST-WORKOUT CHECK-INS (last 7d, the user's own pump/soreness ratings):");
+    fbLines.forEach(x => L.push(x));
+  }
+  const va = volAdvice();
+  if (va.length){
+    L.push("");
+    L.push("VOLUME ADVICE (this week's sets vs the 10-20/wk growth zone, cross-read with check-ins):");
+    for (const a of va) L.push("  " + REGIONS[a.r] + ": " + (Math.round(a.v*2)/2) + " sets — " + a.note);
+  }
   /* lab metrics */
   const si = strengthIndex(null);
   if (si.length >= 2){
@@ -4063,6 +4137,15 @@ document.addEventListener("click", ev => {
     d.active = false; S.editing = null;
     save(); tab = "home"; render();
     showToast("Planned — it'll be waiting on Home "+(ds === addDays(todayStr(), 1) ? "tomorrow" : fmtDate(ds))+".");
+  }
+  else if (act === "plan-delete"){
+    // a plan lives only in drafts — deleting it can never touch history (that's Finish-only)
+    const ds = btn.dataset.date, dr = S.drafts[ds];
+    if (dr && draftHasData(dr) && !confirm("This plan has logged sets — delete it anyway?")) return;
+    delete S.drafts[ds];
+    if (S.editing === ds) S.editing = null;
+    save(); tab = "home"; render();
+    showToast(WEEK[new Date(ds+"T12:00:00").getDay()] === null ? "Plan removed — rest day restored." : "Plan removed.");
   }
   else if (act === "pause"){ d.active = false; S.editing = null; save(); render(); }
   else if (act === "chk"){ toggleSet(ei, si); }
@@ -4502,6 +4585,17 @@ document.addEventListener("click", ev => {
     const txt = claudeText();
     (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject())
       .then(() => { btn.textContent = "Copied ✓"; setTimeout(() => btn.textContent = "Copy for Claude", 1500); })
+      .catch(() => { prompt("Copy this:", txt); });
+  }
+  else if (act === "coach-copy-prompt"){
+    // the free path: same grounded-coach framing as the API call, pasted into claude.ai by hand
+    const txt = "You are my strength & nutrition coach. My workout tracker (LiftLog) computed everything "
+      + "below deterministically — narrate and interpret these numbers, never compute or invent new ones, "
+      + "and if something isn't in the data, say the app doesn't track it. I'm a returning lifter on a "
+      + "6-day split (Saturday off), currently cutting. Be direct and specific.\n\n"
+      + claudeText() + "\n\nStart by asking what I want to work on.";
+    (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject())
+      .then(() => showToast("Copied — paste it into claude.ai and ask away."))
       .catch(() => { prompt("Copy this:", txt); });
   }
   else if (act === "export"){
