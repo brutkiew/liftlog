@@ -61,6 +61,7 @@
     main::before{animation:drift3 38s ease-in-out infinite alternate}
     @keyframes drift3{to{transform:translate(-70px,70px) scale(1.12)}}
   }
+  ::selection{background:rgba(44,224,139,.28)}
   .num{font-variant-numeric:tabular-nums}
   .ic{vertical-align:-4px}
   .grad-ink{background:var(--grad2);-webkit-background-clip:text;background-clip:text;color:transparent}
@@ -94,9 +95,9 @@
     font-weight:600;padding:8px 0 5px;letter-spacing:.03em;border-radius:23px;
     transition:transform .35s var(--ease),background .3s}
   #tabs button:active{transform:scale(.94)}
-  #tabs button .ic{display:block;margin:0 auto 3px}
+  #tabs button .ic{display:block;margin:0 auto 3px;transition:transform .35s var(--ease)}
   #tabs button.on{color:var(--text-1);background:var(--accent-dim)}
-  #tabs button.on .ic{color:var(--accent)}
+  #tabs button.on .ic{color:var(--accent);transform:scale(1.12) translateY(-1px)}
   /* each tab owns a hue */
   #tabs button[data-tab="history"].on{background:rgba(90,167,240,.14)}
   #tabs button[data-tab="history"].on .ic{color:#5AA7F0}
@@ -398,6 +399,14 @@
     border:1px solid rgba(165,180,255,.22);border-radius:26px 26px 0 0;width:100%;max-width:480px;
     max-height:84vh;overflow-y:auto;overflow-x:hidden;padding:20px 18px calc(20px + env(safe-area-inset-bottom));
     box-shadow:inset 0 1px 0 rgba(255,255,255,.12), 0 -18px 60px rgba(0,0,0,.5);overscroll-behavior:contain;touch-action:pan-y}
+  /* sheets slide up like the native ones; the dim fades in behind (fresh opens only —
+     replacing content inside an open sheet doesn't re-run it) */
+  @media (prefers-reduced-motion:no-preference){
+    #ovl.show{animation:ovlIn .25s ease-out}
+    #ovl.show #modal{animation:sheetIn .42s var(--ease)}
+    @keyframes ovlIn{from{background:rgba(4,6,12,0)}}
+    @keyframes sheetIn{from{transform:translateY(48px)}}
+  }
   body.mlock{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   #modal input,#modal select,#modal textarea{min-width:0;max-width:100%}
   /* auto-regulation: readiness sliders + pump/soreness check-in */
@@ -799,7 +808,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.0"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.1"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
