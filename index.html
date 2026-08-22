@@ -567,7 +567,8 @@ const SESSIONS = {
   "bb-b":{name:"Back / Biceps — B",plan:[["bbrow",4,6,10],["ngpd",3,10,12],["cablerow",3,10,12],["pullover",3,12,15],["hammer",3,10,12],["cablecurl",3,12,15],["hlr",3,10,15]]},
   "ct-b":{name:"Chest / Triceps — B",plan:[["incbb",4,6,10],["flatdb",3,10,12],["l2h",3,12,15],["pec",2,15,20],["cgbp",3,8,10],["rope",3,12,15],["hlr",3,10,15]]},
 };
-const WEEK = ["ls-a","bb-a","ct-a","ls-b","bb-b","ct-b",null]; // Sun..Sat
+const DEF_WEEK = ["ls-a","bb-a","ct-a","ls-b","bb-b","ct-b",null]; // Sun..Sat — the standard program
+let WEEK = DEF_WEEK.slice(); // live schedule — re-derived from S.settings.week by syncWeek()
 
 /* strength standards — REBUILT 2026-08-22 from ONE source so grades are comparable
    ACROSS lifts: Strength Level community percentiles (strengthlevel.com, male tables,
@@ -828,11 +829,11 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.3"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.4"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
-  age:30, bodyFat:"", cardioKcal:7.8, autoReg:true};
+  age:30, bodyFat:"", cardioKcal:7.8, autoReg:true, week:null}; // week null = standard program (DEF_WEEK)
 let S = {workouts:[], drafts:{}, custom:{}, templates:{}, coach:[], milestone:0, uniO:{},
   body:{weights:{}, kcals:{}, meas:{}, sleep:{}, energy:{}},
   settings:Object.assign({}, DEF_SET),
@@ -918,6 +919,19 @@ const addDays = (ds, n) => { const d = new Date(ds+"T12:00:00"); d.setDate(d.get
 const weekStart = ds => addDays(ds, -new Date(ds+"T12:00:00").getDay()); // Sunday start
 const exInfo = id => EX[id] || S.custom[id] || {n:"Unknown",g:"other",inc:5};
 const sesDef = key => key ? (SESSIONS[key] || S.templates[key] || null) : null;
+const DNAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+/* editable weekly schedule (Settings → Weekly schedule). settings.week null = standard
+   program; a day pointing at a deleted template quietly becomes a rest day. Never mutate
+   DEF_WEEK/DEF_SET — always clone before editing. */
+function syncWeek(){
+  const w = Array.isArray(S.settings.week) && S.settings.week.length === 7 ? S.settings.week : DEF_WEEK;
+  WEEK = w.map(k => k && sesDef(k) ? k : null);
+}
+syncWeek();
+function splitDesc(){
+  const off = DNAMES.filter((_, i) => WEEK[i] === null);
+  return (7 - off.length) + "-day split (" + (off.length ? off.join(" & ") + " off" : "no scheduled rest day") + ")";
+}
 const restFor = id => S.settings.restO[id] || exInfo(id).rest || S.settings.restDefault;
 const muscOf = id => MUSC[id] || (S.custom[id] && MUSC[S.custom[id].base]) || GROUP_M[exInfo(id).g] || {p:[],s:[]};
 const isUni = id => S.uniO[id] !== undefined ? !!S.uniO[id] : !!exInfo(id).uni;
@@ -1548,6 +1562,14 @@ function render(){
 }
 
 /* ================= HOME ================= */
+function schedOptions(sel){
+  const tpl = Object.entries(S.templates);
+  return '<option value=""'+(sel?"":" selected")+'>Rest day</option>'
+    + '<optgroup label="Program">'+Object.entries(SESSIONS).map(([k,v]) =>
+        '<option value="'+k+'"'+(k===sel?" selected":"")+'>'+v.name+'</option>').join("")+'</optgroup>'
+    + (tpl.length ? '<optgroup label="My templates">'+tpl.map(([k,v]) =>
+        '<option value="'+k+'"'+(k===sel?" selected":"")+'>'+esc(v.name)+'</option>').join("")+'</optgroup>' : '');
+}
 function sessionOptions(sel){
   const tpl = Object.entries(S.templates);
   let h = "";
@@ -3535,7 +3557,7 @@ async function askCoach(q){
   const sys = "You are the coach inside LiftLog, the user's personal workout tracker. "
     + "Evidence-based strength and nutrition coaching — direct, specific, practical. "
     + "Keep answers tight: a few short paragraphs or bullet points, no filler, no generic disclaimers. "
-    + "The user is a returning lifter on a 6-day split (Saturday off), currently cutting.\n\n"
+    + "The user is a returning lifter on a " + splitDesc() + ", currently cutting.\n\n"
     + "GROUNDING RULES (hard rules):\n"
     + "- The app has already computed every number in the data block below: e1RMs, trends, session scores, "
     + "recovery clocks, weekly volume vs each muscle's own growth zone, readiness scaling, targeted deloads, "
@@ -3547,8 +3569,8 @@ async function askCoach(q){
     + "invented numbers about THIS user are not.\n"
     + "- Load suggestions: point to the app's own targets (its suggested/ghost weights, deload targets, readiness "
     + "scaling) instead of inventing a load.\n"
-    + "- Respect the RECOVERY CLOCKS, the user's own check-ins, and the rest day — Saturday is the program's rest "
-    + "day; don't prescribe training on it unless the user insists.\n\n"
+    + "- Respect the RECOVERY CLOCKS, the user's own check-ins, and the program's rest days (listed in the "
+    + "program line below); don't prescribe training on a rest day unless the user insists.\n\n"
     + "Their current data (computed by the app just now):\n\n" + claudeText();
   const msgs = [];
   for (const x of S.coach.slice(-5, -1))
@@ -3727,9 +3749,12 @@ function renderMore(){
     + '<div class="set-item"><span class="lbl">Anthropic API key</span>'
     + '<input id="st-apikey" type="password" value="'+esc(st.apiKey)+'" placeholder="sk-ant-…" autocomplete="off"></div>'
     + '<p class="cap" style="margin-top:8px">Stored only on this device, sent only to Anthropic. Clear the field to disable the coach.</p></div>'
-    + '<h2>The program</h2><div class="card"><table class="wk">'
-    + wk.map((d,i) => '<tr><td>'+d+'</td><td>'+(WEEK[i] ? SESSIONS[WEEK[i]].name : "Rest")+'</td></tr>').join("")
-    + '</table><p class="cap" style="margin-top:10px">72 h between repeat muscle groups. Treadmill after lifting; hanging leg raises daily except Legs/Shoulders B.</p></div>'
+    + '<h2>Weekly schedule</h2><div class="card">'
+    + wk.map((d,i) => '<div class="set-item"><span class="lbl">'+DNAMES[i]+'</span><select id="st-wk-'+i+'">'+schedOptions(WEEK[i])+'</select></div>').join("")
+    + '<p class="cap" style="margin-top:10px">Changing a day updates everything that reads the schedule — Home\'s today &amp; tomorrow cards, rest-day logic, planned-workout defaults, and what the coach is told. A day set to Rest is simply a day with nothing scheduled.</p>'
+    + (S.settings.week ? '<div class="btnrow" style="margin-top:8px"><button data-act="week-reset">Reset to the standard program</button></div>'
+        : '<p class="cap" style="margin-top:6px">Currently the standard program: 72 h between repeat muscle groups; treadmill after lifting.</p>')
+    + '</div>'
     + '<h2>Data</h2><div class="card"><div class="btnrow">'
     + '<button data-act="copy-claude">Copy for Claude</button>'
     + '<button data-act="export">Backup</button>'
@@ -4481,7 +4506,8 @@ function rankSwaps(curId, excl){
 function claudeText(){
   const L = [];
   L.push("LiftLog export — " + todayStr());
-  L.push("Program: 6-day split. Sun L/S-A · Mon B/B-A · Tue C/T-A · Wed L/S-B · Thu B/B-B · Fri C/T-B · Sat off.");
+  L.push("Program: " + splitDesc() + ". " + ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d, i) =>
+    d + " " + (WEEK[i] ? ((sesDef(WEEK[i])||{}).name || "Custom") : "off")).join(" · ") + ".");
   const tr = trendSeries(), rate = weeklyRate(tr), ks = kcalEntries(), tdee = impliedTDEE();
   if (tr.length){
     L.push("");
@@ -4513,7 +4539,6 @@ function claudeText(){
       return n+" "+(Math.round(per[r]*2)/2)+(b ? " (zone "+b[0]+"-"+b[1]+")" : ""); }).join(" · "));
   }
   /* today, plans & auto-regulation — phase 4: the coach narrates these, never recomputes them */
-  const DNAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
   const tdow = new Date(todayStr()+"T12:00:00").getDay();
   const sesToday = sesDef(WEEK[tdow]);
   const wToday = S.workouts.find(w => w.date === todayStr());
@@ -5080,8 +5105,15 @@ document.addEventListener("click", ev => {
   }
   else if (act === "tpl-del"){
     if (confirm("Delete this template? Logged workouts that used it are unaffected.")){
-      delete S.templates[btn.dataset.id]; save(); render();
+      delete S.templates[btn.dataset.id];
+      if (Array.isArray(S.settings.week))
+        S.settings.week = S.settings.week.map(k => k === btn.dataset.id ? null : k);
+      syncWeek(); save(); render();
     }
+  }
+  else if (act === "week-reset"){
+    S.settings.week = null; syncWeek(); save(); render();
+    showToast("Back to the standard program.");
   }
   else if (act === "coach-key-save"){
     const k = ($("#coach-key").value || "").trim();
@@ -5221,7 +5253,7 @@ document.addEventListener("click", ev => {
     const txt = "You are my strength & nutrition coach. My workout tracker (LiftLog) computed everything "
       + "below deterministically — narrate and interpret these numbers, never compute or invent new ones, "
       + "and if something isn't in the data, say the app doesn't track it. I'm a returning lifter on a "
-      + "6-day split (Saturday off), currently cutting. Be direct and specific.\n\n"
+      + splitDesc() + ", currently cutting. Be direct and specific.\n\n"
       + claudeText() + "\n\nStart by asking what I want to work on.";
     (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject())
       .then(() => showToast("Copied — paste it into claude.ai and ask away."))
@@ -5294,6 +5326,12 @@ document.addEventListener("change", ev => {
   else if (t.id === "st-clock"){ S.settings.showClock = t.checked; save(); }
   else if (t.id === "st-chk"){ S.settings.checkOff = t.checked; save(); render(); }
   else if (t.id === "st-areg"){ S.settings.autoReg = t.checked; save(); }
+  else if (/^st-wk-[0-6]$/.test(t.id||"")){
+    // clone before editing — settings.week may still be the shared DEF_SET default (null) or absent
+    if (!Array.isArray(S.settings.week) || S.settings.week.length !== 7) S.settings.week = WEEK.slice();
+    S.settings.week[+t.id.slice(6)] = t.value || null;
+    save(); syncWeek(); render();
+  }
   else if (t.id === "st-age"){ S.settings.age = Math.max(14, Math.min(99, +t.value||30)); save(); }
   else if (t.id === "st-bf"){ S.settings.bodyFat = t.value; save(); }
   else if (t.id === "st-cardiok"){ S.settings.cardioKcal = Math.max(0, +t.value||7.8); save(); }
@@ -5310,6 +5348,7 @@ document.addEventListener("change", ev => {
         if (!S.settings.apiKey) S.settings.apiKey = keptKey; // backups don't carry the key
         S.body = Object.assign({weights:{},kcals:{},meas:{},sleep:{},energy:{}}, S.body||{});
         S.uniO = S.uniO || {};
+        syncWeek();
         save(); alert("Restored " + S.workouts.length + " workouts."); render();
       } catch(e){ alert("That file doesn't look like a LiftLog backup."); }
     });
