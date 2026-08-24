@@ -522,7 +522,7 @@ const EX = {
   ezcurl:{n:"EZ-Bar Curl",g:"biceps",inc:5,sub:"bi_curl"},
   bbcurl:{n:"Barbell Curl",g:"biceps",inc:5,sub:"bi_curl"},
   incurl:{n:"Incline DB Curl",g:"biceps",inc:5,db:1,sub:"bi_curl"},
-  hammer:{n:"Hammer Curl",g:"biceps",inc:5,db:1,sub:"bi_brach"},
+  hammer:{n:"Hammer Curl",g:"biceps",inc:5,db:1,uni:1,sub:"bi_brach"}, // one arm at a time / alternating — each arm does the logged reps
   cablecurl:{n:"Cable Curl",g:"biceps",inc:5,sub:"bi_curl"},
   preacher:{n:"Preacher Curl",g:"biceps",inc:5,sub:"bi_curl"},
   bayes:{n:"Bayesian Cable Curl",g:"biceps",inc:2.5,uni:1,sub:"bi_curl"},
@@ -829,7 +829,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.5.1"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.6"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -3054,14 +3054,22 @@ function bmrKcal(){
   return Math.round(10*kg + 6.25*heightCm() - 5*(+S.settings.age||30) + (S.settings.sex === "female" ? -161 : 5));
 }
 function energyModel(){
-  const b = bmrKcal(), a = addDays(todayStr(), -13);
+  const b = bmrKcal();
+  /* steady-week model: a typical session (average of the last 10 logged) done on every
+     scheduled training day, spread evenly across the week — the raw last-14-day tally made
+     maintenance sag after a trip or a light stretch, which isn't what a maintenance
+     estimate is for. One-side-at-a-time lifts count double: each logged set is performed
+     once per limb. */
+  const recent = S.workouts.slice().sort((x,y) => x.date < y.date ? -1 : 1).slice(-10);
   let sets = 0, cmin = 0;
-  for (const w of S.workouts){ if (w.date < a) continue;
-    sets += w.exercises.reduce((x,e) => x + workSets(e.sets).length, 0);
+  for (const w of recent){
+    sets += w.exercises.reduce((x,e) => x + workSets(e.sets).length*(isUni(e.id)?2:1), 0);
     cmin += w.cardio ? w.cardio.min : 0; }
-  const lift = sets*9/14, cardio = cmin*(+S.settings.cardioKcal||7.8)/14;
+  const weekSes = WEEK.filter(Boolean).length;
+  const perDay = recent.length ? weekSes/7/recent.length : 0; // sessions/day × per-session share
+  const lift = sets*perDay*9, cardio = cmin*perDay*(+S.settings.cardioKcal||7.8);
   const neat = Math.round(b*0.35); // NEAT + TEF for a mostly-desk day outside the gym
-  return {bmr:b, neat, lift:Math.round(lift), cardio:Math.round(cardio),
+  return {bmr:b, neat, lift:Math.round(lift), cardio:Math.round(cardio), weekSes,
     tdee: Math.round((b + neat + lift + cardio)/25)*25};
 }
 function stdE1UpTo(id, dateEnd){
@@ -3370,7 +3378,7 @@ function trendsLab(){
   const em = energyModel(), real = impliedTDEE();
   html += '<div class="card hero"><span class="lbl">Energy & maintenance</span>'
     + '<div class="stat num" style="margin-top:6px"><span class="grad-ink">≈ '+em.tdee.toLocaleString()+'</span><small> kcal/day maintenance</small></div>'
-    + '<div class="cap">modelled from your body stats + your actual last 14 days of training</div>'
+    + '<div class="cap">modelled from your body stats + a steady week on your schedule ('+em.weekSes+' typical sessions, spread evenly — a light stretch won\'t drag it down)</div>'
     + '<div class="recap-block">'
     + li("Base metabolism ("+(+S.settings.bodyFat > 0 ? "Katch-McArdle" : "Mifflin-St Jeor")+")", em.bmr)
     + li("Daily living · NEAT + digestion", em.neat)
