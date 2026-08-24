@@ -829,7 +829,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.6.1"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.6.2"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -3474,8 +3474,11 @@ function kcalChart(ks){
     return {d:p.d, v:win.reduce((a,q)=>a+q.k,0)/win.length}; });
   const avgPath = avg.length > 1 ? '<path d="'+avg.map((p,i)=>(i?"L":"M")+X(p.d).toFixed(1)+" "+Y(p.v).toFixed(1)).join(" ")
     + '" fill="none" stroke="#2CE08B" stroke-width="2" opacity=".8"/>' : "";
+  /* the label rides the line in a dark pill — bare text at the right edge sat on top of
+     whatever bars reached the target line and read as cut off */
   const tl = '<line x1="'+L+'" y1="'+Y(target)+'" x2="'+(W-R)+'" y2="'+Y(target)+'" stroke="rgba(255,255,255,.38)" stroke-dasharray="5 4"/>'
-    + '<text x="'+(W-R)+'" y="'+(Y(target)-4)+'" text-anchor="end" font-size="10" fill="rgba(255,255,255,.62)">target</text>';
+    + '<rect x="'+(W-R-40)+'" y="'+(Y(target)-8).toFixed(1)+'" width="40" height="16" rx="8" fill="rgba(10,13,22,.82)"/>'
+    + '<text x="'+(W-R-20)+'" y="'+(Y(target)+3.5).toFixed(1)+'" text-anchor="middle" font-size="10" fill="rgba(255,255,255,.72)">target</text>';
   /* date labels: skip any that would collide (clustered logs used to overlap) */
   const xR2 = X(k2[k2.length-1].d), xL2 = X(k2[0].d);
   let labDs = xR2 - xL2 < 48 ? [k2[k2.length-1].d] : [k2[0].d, k2[k2.length-1].d];
