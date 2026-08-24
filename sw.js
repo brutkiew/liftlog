@@ -1,5 +1,5 @@
 /* LiftLog service worker — network-first for the page, cache fallback for offline gym use. */
-const CACHE = "liftlog-v43";
+const CACHE = "liftlog-v44";
 const ASSETS = [
   "./",
   "./index.html",

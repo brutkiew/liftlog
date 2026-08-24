@@ -363,7 +363,7 @@
   .intel-li .k{color:var(--text-3);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.07em;margin-right:6px}
   /* exercise how-to diagram: static figure in slate, start position dim, end position accent,
      equipment darker, motion path amber */
-  .exdiag{width:100%;max-width:250px;display:block;margin:10px auto 0}
+  .exdiag{width:100%;max-width:300px;display:block;margin:10px auto 0}
   .exdiag .fg{stroke:#7A86B8;fill:none;stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round}
   .exdiag .hd{fill:#7A86B8}
   .exdiag .mv1{stroke:#586180;fill:none;stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round;opacity:.6}
@@ -376,6 +376,10 @@
   .exdiag .arr{stroke:#FFB020;fill:none;stroke-width:1.8}
   .exdiag .arh{fill:#FFB020;stroke:none}
   .exdiag text{fill:var(--text-3);font-size:8.5px;letter-spacing:.06em}
+  .exdiag .lb{fill:var(--text-2);font-size:9px;letter-spacing:.02em}
+  .exdiag .vw{fill:var(--text-3);font-size:7.5px;letter-spacing:.1em}
+  .exdiag .ld{stroke:rgba(255,255,255,.30);stroke-width:1;fill:none}
+  .exdiag .ring{stroke:var(--accent);fill:none;stroke-width:1.5;stroke-dasharray:3 2.5;opacity:.85}
   .coach-q{background:var(--accent-dim);border:1px solid rgba(44,224,139,.25);
     border-radius:14px 14px 4px 14px;padding:11px 14px;margin:16px 0 8px 36px;font-size:14px}
   .coach-a{background:rgba(26,32,53,.32);backdrop-filter:blur(18px) saturate(1.6);-webkit-backdrop-filter:blur(18px) saturate(1.6);
@@ -829,7 +833,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.6.2"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.7"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -4043,204 +4047,268 @@ const dgHd = (x,y,c) => '<circle cx="'+x+'" cy="'+y+'" r="6" class="'+(c||"hd")+
 const dgW = (x,y,c) => '<circle cx="'+x+'" cy="'+y+'" r="4.5" class="'+c+'"/>';
 const dgArr = (d,tx,ty,ang) => '<path d="'+d+'" class="arr"/>'
   + '<polygon class="arh" points="0,-3.4 6,0 0,3.4" transform="translate('+tx+','+ty+') rotate('+ang+')"/>';
+/* beginner layer (v9.7): view tag, labeled callouts with leader lines, and a dashed
+   accent ring on the joint that does the work — the legend under the SVG explains them */
+const dgV = t => '<text x="8" y="126" class="vw">'+(t||"SIDE VIEW")+'</text>';
+const dgLb = (x,y,t,a) => '<text x="'+x+'" y="'+y+'" class="lb"'+(a?' text-anchor="'+a+'"':'')+'>'+t+'</text>';
+const dgLd = (x1,y1,x2,y2) => '<path d="M'+x1+' '+y1+' L'+x2+' '+y2+'" class="ld"/>';
+const dgRing = (x,y) => '<circle cx="'+x+'" cy="'+y+'" r="9" class="ring"/>';
 const DIAG = {
   bench: '<rect x="38" y="86" width="120" height="7" rx="2" class="eqf"/><path d="M48 93 L48 114 M148 93 L148 114" class="eq"/>'
     + dgHd(52,78) + '<path d="M60 80 L112 82 L128 96 L128 114 L136 114" class="fg"/>'
     + '<path d="M78 80 L96 72 L90 58" class="mv1"/>' + dgW(89,53,"h1")
     + '<path d="M78 80 L78 46" class="mv2"/>' + dgW(78,40,"h2")
-    + dgArr("M98 54 Q94 42 86 41", 84, 41, 190),
+    + dgArr("M98 54 Q94 42 86 41", 84, 41, 190)
+    + dgV() + dgRing(96,72) + dgLb(8,30,"bar starts at mid-chest") + dgLd(74,34,86,49)
+    + dgLb(146,124,"feet planted") + dgLd(158,118,142,113),
   incpress: '<path d="M46 112 L100 66" class="eq" style="stroke-width:9"/><path d="M46 112 L70 116" class="eq"/>'
     + dgHd(104,58) + '<path d="M98 66 L64 94 L86 104 L86 120" class="fg"/>'
     + '<path d="M92 70 L108 78 L114 64" class="mv1"/>' + dgW(115,59,"h1")
     + '<path d="M92 70 L98 40" class="mv2"/>' + dgW(99,34,"h2")
-    + dgArr("M120 56 Q116 42 106 36", 104, 36, 195),
+    + dgArr("M120 56 Q116 42 106 36", 104, 36, 195)
+    + dgV() + dgRing(92,70) + dgLb(8,116,"~30° incline") + dgLd(62,110,72,90)
+    + dgLb(130,20,"lockout over the face") + dgLd(132,24,104,32),
   dip: '<path d="M128 66 L128 118" class="eq"/><path d="M120 66 L136 66" class="eq"/>'
     + dgHd(104,44,"h1") + '<path d="M104 52 L110 84 L102 100 L108 112" class="mv1"/>'
     + '<path d="M106 56 L122 52 L128 66" class="mv1"/>'
     + dgHd(102,22,"h2") + '<path d="M102 30 L106 64 L98 84 L104 96" class="mv2"/>'
     + '<path d="M103 34 L128 66" class="mv2"/>'
-    + dgArr("M86 88 Q82 62 86 44", 86, 42, 280),
+    + dgArr("M86 88 Q82 62 86 44", 86, 42, 280)
+    + dgV() + dgRing(122,52) + dgLb(8,36,"lean fwd = more chest") + dgLd(80,40,96,42)
+    + dgLb(8,110,"upper arm ~parallel") + dgLd(76,106,100,90),
   ohp: '<path d="M60 58 L60 112 L88 112" class="eq"/>'
     + dgHd(74,38) + '<path d="M74 46 L74 90 L96 92 L96 114" class="fg"/>'
     + '<path d="M74 52 L90 58 L98 46" class="mv1"/>' + dgW(100,40,"h1")
     + '<path d="M74 52 L88 22" class="mv2"/>' + dgW(90,16,"h2")
-    + dgArr("M106 38 Q104 24 98 16", 96, 15, 210),
+    + dgArr("M106 38 Q104 24 98 16", 96, 15, 210)
+    + dgV() + dgRing(74,52) + dgLb(120,22,"biceps by the ears") + dgLd(122,26,96,20)
+    + dgLb(120,100,"abs braced") + dgLd(122,96,80,82),
   fly: '<text x="110" y="14" text-anchor="middle">TOP VIEW</text>'
     + dgHd(110,56) + '<path d="M80 64 L140 64" class="fg"/>'
     + '<path d="M80 64 L50 76" class="mv1"/>' + dgW(46,78,"h1")
     + '<path d="M140 64 L170 76" class="mv1"/>' + dgW(174,78,"h1")
     + '<path d="M80 64 L96 100" class="mv2"/>' + dgW(98,105,"h2")
     + '<path d="M140 64 L124 100" class="mv2"/>' + dgW(122,105,"h2")
-    + dgArr("M172 86 Q152 108 128 108", 126, 108, 180),
+    + dgArr("M172 86 Q152 108 128 108", 126, 108, 180)
+    + dgRing(80,64) + dgLb(8,120,"soft elbows, angle fixed") + dgLd(90,116,97,108),
   rearfly: '<text x="110" y="14" text-anchor="middle">TOP VIEW</text>'
     + dgHd(110,56) + '<path d="M80 64 L140 64" class="fg"/>'
     + '<path d="M80 64 L96 100" class="mv1"/>' + dgW(98,105,"h1")
     + '<path d="M140 64 L124 100" class="mv1"/>' + dgW(122,105,"h1")
     + '<path d="M80 64 L50 76" class="mv2"/>' + dgW(46,78,"h2")
     + '<path d="M140 64 L170 76" class="mv2"/>' + dgW(174,78,"h2")
-    + dgArr("M128 106 Q156 104 172 86", 173, 84, 300),
+    + dgArr("M128 106 Q156 104 172 86", 173, 84, 300)
+    + dgRing(140,64) + dgLb(8,26,"sweep back, thumbs up") + dgLd(70,30,62,68),
   ohext: dgHd(88,44) + '<path d="M88 52 L88 96 L80 120 M88 96 L96 120" class="fg"/>'
     + '<path d="M88 56 L106 36" class="fg"/>'
     + '<path d="M106 36 L92 24" class="mv1"/>' + dgW(88,21,"h1")
     + '<path d="M106 36 L116 15" class="mv2"/>' + dgW(118,10,"h2")
-    + dgArr("M96 14 Q108 2 116 6", 117, 7, 30),
+    + dgArr("M96 14 Q108 2 116 6", 117, 7, 30)
+    + dgV() + dgRing(106,36) + dgLb(118,64,"elbow up, stays still") + dgLd(120,60,108,40)
+    + dgLb(118,80,"deep stretch behind"),
   pushdown: '<circle cx="150" cy="14" r="3.5" class="eqf"/><path d="M150 14 L138 50" class="cbl"/>'
     + dgHd(110,34) + '<path d="M110 42 L110 94 L102 120 M110 94 L118 120" class="fg"/>'
     + '<path d="M110 48 L124 64" class="fg"/>'
     + '<path d="M124 64 L137 49" class="mv1"/>' + dgW(139,46,"h1")
     + '<path d="M124 64 L138 84" class="mv2"/>' + dgW(140,88,"h2")
     + '<path d="M150 14 L140 86" class="cbl"/>'
-    + dgArr("M146 52 Q154 68 148 80", 147, 82, 110),
+    + dgArr("M146 52 Q154 68 148 80", 147, 82, 110)
+    + dgV() + dgRing(124,64) + dgLb(8,58,"elbows pinned") + dgLb(8,68,"at your sides"),
   skull: '<rect x="38" y="86" width="120" height="7" rx="2" class="eqf"/><path d="M48 93 L48 114 M148 93 L148 114" class="eq"/>'
     + dgHd(52,78) + '<path d="M60 80 L112 82 L128 96 L128 114 L136 114" class="fg"/>'
     + '<path d="M78 80 L78 56" class="fg"/>'
     + '<path d="M78 56 L60 46" class="mv1"/>' + dgW(56,44,"h1")
     + '<path d="M78 56 L82 32" class="mv2"/>' + dgW(83,26,"h2")
-    + dgArr("M58 38 Q64 24 76 26", 78, 27, 15),
+    + dgArr("M58 38 Q64 24 76 26", 78, 27, 15)
+    + dgV() + dgRing(78,56) + dgLb(120,24,"lower behind the head") + dgLd(118,26,90,27)
+    + dgLb(212,44,"elbows tucked","end") + dgLd(150,46,86,54),
   pullup: '<path d="M60 18 L160 18" class="eq"/>'
     + dgHd(110,40,"h1") + '<path d="M96 18 L104 48 M124 18 L116 48" class="mv1"/>'
     + '<path d="M110 48 L110 86 L104 108" class="mv1"/>'
     + dgHd(110,24,"h2") + '<path d="M96 18 L100 32 L106 32 M124 18 L120 32 L114 32" class="mv2"/>'
     + '<path d="M110 32 L110 66 L100 84 L106 98" class="mv2"/>'
-    + dgArr("M138 62 Q142 44 136 30", 135, 28, 250),
+    + dgArr("M138 62 Q142 44 136 30", 135, 28, 250)
+    + dgV() + dgRing(110,48) + dgLb(8,46,"start from a") + dgLb(8,56,"dead hang") + dgLd(52,50,98,44)
+    + dgLb(156,34,"chin clears bar"),
   pulldown: '<circle cx="146" cy="8" r="3.5" class="eqf"/><path d="M92 96 L128 96" class="eq"/>'
     + dgHd(108,46) + '<path d="M108 54 L108 92 L130 94 L130 116" class="fg"/>'
     + '<path d="M108 58 L126 32" class="mv1"/><path d="M120 26 L136 30" class="mv1"/>'
     + '<path d="M146 8 L129 28" class="cbl"/>'
     + '<path d="M108 58 L118 78 L132 66" class="mv2"/><path d="M126 60 L140 68" class="mv2"/>'
-    + dgArr("M144 34 Q152 48 144 60", 143, 62, 115),
+    + dgArr("M144 34 Q152 48 144 60", 143, 62, 115)
+    + dgV() + dgRing(108,58) + dgLb(8,36,"slight lean back") + dgLd(66,38,102,48)
+    + dgLb(8,90,"pull to collarbones") + dgLd(80,88,114,76),
   row: '<path d="M60 96 L120 96" class="eq"/><path d="M132 100 L132 118" class="eq"/>'
     + '<circle cx="196" cy="64" r="3.5" class="eqf"/>'
     + dgHd(86,40) + '<path d="M86 48 L88 92 L118 90 L124 114" class="fg"/>'
     + '<path d="M87 54 L120 62" class="mv1"/>' + dgW(125,63,"h1")
     + '<path d="M87 54 L74 70 L96 67" class="mv2"/>' + dgW(101,67,"h2")
     + '<path d="M196 64 L103 67" class="cbl"/>'
-    + dgArr("M122 54 Q108 46 98 58", 97, 60, 120),
+    + dgArr("M122 54 Q108 46 98 58", 97, 60, 120)
+    + dgV() + dgRing(74,70) + dgLb(8,30,"sit tall") + dgLd(40,34,80,42)
+    + dgLb(8,78,"pull to the belly") + dgLd(60,76,70,72),
   csrow: '<path d="M70 106 L110 58" class="eq" style="stroke-width:9"/><path d="M70 106 L92 112" class="eq"/>'
     + dgHd(116,48) + '<path d="M112 58 L84 96 L98 112" class="fg"/>'
     + '<path d="M106 64 L112 94" class="mv1"/>' + dgW(113,99,"h1")
     + '<path d="M106 64 L126 62 L122 74" class="mv2"/>' + dgW(121,80,"h2")
-    + dgArr("M124 96 Q133 86 127 78", 126, 76, 235),
+    + dgArr("M124 96 Q133 86 127 78", 126, 76, 235)
+    + dgV() + dgRing(126,62) + dgLb(8,26,"chest stays on the pad") + dgLd(84,28,106,54)
+    + dgLb(140,116,"elbows ~45° out") + dgLd(142,112,124,82),
   bbrow: dgHd(52,52) + '<path d="M96 88 L60 58" class="fg"/><path d="M96 88 L92 116 M96 88 L104 116" class="fg"/>'
     + '<path d="M66 62 L70 90" class="mv1"/>' + dgW(70,96,"h1")
     + '<path d="M66 62 L78 76 L72 80" class="mv2"/>' + dgW(71,85,"h2")
-    + dgArr("M80 94 Q86 86 80 82", 79, 80, 235),
+    + dgArr("M80 94 Q86 86 80 82", 79, 80, 235)
+    + dgV() + dgRing(78,76) + dgLb(110,30,"flat back, ~45° hinge") + dgLd(112,34,80,70)
+    + dgLb(130,92,"pull to the stomach") + dgLd(132,88,82,80),
   sapd: '<circle cx="176" cy="10" r="3.5" class="eqf"/>'
     + dgHd(86,30) + '<path d="M90 38 L98 90 L92 116 M98 90 L108 116" class="fg"/>'
     + '<path d="M92 44 L132 24" class="mv1"/>' + dgW(137,22,"h1")
     + '<path d="M176 10 L136 23" class="cbl"/>'
     + '<path d="M92 44 L120 86" class="mv2"/>' + dgW(123,90,"h2")
-    + dgArr("M146 30 Q162 60 134 84", 132, 86, 160),
+    + dgArr("M146 30 Q162 60 134 84", 132, 86, 160)
+    + dgV() + dgRing(92,44) + dgLb(8,26,"arms straight, soft elbows") + dgLd(118,24,128,23)
+    + dgLb(8,110,"sweep down to thighs") + dgLd(92,108,118,92),
   shrug: dgHd(110,30) + '<path d="M110 38 L110 92 L102 118 M110 92 L118 118" class="fg"/>'
     + '<path d="M100 50 L120 50" class="mv1"/><path d="M119 50 L127 80" class="mv1"/>' + dgW(128,86,"h1")
     + '<path d="M100 43 L120 43" class="mv2"/><path d="M119 43 L127 74" class="mv2"/>' + dgW(128,80,"h2")
-    + dgArr("M136 78 L136 62", 136, 60, 270),
+    + dgArr("M136 78 L136 62", 136, 60, 270)
+    + dgV() + dgRing(119,43) + dgLb(8,36,"straight up —") + dgLb(8,46,"no rolling") + dgLd(58,42,96,44),
   curl: dgHd(100,30) + '<path d="M100 38 L100 92 L92 118 M100 92 L108 118" class="fg"/>'
     + '<path d="M100 46 L106 68" class="fg"/>'
     + '<path d="M106 68 L110 92" class="mv1"/>' + dgW(111,97,"h1")
     + '<path d="M106 68 L94 52" class="mv2"/>' + dgW(91,48,"h2")
-    + dgArr("M118 92 Q134 68 102 52", 100, 51, 195),
+    + dgArr("M118 92 Q134 68 102 52", 100, 51, 195)
+    + dgV() + dgRing(106,68) + dgLb(140,100,"elbow pinned") + dgLd(142,96,112,72)
+    + dgLb(120,112,"lower fully"),
   incurl: '<path d="M70 110 L112 58" class="eq" style="stroke-width:9"/><path d="M70 110 L92 116" class="eq"/>'
     + dgHd(118,48) + '<path d="M112 58 L88 98 L106 106 L106 120" class="fg"/>'
     + '<path d="M108 64 L106 84" class="fg"/>'
     + '<path d="M106 84 L102 104" class="mv1"/>' + dgW(101,109,"h1")
     + '<path d="M106 84 L90 72" class="mv2"/>' + dgW(86,69,"h2")
-    + dgArr("M96 106 Q78 90 84 74", 85, 72, 300),
+    + dgArr("M96 106 Q78 90 84 74", 85, 72, 300)
+    + dgV() + dgRing(106,84) + dgLb(8,26,"arms hang behind = stretch") + dgLd(118,30,118,42),
   preacher: '<path d="M84 62 L104 92" class="eq" style="stroke-width:9"/><path d="M96 96 L96 118" class="eq"/>'
     + dgHd(74,44) + '<path d="M78 52 L74 92" class="fg"/>'
     + '<path d="M80 56 L100 84" class="fg"/>'
     + '<path d="M100 84 L124 96" class="mv1"/>' + dgW(129,98,"h1")
     + '<path d="M100 84 L104 60" class="mv2"/>' + dgW(105,54,"h2")
-    + dgArr("M130 90 Q130 62 112 56", 110, 56, 190),
+    + dgArr("M130 90 Q130 62 112 56", 110, 56, 190)
+    + dgV() + dgRing(100,84) + dgLb(212,30,"armpits snug on pad","end") + dgLd(150,36,106,88),
   latraise: '<text x="110" y="14" text-anchor="middle">FRONT VIEW</text>'
     + dgHd(110,28) + '<path d="M110 36 L110 90 L100 118 M110 90 L120 118" class="fg"/>'
     + '<path d="M110 44 L122 78" class="mv1"/>' + dgW(124,83,"h1")
     + '<path d="M110 44 L98 78" class="mv1"/>' + dgW(96,83,"h1")
     + '<path d="M110 44 L144 46" class="mv2"/>' + dgW(150,47,"h2")
     + '<path d="M110 44 L76 46" class="mv2"/>' + dgW(70,47,"h2")
-    + dgArr("M130 76 Q150 68 152 56", 152, 54, 260),
+    + dgArr("M130 76 Q150 68 152 56", 152, 54, 260)
+    + dgRing(110,44) + dgLb(8,24,"stop at shoulder height") + dgLd(108,28,140,44)
+    + dgLb(8,112,"lead with the elbow") + dgLd(88,108,96,88),
   cfront: '<circle cx="58" cy="118" r="3.5" class="eqf"/>'
     + dgHd(96,28) + '<path d="M96 36 L96 92 L88 118 M96 92 L104 118" class="fg"/>'
     + '<path d="M96 44 L104 80" class="mv1"/>' + dgW(106,85,"h1")
     + '<path d="M58 118 L105 84" class="cbl"/>'
     + '<path d="M96 44 L132 40" class="mv2"/>' + dgW(138,40,"h2")
     + '<path d="M58 118 L136 42" class="cbl"/>'
-    + dgArr("M114 78 Q138 66 140 50", 140, 48, 260),
+    + dgArr("M114 78 Q138 66 140 50", 140, 48, 260)
+    + dgV() + dgRing(96,44) + dgLb(8,28,"raise to eye level") + dgLd(82,30,128,38),
   facepull: '<circle cx="176" cy="26" r="3.5" class="eqf"/>'
     + dgHd(92,34) + '<path d="M92 42 L96 96 L88 120 M96 96 L104 120" class="fg"/>'
     + '<path d="M94 48 L130 38" class="mv1"/>' + dgW(135,37,"h1")
     + '<path d="M176 26 L136 36" class="cbl"/>'
     + '<path d="M94 48 L116 46 L104 34" class="mv2"/>' + dgW(101,31,"h2")
     + '<path d="M176 26 L105 32" class="cbl"/>'
-    + dgArr("M134 30 Q122 20 110 26", 108, 27, 155),
+    + dgArr("M134 30 Q122 20 110 26", 108, 27, 155)
+    + dgV() + dgRing(94,48) + dgLb(212,100,"elbows high + wide","end") + dgLd(148,94,122,52),
   squat: dgHd(62,30,"h1") + dgW(62,42,"eqf")
     + '<path d="M62 38 L62 78 L56 118 M62 78 L68 118" class="mv1"/>'
     + dgHd(148,58,"h2") + dgW(150,70,"eqf")
     + '<path d="M148 66 L144 88 L166 92 L162 118" class="mv2"/>'
-    + dgArr("M96 56 Q112 74 126 82", 128, 83, 20),
+    + dgArr("M96 56 Q112 74 126 82", 128, 83, 20)
+    + dgV() + dgRing(144,88) + dgLb(150,22,"sit to full depth") + dgLd(152,26,150,52)
+    + dgLb(172,116,"feet flat"),
   sled: '<path d="M42 102 L74 70" class="eq" style="stroke-width:9"/><path d="M42 102 L68 112" class="eq"/>'
     + '<path d="M152 28 L172 82" class="eq" style="stroke-width:7"/>'
     + dgHd(48,62) + '<path d="M56 72 L80 94" class="fg"/>'
     + '<path d="M80 94 L112 64 L154 46" class="mv1"/>'
     + '<path d="M80 94 L102 88 L161 66" class="mv2"/>'
-    + dgArr("M116 56 Q104 66 102 80", 102, 82, 100),
+    + dgArr("M116 56 Q104 66 102 80", 102, 82, 100)
+    + dgV() + dgRing(112,64) + dgLb(8,30,"lower back on the pad") + dgLd(96,32,66,70)
+    + dgLb(140,112,"feet mid-platform") + dgLd(150,108,164,72),
   split: '<rect x="140" y="88" width="44" height="8" rx="2" class="eqf"/><path d="M148 96 L148 116 M176 96 L176 116" class="eq"/>'
     + dgHd(96,28,"h1") + '<path d="M96 36 L98 78 L96 96 L96 118 M98 78 L124 84 L146 87" class="mv1"/>'
     + dgHd(100,44,"h2") + '<path d="M100 52 L102 90 L92 102 L94 120 M102 90 L128 100 L148 88" class="mv2"/>'
-    + dgArr("M70 56 L70 82", 70, 84, 90),
+    + dgArr("M70 56 L70 82", 70, 84, 90)
+    + dgV() + dgRing(92,102) + dgLb(150,30,"rear foot up") + dgLd(158,34,160,84)
+    + dgLb(8,60,"drop straight down") + dgLd(84,62,98,74),
   rdl: '<path d="M100 80 L96 118 M100 80 L106 118" class="fg"/>'
     + dgHd(100,28,"h1") + '<path d="M100 80 L100 36" class="mv1"/>'
     + '<path d="M100 48 L102 76" class="mv1"/>' + dgW(102,82,"h1")
     + dgHd(56,52,"h2") + '<path d="M100 80 L64 58" class="mv2"/>'
     + '<path d="M72 62 L74 94" class="mv2"/>' + dgW(74,100,"h2")
-    + dgArr("M86 30 Q58 32 50 44", 50, 46, 110),
+    + dgArr("M86 30 Q58 32 50 44", 50, 46, 110)
+    + dgV() + dgRing(100,80) + dgLb(130,26,"hips push back") + dgLd(132,30,106,74)
+    + dgLb(8,108,"flat back, bar close") + dgLd(88,104,98,84),
   backext: '<path d="M72 112 L108 82" class="eq" style="stroke-width:9"/><path d="M90 98 L90 120" class="eq"/>'
     + '<path d="M108 82 L78 108" class="fg"/>'
     + dgHd(128,114,"h1") + '<path d="M108 82 L124 108" class="mv1"/>'
     + dgHd(148,52,"h2") + '<path d="M108 82 L142 58" class="mv2"/>'
-    + dgArr("M138 102 Q158 88 152 66", 151, 64, 250),
+    + dgArr("M138 102 Q158 88 152 66", 151, 64, 250)
+    + dgV() + dgRing(108,82) + dgLb(8,30,"hinge at the hips") + dgLd(74,32,104,76),
   curlH: '<path d="M64 54 L64 96 L110 96" class="eq"/>'
     + dgHd(76,40) + '<path d="M78 48 L76 92" class="fg"/><path d="M76 92 L112 90" class="fg"/>'
     + '<path d="M112 90 L144 84" class="mv1"/>' + dgW(148,86,"h1")
     + '<path d="M112 90 L126 114" class="mv2"/>' + dgW(129,118,"h2")
-    + dgArr("M150 94 Q150 112 138 118", 136, 118, 175),
+    + dgArr("M150 94 Q150 112 138 118", 136, 118, 175)
+    + dgV() + dgRing(112,90) + dgLb(8,74,"hips pressed down") + dgLd(88,76,80,88),
   legext: '<path d="M64 54 L64 96 L110 96" class="eq"/>'
     + dgHd(76,40) + '<path d="M78 48 L76 92" class="fg"/><path d="M76 92 L112 90" class="fg"/>'
     + '<path d="M112 90 L118 116" class="mv1"/>' + dgW(119,121,"h1")
     + '<path d="M112 90 L146 80" class="mv2"/>' + dgW(151,79,"h2")
-    + dgArr("M126 114 Q152 106 152 88", 152, 86, 260),
+    + dgArr("M126 114 Q152 106 152 88", 152, 86, 260)
+    + dgV() + dgRing(112,90) + dgLb(138,40,"pause at lockout") + dgLd(140,44,148,72),
   hipthrust: '<rect x="36" y="70" width="40" height="8" rx="2" class="eqf"/><path d="M44 78 L44 98 M68 78 L68 98" class="eq"/>'
     + dgHd(58,58) + '<path d="M128 84 L128 116" class="fg"/>'
     + '<path d="M72 72 L104 96 L128 86" class="mv1"/>' + dgW(104,88,"h1")
     + '<path d="M72 72 L108 74 L128 84" class="mv2"/>' + dgW(108,64,"h2")
-    + dgArr("M96 96 Q100 84 104 78", 105, 76, 290),
+    + dgArr("M96 96 Q100 84 104 78", 105, 76, 290)
+    + dgV() + dgRing(104,92) + dgLb(8,30,"drive to a flat line") + dgLd(84,32,98,70)
+    + dgLb(150,116,"squeeze at top"),
   abduct: '<text x="110" y="14" text-anchor="middle">FRONT VIEW</text>'
     + '<path d="M86 100 L134 100" class="eq"/>'
     + dgHd(110,42) + '<path d="M110 50 L110 96" class="fg"/>'
     + '<path d="M108 96 L102 124 M112 96 L118 124" class="mv1"/>'
     + '<path d="M108 96 L80 118 M112 96 L140 118" class="mv2"/>'
-    + dgArr("M126 118 Q136 120 142 112", 143, 110, 300),
+    + dgArr("M126 118 Q136 120 142 112", 143, 110, 300)
+    + dgRing(110,96) + dgLb(212,36,"push knees apart","end") + dgLd(176,40,136,104)
+    + dgLb(8,36,"pause at widest"),
   calfS: '<rect x="84" y="106" width="52" height="8" rx="2" class="eqf"/>'
     + dgHd(104,14) + '<path d="M104 22 L104 60 L106 84" class="fg"/>'
     + '<path d="M106 84 L112 110 L96 104" class="mv1"/>'
     + '<path d="M106 84 L102 96 L92 106" class="mv2"/>'
-    + dgArr("M122 108 Q126 96 118 90", 116, 89, 200),
+    + dgArr("M122 108 Q126 96 118 90", 116, 89, 200)
+    + dgV() + dgRing(108,100) + dgLb(8,44,"drop the heel deep") + dgLd(84,46,98,94)
+    + dgLb(212,40,"rise to full tiptoe","end") + dgLd(150,44,114,82),
   calfSeat: '<path d="M70 74 L70 112" class="eq"/><rect x="102" y="72" width="22" height="7" rx="2" class="eqf"/><rect x="98" y="112" width="20" height="6" rx="2" class="eqf"/>'
     + dgHd(84,32) + '<path d="M84 40 L84 88 L116 84" class="fg"/>'
     + '<path d="M116 84 L120 112 L104 108" class="mv1"/>'
     + '<path d="M116 84 L112 100 L102 108" class="mv2"/>'
-    + dgArr("M130 108 Q132 96 124 92", 122, 91, 200),
+    + dgArr("M130 108 Q132 96 124 92", 122, 91, 200)
+    + dgV() + dgRing(118,104) + dgLb(212,32,"pad snug on thighs","end") + dgLd(160,36,120,70),
   hlr: '<path d="M70 16 L150 16" class="eq"/>'
     + dgHd(110,28) + '<path d="M102 16 L108 36 M118 16 L112 36" class="fg"/><path d="M110 36 L110 72" class="fg"/>'
     + '<path d="M110 72 L110 112" class="mv1"/>'
     + '<path d="M110 72 L128 56 L140 68" class="mv2"/>'
-    + dgArr("M124 104 Q152 92 142 70", 141, 68, 240),
+    + dgArr("M124 104 Q152 92 142 70", 141, 68, 240)
+    + dgV() + dgRing(110,72) + dgLb(8,56,"curl the pelvis up") + dgLd(90,60,104,70)
+    + dgLb(8,116,"no swinging"),
   crunch: '<circle cx="170" cy="16" r="3.5" class="eqf"/>'
     + '<path d="M96 112 L76 116" class="fg"/><path d="M96 112 L104 86" class="fg"/>'
     + dgHd(112,38,"h1") + '<path d="M104 86 L110 46" class="mv1"/>' + dgW(121,40,"h1")
     + '<path d="M170 16 L123 39" class="cbl"/>'
     + dgHd(138,60,"h2") + '<path d="M104 86 Q120 70 132 64" class="mv2"/>' + dgW(145,55,"h2")
-    + dgArr("M124 30 Q148 32 152 46", 152, 48, 80),
+    + dgArr("M124 30 Q148 32 152 46", 152, 48, 80)
+    + dgV() + dgRing(104,86) + dgLb(8,34,"ribs toward pelvis") + dgLd(86,36,102,60)
+    + dgLb(8,116,"hips stay put") + dgLd(66,112,90,108),
 };
 const EXDIAG = {bench:"bench",flatdb:"bench",machchest:"bench",cgbp:"bench",incbb:"incpress",
   incdb:"incpress",dip:"dip",cfly:"fly",pec:"fly",l2h:"fly",rpd:"rearfly",sarpd:"rearfly",
@@ -4329,7 +4397,10 @@ function howtoHTML(exId){
   const dg = diagOf(exId), tips = howtoOf(exId);
   if (!dg && !tips) return "";
   let h = '<div class="mgroup">How to</div>';
-  if (dg) h += '<svg class="exdiag" viewBox="0 0 220 130">'+dg+'</svg>';
+  if (dg) h += '<svg class="exdiag" viewBox="0 0 220 130">'+dg+'</svg>'
+    + '<p class="cap" style="margin:8px 2px 4px;font-size:12px">Reading it: <span style="color:#8A93B8">faded pose</span> = start · '
+    + '<span style="color:var(--accent)">green pose</span> = finish · <span style="color:#FFB020">orange arrow</span> = the weight\'s path · '
+    + 'dashed <span style="color:var(--accent)">ring</span> = the joint doing the work</p>';
   if (tips) h += tips.map((t,i) => '<p class="intel-li"><span class="k">'+(i+1)+'</span>'+t+'</p>').join("");
   return h;
 }
