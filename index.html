@@ -829,7 +829,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.6"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.6.1"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -3398,16 +3398,23 @@ function labBars(pts, fmt){
   if (pts.length < 2) return '<p class="hint" style="padding:8px 0">A couple of weeks of data and this charts itself.</p>';
   const W=360,H=170,L=42,R=8,T=12,B=22;
   const hi = Math.max(...pts.map(p => p.val), 1)*1.12;
-  const X = i => L + (W-L-R)*(i/(pts.length-1));
+  /* slot-centered bars: the old i/(n-1) spread put the first bar on top of the y-axis
+     labels and clipped the last (green, current-week) bar off the right edge */
+  const slot = (W-L-R)/pts.length;
+  const X = i => L + slot*(i+0.5);
   const Y = v => T + (H-T-B)*(1 - v/hi);
-  const bw2 = Math.max(Math.min((W-L-R)/pts.length*0.62, 20), 3);
+  const bw2 = Math.max(Math.min(slot*0.62, 20), 3);
   let g = "";
   for (let i=1;i<4;i++){ const v = hi*i/4, y = Y(v);
     g += '<line x1="'+L+'" y1="'+y+'" x2="'+(W-R)+'" y2="'+y+'" stroke="rgba(255,255,255,.07)"/>'
       + '<text x="'+(L-5)+'" y="'+(y+4)+'" text-anchor="end" font-size="10" fill="rgba(255,255,255,.38)">'+fmt(v)+'</text>'; }
-  const bars = pts.map((p,i) =>
-    '<rect class="pt" x="'+(X(i)-bw2/2).toFixed(1)+'" y="'+Y(p.val).toFixed(1)+'" width="'+bw2.toFixed(1)+'" height="'+(Y(0)-Y(p.val)).toFixed(1)+'" rx="2" fill="'
-    + (i === pts.length-1 ? "#2CE08B" : "rgba(255,255,255,.28)")+'" data-d="'+p.d+'" data-v="'+fmt(p.val)+'" data-l="that week"/>').join("");
+  const bars = pts.map((p,i) => {
+    /* a 0-value week keeps a faint stub — otherwise the just-started current week is an
+       invisible hole at the end of the chart */
+    const h = p.val > 0 ? Math.max(Y(0)-Y(p.val), 2) : 1.5;
+    const fill = i === pts.length-1 ? "#2CE08B" : p.val > 0 ? "rgba(255,255,255,.28)" : "rgba(255,255,255,.12)";
+    return '<rect class="pt" x="'+(X(i)-bw2/2).toFixed(1)+'" y="'+(Y(0)-h).toFixed(1)+'" width="'+bw2.toFixed(1)+'" height="'+h.toFixed(1)+'" rx="2" fill="'
+      + fill+'" data-d="'+p.d+'" data-v="'+fmt(p.val)+'" data-l="that week"/>'; }).join("");
   const xl = [0, pts.length-1].map(i =>
     '<text x="'+X(i).toFixed(1)+'" y="'+(H-7)+'" text-anchor="middle" font-size="10" fill="rgba(255,255,255,.38)">'+fmtShort(pts[i].d)+'</text>').join("");
   return '<div class="chartwrap"><svg viewBox="0 0 '+W+' '+H+'">'+g+bars+xl+'</svg></div>';
