@@ -509,6 +509,8 @@ const EX = {
   pushdown:{n:"Triceps Pushdown",g:"triceps",inc:5,sub:"tri_lat"},
   rope:{n:"Rope Pushdown",g:"triceps",inc:5,sub:"tri_lat"},
   cgbp:{n:"Close-Grip Bench Press",g:"triceps",inc:5,rest:150,bb:1,sub:"tri_lat"},
+  revbench:{n:"Reverse-Grip Bench Press",g:"triceps",inc:5,rest:150,bb:1,sub:"tri_lat"},
+  barpd:{n:"Straight-Bar Pushdown",g:"triceps",inc:5,sub:"tri_lat"},
   jm:{n:"JM Press",g:"triceps",inc:5,rest:120,sub:"tri_lat"},
   skull:{n:"Skull Crusher",g:"triceps",inc:5,sub:"tri_long"},
   xbody:{n:"Cross-Body Cable Extension",g:"triceps",inc:2.5,uni:1,sub:"tri_long"},
@@ -659,6 +661,8 @@ const MUSC = {
   pushdown:{p:["triceps"],s:[],t:["core","lats","forearms"]},
   rope:{p:["triceps"],s:[],t:["core","lats","forearms"]},
   cgbp:{p:["triceps"],s:["chest","shoulders"],t:["forearms","core"]},
+  revbench:{p:["triceps"],s:["chest","shoulders"],t:["forearms","core"]},
+  barpd:{p:["triceps"],s:[],t:["core","lats","forearms"]},
   jm:{p:["triceps"],s:["chest"],t:["forearms"]},
   skull:{p:["triceps"],s:[],t:["forearms"]},
   xbody:{p:["triceps"],s:[],t:["core","shoulders"]},
@@ -742,6 +746,8 @@ const INTEL = {
   pushdown:{mv:"push",st:1,sb:2,good:"Clean short-position triceps work — the complement to overhead extensions.",bad:"Leaves the long head short — never your only triceps lift.",pair:["ohext"]},
   rope:{mv:"push",st:1,sb:2,good:"Pushdown with a longer squeeze at the bottom split.",bad:"Same story as any pushdown: pair it with overhead work.",pair:["ropeoh"]},
   cgbp:{mv:"press",st:1,sb:2,good:"Heavy triceps loading with chest helping — strength-friendly.",bad:"Long head stays short throughout."},
+  revbench:{mv:"press",st:1,sb:2,good:"The underhand grip tucks the elbows for you — strong triceps bias with an upper-chest assist.",flag:"An underhand grip can't dump the bar safely — use a spotter or the Smith machine.",pair:["cgbp"]},
+  barpd:{mv:"push",st:1,sb:2,good:"The straight bar takes the heaviest pushdown loads — both hands locked, palms down.",bad:"Same short-position limit as any pushdown — pair it with overhead work.",pair:["ohext"]},
   jm:{mv:"press",st:2,sb:2,good:"Skullcrusher-press hybrid — trending for loadable stretch on the triceps."},
   skull:{mv:"ext",st:2,sb:1,good:"Stretch-loaded triceps — take the bar behind your head for extra long-head length.",pair:["pushdown"]},
   pullup:{mv:"pulldown",st:2,sb:1,good:"Loaded vertical pull — lats at length with real overload.",bad:"Harder to fine-tune load near failure than a pulldown.",ev:"Pull-up ≈ pulldown for growth — pick by loadability."},
@@ -833,7 +839,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.7"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.8"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -4310,7 +4316,8 @@ const DIAG = {
     + dgV() + dgRing(104,86) + dgLb(8,34,"ribs toward pelvis") + dgLd(86,36,102,60)
     + dgLb(8,116,"hips stay put") + dgLd(66,112,90,108),
 };
-const EXDIAG = {bench:"bench",flatdb:"bench",machchest:"bench",cgbp:"bench",incbb:"incpress",
+const EXDIAG = {bench:"bench",flatdb:"bench",machchest:"bench",cgbp:"bench",revbench:"bench",
+  barpd:"pushdown",incbb:"incpress",
   incdb:"incpress",dip:"dip",cfly:"fly",pec:"fly",l2h:"fly",rpd:"rearfly",sarpd:"rearfly",
   dbohp:"ohp",machohp:"ohp",smithohp:"ohp",arnold:"ohp",bbohp:"ohp",ohext:"ohext",
   dbohext:"ohext",ropeoh:"ohext",pushdown:"pushdown",rope:"pushdown",xbody:"pushdown",
@@ -4339,6 +4346,8 @@ const TIPS = {
   pushdown:["Elbows pinned to your sides — they don't drift forward","Push to full lockout and squeeze","Stand tall; no leaning on the cable with body weight"],
   rope:["Split the rope apart at the bottom for a harder squeeze","Elbows glued to your sides","Control the return — the cable shouldn't yank you up"],
   cgbp:["Hands about shoulder width — narrower just bends the wrists","Elbows tucked ~30°, touch low on the chest","Lock out hard: the top is the triceps' half of the rep"],
+  revbench:["Underhand grip just inside shoulder width; squeeze the bar hard","Elbows tuck to your sides on the way down — touch low on the chest","Spotter or Smith machine only — an underhand grip can't dump a failed rep"],
+  barpd:["Palms-down grip on the short bar, about shoulder width","Elbows pinned to your sides; push to full lockout and squeeze","Keep the wrists straight — if they complain, it's a rope day"],
   jm:["Halfway between a skullcrusher and a close-grip press","Lower the bar toward the chin with elbows high and tucked","Press back up along the same slanted path"],
   skull:["Lower behind the top of the head, not to the forehead — bigger stretch","Elbows point at the ceiling and stay tucked","Only the forearm moves"],
   xbody:["Cable at upper-chest height; pull down and across to the opposite hip","Lock the upper arm — the forearm does the sweeping","Full stretch at the start, hard lockout at the end"],
