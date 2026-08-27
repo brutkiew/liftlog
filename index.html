@@ -506,7 +506,7 @@ const EX = {
   ohext:{n:"Single-Arm Overhead Cable Extension",g:"triceps",inc:5,uni:1,sub:"tri_long"},
   dbohext:{n:"DB Overhead Triceps Extension",g:"triceps",inc:5,db:1,sub:"tri_long"},
   ropeoh:{n:"Overhead Rope Extension",g:"triceps",inc:5,sub:"tri_long"},
-  pushdown:{n:"Triceps Pushdown",g:"triceps",inc:5,sub:"tri_lat"},
+  pushdown:{n:"V-Bar Pushdown",g:"triceps",inc:5,sub:"tri_lat"}, // renamed from "Triceps Pushdown" — his history on this id is the angled V-bar attachment
   rope:{n:"Rope Pushdown",g:"triceps",inc:5,sub:"tri_lat"},
   cgbp:{n:"Close-Grip Bench Press",g:"triceps",inc:5,rest:150,bb:1,sub:"tri_lat"},
   revbench:{n:"Reverse-Grip Bench Press",g:"triceps",inc:5,rest:150,bb:1,sub:"tri_lat"},
@@ -839,7 +839,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.8"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.8.1"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -4343,7 +4343,7 @@ const TIPS = {
   ohext:["Face away from the low pulley, arm overhead, elbow pointing up","Only the forearm moves — lower to a deep triceps stretch","Full lockout overhead; don't let the elbow drift out"],
   dbohext:["Both hands under one DB, elbows up by your ears","Lower behind the head to a deep stretch","The elbows will want to flare as you tire — keep them in"],
   ropeoh:["Face away from the pulley, rope behind your head","Elbows high and forward; extend to lockout","Let the rope pull a one-beat stretch before each rep"],
-  pushdown:["Elbows pinned to your sides — they don't drift forward","Push to full lockout and squeeze","Stand tall; no leaning on the cable with body weight"],
+  pushdown:["Angled V-bar grip — palms face each other and slightly down","Elbows pinned to your sides — they don't drift forward","Push to full lockout and squeeze; no leaning on the cable"],
   rope:["Split the rope apart at the bottom for a harder squeeze","Elbows glued to your sides","Control the return — the cable shouldn't yank you up"],
   cgbp:["Hands about shoulder width — narrower just bends the wrists","Elbows tucked ~30°, touch low on the chest","Lock out hard: the top is the triceps' half of the rep"],
   revbench:["Underhand grip just inside shoulder width; squeeze the bar hard","Elbows tuck to your sides on the way down — touch low on the chest","Spotter or Smith machine only — an underhand grip can't dump a failed rep"],
