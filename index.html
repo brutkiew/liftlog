@@ -500,6 +500,7 @@ const EX = {
      dips under chest — but their standards NUMBERS are what STD.dip uses either way.) */
   dip:{n:"Weighted Dip",g:"triceps",inc:5,bw:1,rest:120,sub:"tri_lat"},
   cfly:{n:"Cable Fly",g:"chest",inc:5,sub:"chest_low"},
+  dbfly:{n:"DB Chest Fly",g:"chest",inc:5,db:1,sub:"chest_low"},
   l2h:{n:"Low-to-High Cable Fly",g:"chest",inc:5,sub:"chest_up"},
   pec:{n:"Pec Deck",g:"chest",inc:5,sub:"chest_low"},
   machchest:{n:"Machine Chest Press",g:"chest",inc:5,rest:120,sub:"chest_low"},
@@ -652,6 +653,7 @@ const MUSC = {
   flatdb:{p:["chest"],s:["shoulders","triceps"],t:["forearms","core","biceps"]},
   dip:{p:["triceps"],s:["chest","shoulders"],t:["core","forearms"]},
   cfly:{p:["chest"],s:["shoulders"],t:["biceps","core"]},
+  dbfly:{p:["chest"],s:["shoulders"],t:["biceps"]},
   l2h:{p:["chest"],s:["shoulders"],t:["biceps","core"]},
   pec:{p:["chest"],s:["shoulders"],t:["biceps"]},
   machchest:{p:["chest"],s:["triceps","shoulders"]},
@@ -736,6 +738,7 @@ const INTEL = {
   flatdb:{mv:"press",st:3,sb:1,good:"Whole-chest builder with a deeper stretch than the barbell.",pair:["pec"]},
   dip:{mv:"dip",st:3,sb:1,good:"Elite triceps + chest builder — deep stretch under heavy load. Upright torso = triceps-dominant; a forward lean shifts it toward the lower chest.",flag:"Shoulder-extension stress at depth — control it, and skip it if the front of the shoulder complains.",ev:"Community S-tier with a joint-tolerance gate."},
   cfly:{mv:"fly",st:2,sb:2,good:"Chest isolation with tension through full adduction — this IS the honest \"inner chest\" work.",pair:["bench"]},
+  dbfly:{mv:"fly",st:3,sb:1,good:"The deepest loaded chest stretch of any fly — hardest exactly where the muscle grows.",bad:"Tension disappears at the top — the squeeze half belongs to cables or the pec deck.",pair:["cfly"]},
   l2h:{mv:"fly",st:2,sb:2,good:"Upper-chest fly path — the cable keeps tension at the squeeze where dumbbells go slack."},
   pec:{mv:"fly",st:2,sb:3,good:"Stable pec isolation, easy to take to failure — grows upper and lower fibers alike (2024 trial)."},
   machchest:{mv:"press",st:2,sb:3,good:"Stable heavy pressing — easy to push near failure safely.",ev:"Nippard's S+ chest pick; machines = free weights for growth."},
@@ -839,7 +842,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.8.1"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.8.2"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -4318,7 +4321,7 @@ const DIAG = {
 };
 const EXDIAG = {bench:"bench",flatdb:"bench",machchest:"bench",cgbp:"bench",revbench:"bench",
   barpd:"pushdown",incbb:"incpress",
-  incdb:"incpress",dip:"dip",cfly:"fly",pec:"fly",l2h:"fly",rpd:"rearfly",sarpd:"rearfly",
+  incdb:"incpress",dip:"dip",cfly:"fly",dbfly:"fly",pec:"fly",l2h:"fly",rpd:"rearfly",sarpd:"rearfly",
   dbohp:"ohp",machohp:"ohp",smithohp:"ohp",arnold:"ohp",bbohp:"ohp",ohext:"ohext",
   dbohext:"ohext",ropeoh:"ohext",pushdown:"pushdown",rope:"pushdown",xbody:"pushdown",
   jm:"skull",skull:"skull",pullup:"pullup",latpd:"pulldown",ngpd:"pulldown",cablerow:"row",
@@ -4337,6 +4340,7 @@ const TIPS = {
   flatdb:["Kick the DBs up with your knees as you lie back","Sink deeper than a barbell allows — that stretch is the point","Press up and slightly in; wrists stacked over elbows"],
   dip:["Lean the torso forward for chest, stay upright for triceps","Down until the upper arm is about parallel — deeper only if the shoulders are happy","Squeeze to lockout without slamming the elbows"],
   cfly:["Pulleys at chest height, small forward step and lean","Big arc with soft elbows locked at one angle throughout","Cross slightly at the midline, squeeze, then let the stretch open you back up"],
+  dbfly:["Flat bench, soft elbows locked at one angle — it never turns into a press","Lower in a wide arc until you feel a deep chest stretch, then pause a beat","Go lighter than you think: the bottom is everything, and failing deep is risky"],
   l2h:["Pulleys low; sweep low-to-high, finishing at shoulder height","Think scoop up and together — the upper chest does the lifting","Keep the elbow angle fixed; it's a fly, not a press"],
   pec:["Seat height so the handles sit at mid-chest","Elbows just below hands; squeeze the pads together, don't push them","Pause a beat at full stretch — that's the half that grows you"],
   machchest:["Seat height: handles at the nipple line","Shoulder blades pinned to the pad for the whole set","A safe place to push right up to failure — use it"],
