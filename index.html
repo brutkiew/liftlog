@@ -361,6 +361,9 @@
   .cal i.today{outline:1.5px solid var(--text-2);outline-offset:1px}
   /* recap */
   .recap-block{border-top:1px solid var(--stroke-soft);margin-top:13px;padding-top:12px}
+  .tro-row{display:flex;gap:20px;margin-top:10px}
+  .tro-row b{display:block;font-size:21px;letter-spacing:-.02em}
+  .tro-row .cap{display:block;margin-top:1px}
   .recap-verdict{font-size:16px;font-weight:650;letter-spacing:-.01em;line-height:1.35;margin-top:4px}
   .recap-li{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;color:var(--text-2);margin-top:7px}
   .recap-li b{color:var(--text-1);font-weight:650}
@@ -859,7 +862,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.8.4"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.9"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -1321,6 +1324,180 @@ function recapCard(r, dismissable){
     + '<div class="recap-li"><span>Weeks at 5+ sessions</span><b class="num">'+st+' straight</b></div></div>';
   h += '<div class="recap-block"><span class="lbl">One thing</span>'
     + '<div class="hint" style="margin-top:6px">'+recapSuggestion(r)+'</div></div>';
+  return h + '</div>';
+}
+
+/* ================= trophy case ================= */
+/* everything below is recomputed from the log every open — trophies can't be lost,
+   and a fixed typo (the outlier guard) quietly corrects the wall too */
+function trophyData(){
+  const ws = S.workouts.slice().sort((a,b) => a.date < b.date ? -1 : 1);
+  if (!ws.length) return null;
+  let ton = 0, sets = 0, prsN = 0, mi = 0;
+  const MS = [1e5, 25e4, 5e5, 1e6, 2e6, 5e6, 1e7], tonCross = [];
+  for (const w of ws){
+    ton += tonOf(w);
+    sets += w.exercises.reduce((a,e) => a + workSets(e.sets).length, 0);
+    prsN += (w.prs||[]).length;
+    while (mi < MS.length && ton >= MS[mi]){ tonCross.push({m:MS[mi], d:w.date}); mi++; }
+  }
+  // strength levels: each benchmark's current level + the date it was first crossed
+  const bw = bodyweight(), fem = S.settings.sex === "female" ? 0.72 : 1;
+  const levels = [];
+  for (const [id, std] of Object.entries(STD)){
+    let m = 0, idx = -1, when = null;
+    for (const w of ws){
+      const e = w.exercises.find(x => x.id === id); if (!e) continue;
+      for (const s of workSets(e.sets)){
+        if (isOutlier(id, w.date, s)) continue;
+        const v = std.bwTotal ? (bw + (+s.w||0))*e1Mult(+s.r) : (+s.w||0)*e1Mult(+s.r);
+        if (v > m){ m = v;
+          const i2 = lvlOf(m/bw/fem, std.t).idx;
+          if (i2 > idx){ idx = i2; when = w.date; } }
+      }
+    }
+    if (idx >= 1) levels.push({name:exInfo(id).n, idx, when});
+  }
+  levels.sort((a,b) => b.idx - a.idx || (a.when < b.when ? -1 : 1));
+  // records
+  let bigWeek = null;
+  for (const x of weeklyStats()) if (x.sess && (!bigWeek || x.ton > bigWeek.ton)) bigWeek = x;
+  let bigSess = null;
+  for (const w of ws){
+    const n = w.exercises.reduce((a,e) => a + workSets(e.sets).length, 0);
+    if (!bigSess || n > bigSess.n) bigSess = {n, d:w.date};
+  }
+  // longest-ever run of 5+-session weeks; the in-progress week can extend it, never break it
+  let run = 0, best = 0;
+  const curWs = weekStart(todayStr());
+  for (const w0 of allWeekStarts()){
+    if (weeklySessions(w0) >= 5){ run++; if (run > best) best = run; }
+    else if (w0 !== curWs) run = 0;
+  }
+  const prWall = [];
+  for (let i = ws.length-1; i >= 0 && prWall.length < 25; i--)
+    for (const p of (ws[i].prs||[])) if (prWall.length < 25) prWall.push({d:ws[i].date, p});
+  return {n:ws.length, first:ws[0].date, ton, sets, prsN,
+    tonCross:tonCross.reverse(), levels, bigWeek, bigSess, streakBest:best, prWall};
+}
+function openTrophyModal(){
+  const t = trophyData(); if (!t) return;
+  const li = (a,b) => '<div class="recap-li"><span>'+a+'</span><b class="num">'+b+'</b></div>';
+  let h = '<h3>Trophy case</h3>'
+    + '<p class="hint">Recomputed from your log every time — nothing in here can be lost, only beaten.</p>'
+    + '<div class="recap-block"><span class="lbl">Lifetime</span>'
+    + li("Training since", fmtDate(t.first))
+    + li("Workouts", t.n)
+    + li("Weight moved", Math.round(t.ton).toLocaleString()+" lb")
+    + li("Hard sets", t.sets.toLocaleString())
+    + li("PRs set", t.prsN)
+    + '</div>';
+  if (t.tonCross.length){
+    h += '<div class="recap-block"><span class="lbl">Tonnage milestones</span>';
+    for (const c of t.tonCross) h += li(c.m.toLocaleString()+" lb lifted", fmtShort(c.d));
+    h += '</div>';
+  }
+  if (t.levels.length){
+    h += '<div class="recap-block"><span class="lbl">Strength levels</span>'
+      + '<div class="cap" style="margin:2px 0 2px">when each lift first crossed the line it stands on now</div>';
+    for (const l of t.levels)
+      h += '<div class="recap-li"><span>'+esc(l.name)+'</span><b class="num" style="color:'
+        + (l.idx >= 3 ? "#E8C34A" : l.idx >= 2 ? "var(--accent)" : "var(--text-2)")+'">'
+        + LVLS[l.idx]+' <span class="cap">· '+fmtShort(l.when)+'</span></b></div>';
+    h += '</div>';
+  }
+  h += '<div class="recap-block"><span class="lbl">Records</span>'
+    + (t.bigWeek ? li("Biggest week", Math.round(t.bigWeek.ton).toLocaleString()+" lb · wk of "+fmtShort(t.bigWeek.d)) : "")
+    + (t.bigSess ? li("Most sets in a session", t.bigSess.n+" · "+fmtShort(t.bigSess.d)) : "")
+    + (t.streakBest ? li("Longest streak at 5+", t.streakBest+" week"+(t.streakBest>1?"s":"")) : "")
+    + '</div>';
+  if (t.prWall.length){
+    h += '<div class="recap-block"><span class="lbl">Latest PRs</span>';
+    for (const x of t.prWall)
+      h += '<div class="recap-li"><span class="cap num" style="flex:none">'+fmtShort(x.d)+'</span><b style="font-weight:500;text-align:right">'+esc(prLabel(x.p))+'</b></div>';
+    h += '</div>';
+  }
+  openModal(h + '<div class="btnrow"><button data-act="modal-close">Close</button></div>');
+}
+
+/* ================= monthly recap ================= */
+let recapMonthSel = null;   // "YYYY-MM" currently shown in Trends → Insights
+const monthsWithData = () => [...new Set(S.workouts.map(w => w.date.slice(0,7)))].sort();
+const monthLabel = ym => new Date(+ym.slice(0,4), +ym.slice(5,7)-1, 1)
+  .toLocaleString(undefined, {month:"long", year:"numeric"});
+const monthEnd = ym => ym+"-"+String(new Date(+ym.slice(0,4), +ym.slice(5,7), 0).getDate()).padStart(2,"0");
+function recapMonthFor(ym){
+  const a = ym+"-01", b = monthEnd(ym);
+  const y = +ym.slice(0,4), mo = +ym.slice(5,7);
+  const prevYm = mo === 1 ? (y-1)+"-12" : y+"-"+String(mo-1).padStart(2,"0");
+  const sessions = S.workouts.filter(w => w.date >= a && w.date <= b);
+  const tr = trendSeries();
+  const tAt = ds => { const p = tr.filter(x => x.d <= ds); return p.length ? p[p.length-1].t : null; };
+  const tEnd = tAt(b), tPrev = tAt(addDays(a,-1));
+  const dW = (tEnd != null && tPrev != null && tr.length >= 8) ? tEnd - tPrev : null;
+  const ks = kcalEntries().filter(e => e.d >= a && e.d <= b);
+  const prs = sessions.flatMap(w => w.prs || []);
+  const ton = sessions.reduce((x,w) => x + tonOf(w), 0);
+  const sets = sessions.reduce((x,w) => x + w.exercises.reduce((s,e) => s + workSets(e.sets).length, 0), 0);
+  const cardio = sessions.reduce((x,w) => x + (w.cardio ? w.cardio.min : 0), 0);
+  const anchors = [];
+  for (const id of Object.keys(STD)){
+    const inM = bestE1InRange(id, a, b), before = bestE1InRange(id, prevYm+"-01", monthEnd(prevYm));
+    if (inM && before) anchors.push({name:exInfo(id).n, pct:(inM-before)/before*100});
+  }
+  anchors.sort((x,z) => z.pct - x.pct);
+  // elapsed days: a finished month counts in full, the current month only up to today
+  const today = todayStr();
+  const dTot = (today >= a && today <= b) ? +today.slice(8) : +b.slice(8);
+  return {ym, sessions, dW, tEnd, ks, prs, ton, sets, cardio, anchors, dTot,
+    days: new Set(sessions.map(w => w.date)).size,
+    avgK: ks.length ? Math.round(ks.reduce((x,e) => x+e.k, 0)/ks.length) : null};
+}
+function monthVerdict(r){
+  const prN = [...new Set(r.prs.map(p => p.name))].length;
+  if (r.dW !== null){
+    const d = Math.abs(r.dW).toFixed(1);
+    if (r.dW <= -1.5) return "Down "+d+" lb over the month"+(prN ? " with PRs on "+prN+" lift"+(prN>1?"s":"") : "")+" — the cut is doing its job.";
+    if (r.dW < -0.4) return "Down "+d+" lb — a steady month.";
+    if (r.dW <= 0.5) return "Weight held through "+r.sessions.length+" sessions"+(prN ? " with PRs on "+prN+" lift"+(prN>1?"s":"") : "")+" — recomp month.";
+    return "Trend up "+d+" lb this month — worth a look at the intake numbers if that wasn't the plan.";
+  }
+  return r.sessions.length ? r.sessions.length+" sessions this month." : "A quiet month.";
+}
+function monthCard(r){
+  const ms = monthsWithData(), i = ms.indexOf(r.ym);
+  const nav = (d, on) => '<button class="ghost" data-act="mrecap-nav" data-d="'+d+'" style="font-size:17px;line-height:1;padding:2px 8px'
+    + (on ? '' : ';opacity:.3;pointer-events:none')+'">'+(d<0 ? '‹' : '›')+'</button>';
+  const li = (a,b) => '<div class="recap-li"><span>'+a+'</span><b class="num">'+b+'</b></div>';
+  let h = '<div class="card"><div class="rowline"><span class="lbl grow">Month in review · '+monthLabel(r.ym)+'</span>'
+    + nav(-1, i > 0) + nav(1, i < ms.length-1) + '</div>'
+    + '<div class="recap-verdict">'+monthVerdict(r)+'</div>';
+  if (r.dW !== null || r.avgK){
+    h += '<div class="recap-block"><span class="lbl">Body</span>';
+    if (r.dW !== null) h += li("Trend change", (r.dW>0?"+":"")+r.dW.toFixed(1)+" lb")
+      + li("Trend at month end", r.tEnd.toFixed(1)+" lb");
+    if (r.avgK) h += li("Calories · "+r.ks.length+" days logged", r.avgK.toLocaleString()+" avg");
+    h += '</div>';
+  }
+  h += '<div class="recap-block"><span class="lbl">Training</span>'
+    + li("Sessions", r.sessions.length+' <span class="cap">· '+(r.sessions.length/(r.dTot/7)).toFixed(1)+'/wk</span>')
+    + li("Days trained", r.days+" of "+r.dTot)
+    + li("Hard sets", r.sets.toLocaleString())
+    + li("Weight moved", Math.round(r.ton).toLocaleString()+" lb")
+    + (r.cardio ? li("Cardio", r.cardio+" min") : '')
+    + '</div>';
+  if (r.prs.length || r.anchors.length){
+    h += '<div class="recap-block"><span class="lbl">Strength</span>';
+    if (r.prs.length){
+      const names = [...new Set(r.prs.map(p => esc(p.name)))];
+      h += li("PRs", r.prs.length+' <span class="cap">on '+names.length+' lift'+(names.length>1?'s':'')+'</span>')
+        + '<div class="cap" style="margin-top:3px">'+names.slice(0,8).join(", ")+(names.length>8 ? " +"+(names.length-8)+" more" : "")+'</div>';
+    }
+    for (const a2 of r.anchors.slice(0,4))
+      h += '<div class="recap-li"><span>'+esc(a2.name)+'</span><b class="num '+(a2.pct>1?"up":a2.pct<-3?"dn":"fl")+'">'
+        + (a2.pct>1?"▲":a2.pct<-3?"▼":"▬")+" "+(a2.pct>0?"+":"")+a2.pct.toFixed(1)+'% <span class="cap">vs last mo</span></b></div>';
+    h += '</div>';
+  }
   return h + '</div>';
 }
 
@@ -2832,6 +3009,18 @@ function trendsInsights(){
   if (hl.length)
     html += '<div class="card"><span class="lbl">Highlights</span>'+highlightsHTML(hl)+'</div>';
 
+  // trophy case — lifetime headline, full wall behind the tap
+  const tro = trophyData();
+  if (tro)
+    html += '<div class="card"><span class="lbl">Trophy case</span>'
+      + '<div class="tro-row">'
+      + '<div><b class="num grad-ink">'+(tro.ton >= 1e6 ? (tro.ton/1e6).toFixed(2)+'M' : tro.ton >= 1e5 ? Math.round(tro.ton/1000)+'k' : Math.round(tro.ton).toLocaleString())+'</b><span class="cap">lb lifetime</span></div>'
+      + '<div><b class="num">'+tro.prsN+'</b><span class="cap">PRs set</span></div>'
+      + '<div><b class="num">'+tro.n+'</b><span class="cap">workouts</span></div>'
+      + (tro.streakBest ? '<div><b class="num">'+tro.streakBest+'</b><span class="cap">best streak · wks</span></div>' : '')
+      + '</div>'
+      + '<button class="link" data-act="trophies" style="margin-top:11px;font-size:12.5px">Open the trophy case ›</button></div>';
+
   // muscle report card
   const mrep = muscleReport();
   if (mrep.length){
@@ -2891,6 +3080,13 @@ function trendsInsights(){
   const lastWs = addDays(weekStart(todayStr()), -7);
   if (S.workouts.some(w => w.date >= lastWs && w.date <= addDays(lastWs,6)) || S.workouts.some(w => w.date < lastWs))
     html += recapCard(recapFor(lastWs), false);
+
+  // month in review — ‹ › walks every month with a workout in it
+  const ms = monthsWithData();
+  if (ms.length){
+    const sel = recapMonthSel && ms.includes(recapMonthSel) ? recapMonthSel : ms[ms.length-1];
+    html += monthCard(recapMonthFor(sel));
+  }
   return html;
 }
 
@@ -3808,7 +4004,7 @@ function renderMore(){
     + '<button data-act="export">Backup</button>'
     + '<button data-act="import">Restore</button></div>'
     + '<input type="file" id="importfile" accept=".json" style="display:none">'
-    + '<p class="cap" style="margin-top:10px">“Copy for Claude” puts your recent training + body data on the clipboard — paste into a Claude chat for coaching. Data lives on this device only; back up occasionally.</p>'
+    + '<p class="cap" style="margin-top:10px">“Copy for Claude” puts your recent training + body data on the clipboard — paste into a Claude chat for coaching. Data lives on this device only; on the phone, Backup opens the share sheet — two taps to iCloud Drive keeps it safe.</p>'
     + '<div class="btnrow"><button class="danger" data-act="reset">Erase all data</button></div></div>'
     + '<p class="cap" style="margin:16px 2px">Ghost numbers in the inputs are your target — last time’s sets, bumped when you max the rep range. Type reps and a set is logged (blank weight adopts the ghost number at finish); with check-off on, tap the check instead. Tap a set number to mark it a warm-up.</p>'
     + '<p class="cap num" style="margin:4px 2px;color:var(--text-3)">LiftLog v'+APP_VER+' — after an update, close and reopen the app twice and this number changes.</p>';
@@ -3920,17 +4116,20 @@ function linkSS(ei, j){
   const d = curDraft(), e = d.exercises[ei], p = d.exercises[j];
   if (!e || !p || e === p) return;
   const old = e.ss;
+  const joiningTheirs = !!p.ss;   // e is joining p's existing group → e is the one that moves
   const g = p.ss || old || Math.max(0, ...d.exercises.map(x => x.ss || 0)) + 1;
   e.ss = g; p.ss = g;
   if (old && old !== g){
     const left = d.exercises.filter(x => x !== e && x.ss === old);
     if (left.length < 2) left.forEach(x => delete x.ss);
   }
-  // keep the group adjacent: drop this lift right after the group's last other member
+  // keep the group adjacent: the lift that JOINS moves in next to the group; the lift
+  // you started from (the anchor) stays exactly where it was in the workout order
+  const mover = joiningTheirs ? e : p;
   const arr = d.exercises;
-  arr.splice(arr.indexOf(e), 1);
-  let k = -1; arr.forEach((x, idx) => { if (x.ss === g) k = idx; });
-  arr.splice(k + 1, 0, e);
+  arr.splice(arr.indexOf(mover), 1);
+  let k = -1; arr.forEach((x, idx) => { if (x !== mover && x.ss === g) k = idx; });
+  arr.splice(k + 1, 0, mover);
   save(); render();
   showToast("Superset — alternate sets between the two, rest after the pair.");
 }
@@ -5350,6 +5549,13 @@ document.addEventListener("click", ev => {
   else if (act === "hist-month-open"){ openHistMonthModal(); }
   else if (act === "hist-month-pick"){ histMonth = btn.dataset.m; histShow = 15; closeModal(); render(); }
   else if (act === "ttab"){ S.trendTab = btn.dataset.t; save(); render(); }
+  else if (act === "trophies"){ openTrophyModal(); }
+  else if (act === "mrecap-nav"){
+    const ms = monthsWithData();
+    const cur = recapMonthSel && ms.includes(recapMonthSel) ? recapMonthSel : ms[ms.length-1];
+    const ni = ms.indexOf(cur) + (+btn.dataset.d);
+    if (ni >= 0 && ni < ms.length){ recapMonthSel = ms[ni]; render(); }
+  }
   else if (act === "lab-group"){ labGroup = btn.dataset.g; render(); }
   else if (act === "range"){ S.range = +btn.dataset.r; save(); render(); }
   else if (act === "t-adj"){
@@ -5378,15 +5584,30 @@ document.addEventListener("click", ev => {
       .catch(() => { prompt("Copy this:", txt); });
   }
   else if (act === "export"){
-    S.lastBackup = todayStr(); save();
     // never write the API key into a backup file — it gets emailed/shared between devices
     const dump = Object.assign({}, S, {settings: Object.assign({}, S.settings, {apiKey:""})});
-    const blob = new Blob([JSON.stringify(dump, null, 1)], {type:"application/json"});
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "liftlog-backup-" + todayStr() + ".json";
-    a.click(); URL.revokeObjectURL(a.href);
-    if (tab === "home") render();
+    const json = JSON.stringify(dump, null, 1), fname = "liftlog-backup-" + todayStr() + ".json";
+    const mark = ok => { if (!ok) return;
+      S.lastBackup = todayStr(); save();
+      if (tab === "home" || tab === "settings") render(); };
+    const dl = () => {
+      const blob = new Blob([json], {type:"application/json"});
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = fname;
+      a.click(); URL.revokeObjectURL(a.href);
+      mark(true);
+    };
+    // on the phone, hand the file straight to the share sheet — two taps to iCloud Drive.
+    // A cancelled share doesn't count as a backup; any share error falls back to download.
+    let file = null;
+    try { if (navigator.canShare) file = new File([json], fname, {type:"application/json"}); } catch(e){}
+    const mobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (file && mobile && navigator.canShare({files:[file]})){
+      navigator.share({files:[file]})
+        .then(() => { mark(true); showToast("Backed up ✓ — safe as long as that copy exists."); })
+        .catch(err => { if (err && err.name !== "AbortError") dl(); });
+    } else dl();
   }
   else if (act === "import"){ $("#importfile").click(); }
   else if (act === "reset"){
