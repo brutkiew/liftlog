@@ -77,8 +77,11 @@
      page (black-translucent + viewport-fit=cover), and the topbar glass alone is too
      transparent to keep them readable while content scrolls beneath. This fixed strip
      holds a darker blur behind the system icons and fades out; on desktop the safe-area
-     inset is 0 so it has no height at all. */
-  body::before{content:"";position:fixed;top:-200px;left:0;right:0;z-index:8;pointer-events:none;
+     inset is 0 so it has no height at all.
+     v9.10 fix: this rule used to live on body::before, which was ALREADY the teal aurora
+     blob — it silently replaced the blob (and inherited its 50% radius + blur + drift
+     animation). Now a real element (#sbb); the teal aurora is back. */
+  #sbb{position:fixed;top:-200px;left:0;right:0;z-index:8;pointer-events:none;
     height:calc(200px + env(safe-area-inset-top, 0px)*1.3);
     /* the 200px above the viewport is normally offscreen; iOS drags fixed elements with
        the rubber-band bounce, so a hard fling to the top reveals this dark extension
@@ -108,6 +111,35 @@
     background:rgba(24,29,50,.38);backdrop-filter:blur(28px) saturate(1.8);-webkit-backdrop-filter:blur(28px) saturate(1.8);
     border:1px solid rgba(165,180,255,.20);border-radius:30px;display:flex;
     padding:7px;box-shadow:inset 0 1px 0 rgba(255,255,255,.13), 0 18px 44px rgba(0,0,0,.5)}
+  /* liquid-glass edge refraction (v9.10): iOS Safari can't refract an arbitrary backdrop
+     (backdrop-filter:url() hasn't landed in WebKit — bug 245510), but the aurora is OURS:
+     fixed-position and page-drawn. So a pixel-identical clone of the blob layer sits in a
+     capsule-shaped pane UNDER the tab bar and is bent through a real feDisplacementMap
+     lens (rounded-rect SDF, generated at runtime for the exact capsule size). The
+     capsule's own backdrop-filter then blurs/saturates/tints the refracted light exactly
+     like the rest of the backdrop — every bent pixel is genuine backdrop content. When
+     WebKit ships backdrop-filter:url(), this whole layer collapses to one line. */
+  #lens{position:fixed;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));
+    z-index:5;max-width:456px;margin:0 auto;border-radius:30px;overflow:hidden;
+    pointer-events:none;height:71px;
+    /* masked to the bezel ring (JS) — the capsule center stays pure backdrop glass, the
+       rim shows the bent aurora, like the real material: frosted middle, live edge */
+    opacity:.6}
+  #lens .lensin{position:absolute;inset:-44px}   /* filter applied by JS once the map exists */
+  #lens .lensbg{position:absolute}               /* sized + viewport-aligned by JS */
+  #lens .rb{position:absolute;border-radius:50%;filter:blur(90px)}
+  #lens .r1{width:540px;height:540px;top:-160px;left:-150px;
+    background:radial-gradient(circle,rgba(23,185,160,.46),transparent 65%)}
+  #lens .r2{width:600px;height:600px;bottom:-210px;right:-170px;
+    background:radial-gradient(circle,rgba(139,124,246,.42),transparent 65%)}
+  #lens .r3{width:440px;height:440px;top:30%;right:-180px;filter:blur(100px);
+    background:radial-gradient(circle,rgba(255,123,172,.28),transparent 65%)}
+  @media (prefers-reduced-motion:no-preference){
+    #lens .r1{animation:drift1 26s ease-in-out infinite alternate}
+    #lens .r2{animation:drift2 32s ease-in-out infinite alternate}
+    #lens .r3{animation:drift3 38s ease-in-out infinite alternate}
+  }
+  body.norefract #lens{display:none}
   #tabs button{flex:1;background:none;border:none;color:var(--text-3);font-size:10.5px;
     font-weight:600;padding:8px 0 5px;letter-spacing:.03em;border-radius:23px;
     transition:transform .35s var(--ease),background .3s}
@@ -491,6 +523,18 @@
   <button data-act="t-adj" data-d="-15">−15</button><button data-act="t-adj" data-d="15">+15</button>
   <button data-act="t-skip">Skip</button></div>
 <div id="toast"></div>
+<div id="sbb"></div>
+<div id="lens" aria-hidden="true"><div class="lensin"><div class="lensbg">
+  <i class="rb r1"></i><i class="rb r2"></i><i class="rb r3"></i>
+</div></div></div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="lensmap" x="0" y="0" width="100%" height="100%"
+    filterUnits="objectBoundingBox" primitiveUnits="userSpaceOnUse"
+    color-interpolation-filters="sRGB">
+    <feImage id="lensimg" x="0" y="0" result="m"/>
+    <feDisplacementMap in="SourceGraphic" in2="m" scale="92" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+</svg>
 <nav id="tabs"></nav>
 <div id="ovl"><div id="modal"></div></div>
 
@@ -862,11 +906,12 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.9"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.10"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
-  age:30, bodyFat:"", cardioKcal:7.8, autoReg:true, week:null}; // week null = standard program (DEF_WEEK)
+  age:30, bodyFat:"", cardioKcal:7.8, autoReg:true, week:null, // week null = standard program (DEF_WEEK)
+  refract:true}; // liquid-glass edge refraction under the tab capsule
 let S = {workouts:[], drafts:{}, custom:{}, templates:{}, coach:[], milestone:0, uniO:{},
   body:{weights:{}, kcals:{}, meas:{}, sleep:{}, energy:{}},
   settings:Object.assign({}, DEF_SET),
@@ -1767,6 +1812,72 @@ function render(){
   else renderMore();
   syncTimerUI();
 }
+
+/* ================= liquid-glass lens ================= */
+/* Real edge refraction of the aurora under the tab capsule. The displacement map is a
+   rounded-rect signed-distance lens: inside a bezel band at the rim, each pixel's sample
+   point is pulled toward the capsule center along the edge normal with a convex falloff —
+   Snell's-law-style magnification at the edge, untouched glass in the middle. R encodes
+   x-shift, G y-shift, 128 = neutral. Built per actual capsule size; on any failure the
+   clone renders undisplaced, which is pixel-identical to the real backdrop (no harm). */
+function lensBuild(){
+  const lens = $("#lens"), tabs = $("#tabs");
+  if (!lens || !tabs) return;
+  try {
+    if (S.settings.refract === false){ document.body.classList.add("norefract"); return; }
+    document.body.classList.remove("norefract");
+    const tr = tabs.getBoundingClientRect();
+    if (!tr.width || !tr.height) return;
+    lens.style.height = tr.height + "px";
+    const L = lens.getBoundingClientRect();
+    // align the viewport-sized blob clone with the real aurora (lensin sits at inset -44)
+    const bg = lens.querySelector(".lensbg");
+    bg.style.width = innerWidth + "px"; bg.style.height = innerHeight + "px";
+    bg.style.left = (44 - L.left) + "px"; bg.style.top = (44 - L.top) + "px";
+    // displacement map for the extended (.lensin) box
+    const inset = 44, rad = 30, bez = 19, W = Math.round(L.width) + 2*inset, H = Math.round(L.height) + 2*inset;
+    const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+    const mk = document.createElement("canvas"); mk.width = W; mk.height = H;
+    const ctx = cv.getContext("2d"), im = ctx.createImageData(W, H), px = im.data;
+    const mctx = mk.getContext("2d"), mm = mctx.createImageData(W, H), mpx = mm.data;
+    const cx = W/2, cy = H/2, hw = (W - 2*inset)/2, hh = (H - 2*inset)/2;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++){
+      const i = (y*W + x)*4;
+      let R = 128, G = 128, A = 0;
+      const dx = Math.abs(x - cx) - (hw - rad), dy = Math.abs(y - cy) - (hh - rad);
+      const ax = Math.max(dx, 0), ay = Math.max(dy, 0);
+      const dOut = Math.hypot(ax, ay) + Math.min(Math.max(dx, dy), 0) - rad;
+      if (dOut < 0 && -dOut < bez){
+        const t = 1 + dOut/bez;               // 1 at the rim → 0 at the bezel's inner edge
+        const s = Math.pow(t, 1.6);           // convex lens profile
+        let nx = 0, ny = 0;
+        if (dx > 0 && dy > 0){ const l = Math.hypot(ax, ay) || 1; nx = ax/l; ny = ay/l; }
+        else if (dx > dy) nx = 1; else ny = 1;
+        if (x < cx) nx = -nx;
+        if (y < cy) ny = -ny;
+        R = Math.round(128 - nx*127*s);       // sample pulled toward center = edge magnification
+        G = Math.round(128 - ny*127*s);
+        A = Math.round(255 * Math.min(1, s*1.25)); // mask: clone shows only in the bezel ring
+      }
+      px[i] = R; px[i+1] = G; px[i+2] = 128; px[i+3] = 255;
+      mpx[i] = mpx[i+1] = mpx[i+2] = 255; mpx[i+3] = A;
+    }
+    ctx.putImageData(im, 0, 0);
+    mctx.putImageData(mm, 0, 0);
+    const url = cv.toDataURL();
+    const fe = document.getElementById("lensimg");
+    fe.setAttribute("width", W); fe.setAttribute("height", H);
+    fe.setAttribute("href", url);
+    fe.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", url);
+    const inn = lens.querySelector(".lensin");
+    const mu = "url(" + mk.toDataURL() + ")";
+    inn.style.webkitMaskImage = mu; inn.style.maskImage = mu;
+    inn.style.webkitMaskSize = "100% 100%"; inn.style.maskSize = "100% 100%";
+    inn.style.filter = "url(#lensmap)";
+  } catch(e){ /* no lens beats a broken one — clone stays identical to the real backdrop */ }
+}
+let lensRz = null;
+window.addEventListener("resize", () => { clearTimeout(lensRz); lensRz = setTimeout(lensBuild, 200); });
 
 /* ================= HOME ================= */
 function schedOptions(sel){
@@ -3977,6 +4088,7 @@ function renderMore(){
     + '<div class="setrow-lab"><span>Timer sound</span><input type="checkbox" id="st-sound" style="width:22px;height:22px"'+(st.sound?" checked":"")+'></div>'
     + '<div class="setrow-lab"><span>Timer vibration</span><input type="checkbox" id="st-vib" style="width:22px;height:22px"'+(st.vibrate?" checked":"")+'></div>'
     + '<div class="setrow-lab"><span>Show session clock</span><input type="checkbox" id="st-clock" style="width:22px;height:22px"'+(st.showClock?" checked":"")+'></div>'
+    + '<div class="setrow-lab"><span>Glass edge refraction</span><input type="checkbox" id="st-refract" style="width:22px;height:22px"'+(st.refract!==false?" checked":"")+'></div>'
     + '<div class="setrow-lab"><span>Readiness &amp; recovery check-ins</span><input type="checkbox" id="st-areg" style="width:22px;height:22px"'+(st.autoReg?" checked":"")+'></div>'
     + '<p class="cap" style="margin-top:4px">Four pre-workout sliders that tune the day\'s targets ±5–10%, and a pump/soreness check after each session that tunes each muscle\'s recovery clock on the freshness map.</p>'
     + '</div>'
@@ -5663,6 +5775,7 @@ document.addEventListener("change", ev => {
   else if (t.id === "st-sex"){ S.settings.sex = t.value; save(); }
   else if (t.id === "st-height"){ S.settings.height = t.value; save(); }
   else if (t.id === "st-clock"){ S.settings.showClock = t.checked; save(); }
+  else if (t.id === "st-refract"){ S.settings.refract = t.checked; save(); lensBuild(); }
   else if (t.id === "st-chk"){ S.settings.checkOff = t.checked; save(); render(); }
   else if (t.id === "st-areg"){ S.settings.autoReg = t.checked; save(); }
   else if (/^st-wk-[0-6]$/.test(t.id||"")){
@@ -5866,6 +5979,7 @@ document.addEventListener("pointerup", ev => { if (drag && ev.pointerId === drag
 document.addEventListener("pointercancel", ev => { if (drag && ev.pointerId === drag.id) dragEnd(false); });
 
 render();
+lensBuild();
 
 /* PWA: register the service worker only when served over http(s) —
    the desktop file:// copy skips this. */
