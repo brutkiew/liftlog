@@ -939,12 +939,13 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.14"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.15"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
   age:30, bodyFat:"", cardioKcal:7.8, autoReg:true, week:null, // week null = standard program (DEF_WEEK)
-  refract:true}; // liquid-glass edge refraction under the tab capsule
+  refract:true, // liquid-glass edge refraction under the tab capsule
+  level:"auto"}; // training experience: auto (scorecard) | novice | intermediate | advanced — sets stall windows
 let S = {workouts:[], drafts:{}, custom:{}, templates:{}, coach:[], milestone:0, uniO:{},
   body:{weights:{}, kcals:{}, meas:{}, sleep:{}, energy:{}},
   settings:Object.assign({}, DEF_SET),
@@ -1217,6 +1218,8 @@ function energyState(){
    (Beginner/Novice → novice; Intermediate → intermediate; Advanced+ → advanced), with
    <6 months of logs capped at novice. Falls back to intermediate when nothing grades. */
 function trainLevel(){
+  const set = S.settings.level; // a declared training age beats anything two weeks of logs can infer
+  if (set === "novice" || set === "intermediate" || set === "advanced") return set;
   const sc = liftScores().filter(s => s.lv.idx >= 0);
   const first = S.workouts.length ? S.workouts.map(w => w.date).sort()[0] : null;
   const months = first ? (new Date(todayStr()) - new Date(first))/864e5/30.4 : 0;
@@ -1294,20 +1297,53 @@ function normBest(exId, h){
    are never called; instead a SLIP flags when the 3-session average drops more than the
    cut's tolerance below the 8-week best (3% moderate / 5% large, +1.5% for upper-body
    pressing which slides first — Hulmi 2017). A slip is the diet talking, not fatigue. */
+/* fresh-equivalent session VOLUME (credible hard sets, weight×reps; reps alone on
+   unweighted bodyweight sets) — under double progression most sessions' progress is a
+   rep added on set 2 or 3, which the best-set e1RM can't see (RP's "match or beat every
+   set"). A new volume high counts as progress too. */
+function normVol(exId, h){
+  const ex = exInfo(exId), ss = credOf(exId, h);
+  if (!ss.length) return 0;
+  const bs = bestSet(ss, ex);
+  const v = ss.reduce((a,s) => a + (ex.bw && !+s.w ? +s.r : (+s.w||0)*(+s.r)), 0);
+  return v / (1 - fatiguePct(h.ctx, +bs.r)/100);
+}
+/* a session is COMPROMISED evidence when the morning check-in logged under 6 h of sleep
+   or the post-workout check-in said one of the lift's prime movers came in still sore —
+   RP's rule: a drop that coincides with a bad-recovery flag doesn't count until it repeats */
+function sessCompromised(exId, h){
+  const sl = S.body.sleep && +S.body.sleep[h.date];
+  if (sl > 0 && sl < 6) return true;
+  const fb = S.fb && S.fb[h.date];
+  return !!fb && muscOf(exId).p.some(r => fb[r] && fb[r].s === 2);
+}
 function stallInfo(exId){
   const ex = exInfo(exId), {es, lvl} = expectations();
   const hist = perfHistory(exId).filter(h => !h.dl); // deload weeks never count
   const win = stallWindow(exId, es, lvl);
-  const out = {stalled:false, slide:false, slip:false, since:0, win, es, lvl, pct:0, n:hist.length, tol:0};
+  const out = {stalled:false, slide:false, slip:false, flag:false, late:false, ctxJump:false,
+    since:0, skipped:0, win, es, lvl, pct:0, n:hist.length, tol:0};
   if (hist.length < 3) return out;
-  const vals = hist.map(h => normBest(exId, h));
-  let run = 0, lastBest = -1;
-  for (let i = vals.length-1; i >= 0; i--) if (vals[i] > run + 1e-9){ run = vals[i]; lastBest = i; }
-  out.since = lastBest;                       // newest-first index of the last new best
+  const asc = hist.slice().reverse();          // oldest first
+  const e1 = asc.map(h => normBest(exId, h)), vol = asc.map(h => normVol(exId, h));
+  // 3-session rolling means: one fluke session can't set a bar nothing else can reach
+  const roll = arr => arr.map((v,i) => { const s = arr.slice(Math.max(0,i-2), i+1); return s.reduce((a,b)=>a+b,0)/s.length; });
+  const r1 = roll(e1), r2 = roll(vol);
+  let m1 = 0, m2 = 0, last = 0;
+  asc.forEach((h,i) => {
+    if (r1[i] > m1*1.005 || r2[i] > m2*1.005) last = i;   // a new high on either measure = progress
+    m1 = Math.max(m1, r1[i]); m2 = Math.max(m2, r2[i]);
+  });
+  for (let i = asc.length-1; i > last; i--){ if (sessCompromised(exId, asc[i])) out.skipped++; else out.since++; }
   const cut8 = addDays(todayStr(), -56);
-  const best8 = Math.max(...hist.map((h,i) => h.date >= cut8 ? vals[i] : 0));
-  const roll = vals.slice(0,3).reduce((a,b) => a+b, 0)/Math.min(3, vals.length);
-  out.pct = best8 > 0 ? (roll/best8 - 1)*100 : 0;
+  const best8 = Math.max(...asc.map((h,i) => h.date >= cut8 ? r1[i] : 0));
+  out.pct = best8 > 0 ? (r1[r1.length-1]/best8 - 1)*100 : 0;   // latest 3-session mean vs best 3-session mean, 8 wk
+  // chronic order effect (Nunes 2021 meta): lifts parked late in the session progress slower
+  const slots = hist.slice(0,4).map(h => h.ctx ? h.ctx.slot : 0);
+  out.late = slots.length >= 3 && slots.reduce((a,b)=>a+b,0)/slots.length >= 4;
+  // context jump: the fatigue in front of it changed a lot between the last two sessions
+  out.ctxJump = Math.abs(fatiguePct(hist[0].ctx, 10) - fatiguePct(hist[1].ctx, 10)) >= 3;
+  out.flag = out.pct <= -15;                   // beyond fatigue — illness, injury, or a diet too deep (BBM)
   const upper = ["chest","shoulders","triceps"].includes(ex.g);
   if (es.holdMode){
     out.tol = (es.mode === "large" ? 5 : 3) + (upper ? 1.5 : 0);
@@ -3430,6 +3466,10 @@ function deloadAdvice(){
   if (S.workouts.length < 10) return null;
   const wk = weeklyStats(), signals = [];
   const {es} = expectations();
+  // Barbell Medicine's rule: never react to one week — a fatigue verdict needs a ≥3-week trend
+  const dts = S.workouts.map(w => w.date).sort();
+  const span = (new Date(dts[dts.length-1]+"T12:00") - new Date(dts[0]+"T12:00"))/864e5;
+  if (span < 21) return {level:"ok", es, young:true, signals:[]};
   const recentIds = [...new Set(S.workouts.filter(w => w.date >= addDays(todayStr(),-13))
     .flatMap(w => w.exercises.map(e => e.id)))];
   const infos = recentIds.map(id => ({id, si:stallInfo(id)}));
@@ -3439,12 +3479,17 @@ function deloadAdvice(){
   const stalls = es.holdMode ? [] : infos.filter(x => x.si.stalled);
   if (stalls.length >= 2)
     signals.push(stalls.length+" lifts stalled past their window ("+stalls.slice(0,3).map(x => exInfo(x.id).n+(x.si.slide ? " sliding" : "")).join(", ")+")");
+  /* score slide = strength + rep-quality parts only (the PR bonus and plan-completion
+     parts fall naturally after the first weeks, when every session was a PR) and only
+     once there's a month on record */
   const sc = [...S.workouts].sort((a,b) => a.date.localeCompare(b.date))
-    .map(w => { const r = rateWorkout(w); return r ? r.score : null; }).filter(x => x !== null);
-  if (sc.length >= 12){
+    .map(w => { const r = rateWorkout(w); return r ? r.parts.perf + r.parts.qual : null; }).filter(x => x !== null);
+  if (span >= 28 && sc.length >= 12){
     const a6 = sc.slice(-6).reduce((a,b) => a+b, 0)/6, p6 = sc.slice(-12,-6).reduce((a,b) => a+b, 0)/6;
-    if (a6 - p6 <= -5) signals.push("session scores sliding ("+Math.round(p6)+" → "+Math.round(a6)+")");
+    if (a6 - p6 <= -5) signals.push("strength + rep-quality scores sliding ("+Math.round(p6)+" → "+Math.round(a6)+" of 60)");
   }
+  const flags = infos.filter(x => x.si.flag);
+  if (flags.length) signals.unshift(flags.map(x => exInfo(x.id).n).slice(0,3).join(", ")+" 15%+ under the 8-week best — beyond normal fatigue (illness, injury, or a diet that's too deep)");
   const full = wk.slice(0,-1).filter(w => w.sets > 0);
   if (full.length >= 6){
     const srt = full.slice(-8).map(w => w.sets).sort((a,b) => a-b);
@@ -3853,7 +3898,7 @@ function trendsLab(){
   if (da2){
     const tone = da2.level === "ok" ? "up" : "wr";
     const head = da2.level === "advise" ? "Deload advised" : da2.level === "diet" ? "The cut is biting — feed it, don't deload"
-      : da2.level === "watch" ? "One fatigue signal — watching" : "Fatigue signals clear";
+      : da2.level === "watch" ? "One fatigue signal — watching" : da2.young ? "Too early to call" : "Fatigue signals clear";
     const es2 = da2.es || expectations().es, lvl2 = expectations().lvl;
     const exp = '<p class="cap" style="margin-top:8px">Expectations'+qBtn("stall")+' — <b>'+lvl2+'</b> lifter at <b>'+es2.label+'</b>'
       + (es2.intake ? ' (avg '+Math.round(es2.intake).toLocaleString()+' kcal vs ≈'+es2.maint.toLocaleString()+' maintenance' + (es2.rPct !== null ? ', trend '+(es2.rPct > 0 ? '−' : '+')+Math.abs(es2.rPct).toFixed(2)+'%/wk' : '') + ')' : es2.rPct !== null ? ' (from the weight trend, '+(es2.rPct > 0 ? '−' : '+')+Math.abs(es2.rPct).toFixed(2)+'%/wk — log calories for a sharper read)' : ' (log calories + weigh-ins to sharpen this)')
@@ -3864,8 +3909,9 @@ function trendsLab(){
           ? da2.signals.map(s => '<p class="cap" style="margin-top:5px">• '+s+'</p>').join("")
             + (da2.level === "advise" ? '<p class="hint" style="margin-top:8px">Take 4–5 days at ~60% of normal weight and volume. Strength doesn\'t detrain in a week — fatigue masks it, and a deload lifts the mask.</p>'
               : da2.level === "diet" ? '<p class="hint" style="margin-top:8px">A deload can\'t fix an energy problem. Eat at maintenance for 1–2 weeks with ~30% fewer sets, then resume the cut — and if it keeps sliding, the loss rate is too fast for your leanness.</p>' : '')
+          : da2.young ? '<p class="cap" style="margin-top:5px">Fatigue verdicts need a 3-week trend on record — one week never decides anything.</p>'
           : '<p class="cap" style="margin-top:5px">No stalls piling up, scores steady, volume in your normal band.</p>')
-      + exp + '</div>';
+      + exp + ((S.settings.level||"auto") === "auto" ? '<p class="cap" style="margin-top:4px">Level is inferred from the scorecard — if you\'ve lifted for years, set Training experience in Settings.</p>' : '') + '</div>';
   }
 
   const rd = repDist(28), tot = rd.str + rd.hyp + rd.end;
@@ -4280,6 +4326,9 @@ function renderMore(){
     + '<div class="set-item"><span class="lbl">Sex (for strength standards)</span><select id="st-sex">'
     + '<option value="male"'+(st.sex==="male"?" selected":"")+'>Male</option>'
     + '<option value="female"'+(st.sex==="female"?" selected":"")+'>Female</option></select></div>'
+    + '<div class="set-item"><span class="lbl">Training experience (sets how long a lift may go without a new best before it counts as stalled)</span><select id="st-level">'
+    + [["auto","Auto — from the strength scorecard ("+trainLevel()+" right now)"],["novice","Novice · under a year of consistent lifting"],["intermediate","Intermediate · 1–3 years"],["advanced","Advanced · 3+ years"]]
+      .map(o => '<option value="'+o[0]+'"'+((st.level||"auto")===o[0]?" selected":"")+'>'+o[1]+'</option>').join("")+'</select></div>'
     + '<div class="set-item"><span class="lbl">Calorie target · kcal/day</span><input id="st-kcal" type="number" inputmode="numeric" value="'+st.kcalTarget+'"></div>'
     + '<div class="set-item"><span class="lbl">Goal weight · lb (blank = none)</span><input id="st-goal" type="number" inputmode="decimal" value="'+esc(st.goalWeight)+'"></div>'
     + '</div>'
@@ -4450,7 +4499,7 @@ function linkSS(ei, j){
 /* "?" about-sheets — the long explanations live here instead of cluttering the cards */
 const HELP = {
   exrep:{t:"Exercise report card", b:"Every lift trained in the last 28 days with at least 2 logged sessions, graded on two things: <b>(1)</b> how much its best e1RM climbed over those 28 days — that's the %, where +3% and up is an A and a drop pulls toward C/D (on a cut, holding within 3% reads as flat, not a drop) — and <b>(2)</b> staleness: sessions since the last new <i>fresh-equivalent</i> best, measured against that lift's own stall window (see the ? on any plateau sheet). Sorted worst-first so the lift that needs attention sits on top. Recomputed live from your log every time the page renders."},
-  stall:{t:"Stalls, fatigue & expectations", b:"<b>Fresh-equivalent.</b> Every session's best set is corrected for the work in front of it before it's compared to anything: each earlier hard set on the same prime mover costs ≈0.8% of e1RM, a synergist set (biceps under rows, triceps under presses) about half, unrelated sets ≈0.15%, plus ≈0.3% per slot — high-rep sets suffer 1.3–2.5× more, capped at −15% (Simão 2005, Senna 2011, Spreuwenberg 2006, Behm 2021). A curl done 6th after 12 sets of back work is expected to be ~7% down — that's not a decline. PRs stay raw: a record is what you lifted.<br><br><b>Stall windows.</b> A lift is stalled when it goes that many sessions without a new fresh-equivalent best: novice 3, <b>intermediate 7</b>, advanced 16 at maintenance (Nuckols: intermediates PR every 4 → 8 → 12 weeks; OpenPowerlifting: ~0.8%/month early, 0.3% later), stretched to 11 / 24 in a small deficit; isolation lifts get 1.5×. A 3-session average ≥5% under the 8-week best is a stall on its own — that's past the ~3–4% noise a real 1RM test shows day to day (Grgic 2020). Level comes from your scorecard, energy state from 14 days of logged calories vs maintenance and the weight-trend rate.<br><br><b>On a cut</b> (moderate or bigger deficit — ≥10% under maintenance or ≥0.5% bodyweight/week) stalls are never called: a ~500 kcal deficit predicts zero lean-mass gain (Murphy &amp; Koehler 2022) and bench slides first (Hulmi 2017). Holding within 3% (5% on a big cut, +1.5% for pressing) of your 8-week best <i>is</i> the win and scores near-full. Dropping past that is a <b>slip</b> — the diet talking, not fatigue — and the fix is 1–2 weeks at maintenance calories with ~30% fewer sets, not a deload."},
+  stall:{t:"Stalls, fatigue & expectations", b:"<b>Fresh-equivalent.</b> Every session's best set is corrected for the work in front of it before it's compared to anything: each earlier hard set on the same prime mover costs ≈0.8% of e1RM, a synergist set (biceps under rows, triceps under presses) about half, unrelated sets ≈0.15%, plus ≈0.3% per slot — high-rep sets suffer 1.3–2.5× more, capped at −15% (Simão 2005, Senna 2011, Spreuwenberg 2006, Behm 2021). A curl done 6th after 12 sets of back work is expected to be ~7% down — that's not a decline. PRs stay raw: a record is what you lifted.<br><br><b>Stall windows.</b> A lift is stalled when it goes that many sessions without a new fresh-equivalent best: novice 3, <b>intermediate 7</b>, advanced 16 at maintenance (Nuckols: intermediates PR every 4 → 8 → 12 weeks; OpenPowerlifting: ~0.8%/month early, 0.3% later), stretched to 11 / 24 in a small deficit; isolation lifts get 1.5×. A 3-session average ≥5% under the 8-week best is a stall on its own — that's past the ~3–4% noise a real 1RM test shows day to day (Grgic 2020). Level comes from your scorecard, energy state from 14 days of logged calories vs maintenance and the weight-trend rate.<br><br><b>On a cut</b> (moderate or bigger deficit — ≥10% under maintenance or ≥0.5% bodyweight/week) stalls are never called: a ~500 kcal deficit predicts zero lean-mass gain (Murphy &amp; Koehler 2022) and bench slides first (Hulmi 2017). Holding within 3% (5% on a big cut, +1.5% for pressing) of your 8-week best <i>is</i> the win and scores near-full. Dropping past that is a <b>slip</b> — the diet talking, not fatigue — and the fix is 1–2 weeks at maintenance calories with ~30% fewer sets, not a deload.<br><br><b>What counts as progress.</b> A new high in the 3-session rolling mean of either fresh-equivalent e1RM <i>or</i> fresh-equivalent session volume — so a rep added on set 3 counts (RP's \"match or beat every set\"), and one fluke session can't set a bar nothing else reaches. Sessions after a night under 6 h sleep, or where the post-workout check-in said that muscle came in still sore, are skipped as evidence (RP: a drop that coincides with a recovery flag doesn't count until it repeats). No fatigue verdict at all until 3 weeks are on record (Barbell Medicine), and a lift 15%+ under its 8-week best is flagged as beyond fatigue — illness, injury, or a diet too deep. Set <b>Training experience</b> in Settings if the scorecard's guess is wrong: the windows depend on it."},
   musrep:{t:"Muscle report card", b:"Each muscle's grade = volume dose + progress. <b>Volume:</b> counted sets vs that muscle's own growth zone (~10–20 for most, wider for pooled regions like delts, ~4–12 for a sub-region). Sitting <i>above</i> the zone barely costs — volume you recover from is a choice; sitting under it does. <b>Progress:</b> whether that muscle's lifts pushed their e1RMs up over the last 28 days. \"Untrained\" flags a sub-region with no direct sets at all."},
   score:{t:"Strength scorecard", b:"All 16 benchmarks grade against <b>one source</b>: Strength Level's community percentiles for a man at your bodyweight (Beginner ≈ top 95% … Elite ≈ top 5% of people who actually log that lift), so a level means the same thing on every lift. <b>The max estimate:</b> Epley (weight × (1 + reps/30)) through 10 reps — the range where the formula is validated — with only half credit per rep beyond 10, because prediction equations provably overestimate from high-rep sets. Each line shows the exact set the estimate came from, so you can judge it yourself. <b>Typo guard:</b> a set that beats every other session of a lift by more than 20% is treated as a likely mislog — it's excluded and flagged (tap the flag to fix it in History), and if it was real it counts again the moment you repeat something close. Dips and pull-ups grade on bodyweight + added load; dumbbell lifts grade per hand. The group headline is the middle of its benchmarks; ties break down, never up. Orientation, not gospel."},
   ovr:{t:"Overall strength index", b:"Each lift's best e1RM per week, divided by its own first-week baseline (that's 100), then averaged across every lift — one line answering \"am I actually getting stronger?\". Weeks you skip a lift, its last value carries forward. The chips cut the same math to one muscle group."},
@@ -4480,6 +4529,9 @@ function openPlateauModal(ei){
   }
   const si = stallInfo(id), base = histTopW(id);
   const ctxLine = ' Fresh-equivalent means each session\'s best is corrected for the work done before it, so a lift done 6th isn\'t judged against the same lift done 2nd.';
+  const extra = (si.late ? '<p class="hint" style="margin-top:8px"><b>It\'s been living late in the session</b> (slot 5+ in your recent sessions). Lifts done later progress slower over time (Nunes 2021 meta-analysis) — move it up for two weeks before changing anything else.</p>' : '')
+    + (si.ctxJump ? '<p class="hint" style="margin-top:8px">The work in front of it changed a lot between your last two sessions — the correction handles most of that, but give it one more like-for-like session before acting.</p>' : '')
+    + (si.skipped ? '<p class="cap" style="margin-top:8px">'+si.skipped+' recent session'+(si.skipped>1?"s were":" was")+' skipped as evidence (short sleep or a still-sore muscle that day).</p>' : '');
   let body, primary = true;
   if (si.slip){
     body = '<p class="hint">You\'re in <b>'+si.es.label+'</b>, where holding within '+si.tol.toFixed(1).replace(".0","")+'% of your 8-week best is the win — this lift\'s 3-session average sits <b>'+Math.abs(si.pct).toFixed(1)+'% under</b> it.'+ctxLine+'</p>'
@@ -4493,7 +4545,7 @@ function openPlateauModal(ei){
       + '<p class="hint" style="margin-top:8px">Options: a <b>targeted deload</b> — one week at <b>−10% load</b>'+(base > 0 ? ' (≈'+dlWeight(base)+' lb)' : '')+' and <b>half the sets</b>, then the old weight comes straight back — or switch the rep range for two weeks'
       + (si.lvl === "intermediate" ? ', or simply give it two more weeks: intermediate progress moves in 3–4-week steps.' : '.')+'</p>';
   }
-  openModal('<h3>'+esc(ex.n)+' — plateau watch'+qBtn("stall")+'</h3>'+body
+  openModal('<h3>'+esc(ex.n)+' — plateau watch'+qBtn("stall")+'</h3>'+body+extra
     + '<div class="btnrow">'
     + (base > 0 ? '<button'+(primary ? ' class="primary"' : '')+' data-act="dl-start" data-id="'+id+'">Deload this lift · 1 week</button>' : '')
     + '<button data-act="modal-close">Not now</button></div>');
@@ -6000,6 +6052,7 @@ document.addEventListener("change", ev => {
   else if (t.id === "st-sound"){ S.settings.sound = t.checked; save(); }
   else if (t.id === "st-vib"){ S.settings.vibrate = t.checked; save(); }
   else if (t.id === "st-sex"){ S.settings.sex = t.value; save(); }
+  else if (t.id === "st-level"){ S.settings.level = t.value; save(); }
   else if (t.id === "st-height"){ S.settings.height = t.value; save(); }
   else if (t.id === "st-clock"){ S.settings.showClock = t.checked; save(); }
   else if (t.id === "st-refract"){ S.settings.refract = t.checked; save(); lensBuild(); }
