@@ -641,6 +641,7 @@ const EX = {
   sarpd:{n:"Single-Arm Reverse Pec Deck",g:"shoulders",inc:5,uni:1,sub:"delt_rear"},
   facepull:{n:"Face Pull",g:"shoulders",inc:5,sub:"delt_rear"},
   squat:{n:"Back Squat",g:"quads",inc:10,rest:180,bb:1,sub:"quad_comp"},
+  smithsquat:{n:"Smith Machine Squat",g:"quads",inc:10,rest:150,sub:"quad_comp"},
   legpress:{n:"Leg Press",g:"quads",inc:25,rest:150,sub:"quad_comp"},
   hack:{n:"Hack Squat",g:"quads",inc:10,rest:150,sub:"quad_comp"},
   legext:{n:"Leg Extension",g:"quads",inc:5,sub:"quad_iso"},
@@ -791,6 +792,7 @@ const MUSC = {
   sarpd:{p:["shoulders"],s:["upper_back"],t:["core"]},
   facepull:{p:["shoulders"],s:["upper_back"],t:["biceps","forearms"]},
   squat:{p:["quads"],s:["glutes","lower_back","core"],t:["hamstrings","calves"]},
+  smithsquat:{p:["quads"],s:["glutes"],t:["hamstrings","calves"]}, // guided bar = far less core/lower-back than a free squat
   legpress:{p:["quads"],s:["glutes"],t:["hamstrings","calves"]},
   hack:{p:["quads"],s:["glutes"],t:["hamstrings","calves"]},
   legext:{p:["quads"],s:[]},
@@ -879,6 +881,7 @@ const INTEL = {
   sarpd:{mv:"fly",st:2,sb:3,good:"Your bigger-ROM version — one side at a time with a deeper reach."},
   facepull:{mv:"pull",st:1,sb:2,good:"Rear delts + mid traps + external rotators — shoulder-health work that builds too."},
   squat:{mv:"squat",st:3,sb:1,good:"Deep knee + hip loading — quads, glutes and adductors all grow (adductors most of all with depth).",bad:"Does NOT grow the rectus femoris — that one needs leg extensions.",ev:"Full depth beat half squats for glutes (+6.7% vs +2.2%) and adductors (Kubo 2019).",pair:["legext"]},
+  smithsquat:{mv:"squat",st:3,sb:3,good:"Guided-path squatting — feet slightly forward (or heels on ramps) and sit deep for a strong quad bias with no balance tax.",bad:"The fixed path takes stabilizers out of it — keep a hinge or single-leg lift elsewhere in the week.",ev:"Smith-machine training matched free weights for muscle growth in a 2023 meta-analysis — the stigma is dead; pick by comfort and depth.",pair:["legext"]},
   legpress:{mv:"squat",st:3,sb:3,good:"Quad growth ≈ squats with far less systemic fatigue — go deep, that's where growth lives."},
   hack:{mv:"squat",st:3,sb:3,good:"The era's quad darling — stretch-loaded, stable, back-friendly.",ev:"Nippard S+: \"brilliant quad builder\".",pair:["legext"]},
   legext:{mv:"ext",st:2,sb:3,good:"The ONLY lift here that grows the rectus femoris — plus distal quad sweep.",ev:"Squats grew the RF 0% in 10 weeks; extensions grew every region (Kubo 2019; Kassiano 2025).",pair:["hack"]},
@@ -936,7 +939,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.11"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.12"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -4686,7 +4689,7 @@ const EXDIAG = {bench:"bench",flatdb:"bench",machchest:"bench",cgbp:"bench",revb
   csrow:"csrow",dbrow:"csrow",bbrow:"bbrow",tbar:"bbrow",sapd:"sapd",pullover:"sapd",
   shrug:"shrug",ezcurl:"curl",bbcurl:"curl",cablecurl:"curl",hammer:"curl",revcurl:"curl",
   incurl:"incurl",bayes:"incurl",preacher:"preacher",latraise:"latraise",clat:"latraise",
-  mlat:"latraise",cfront:"cfront",facepull:"facepull",squat:"squat",legpress:"sled",
+  mlat:"latraise",cfront:"cfront",facepull:"facepull",squat:"squat",smithsquat:"squat",legpress:"sled",
   hack:"sled",bss:"split",lunge:"split",rdl:"rdl",backext:"backext",legcurl:"curlH",
   seatedcurl:"curlH",legext:"legext",hipthrust:"hipthrust",abduct:"abduct",scalf:"calfS",
   seatcalf:"calfSeat",hlr:"hlr",cablecrunch:"crunch"};
@@ -4745,6 +4748,7 @@ const TIPS = {
   sarpd:["Sit sideways for the bigger reach — your setup","Let the working arm cross fully in front for maximum stretch","One side at a time, strict"],
   facepull:["Cable at face height, rope grip with thumbs toward you","Pull toward the bridge of the nose, elbows high and wide","Finish with hands beside the ears and a one-second squeeze"],
   squat:["Bar on the traps; brace hard before every descent","Sit down between the knees to full depth — depth is the stimulus","Knees track over the toes; drive the whole foot into the floor"],
+  smithsquat:["Feet slightly in front of the bar — heels on ramps deepen the quad stretch","Twist the bar off the hooks, then sit straight down to full depth","Drive the whole foot up and re-hook with a twist at lockout"],
   legpress:["Feet mid-platform, about shoulder width","As deep as possible WITHOUT the lower back curling off the pad","Stop just short of slamming lockout"],
   hack:["Shoulders under the pads, back flat against the pad","Sink deep — the stretched bottom is why this machine wins","Drive through mid-foot with knees over toes"],
   legext:["Seat set so the knee lines up with the machine's pivot","Pause a beat at full lockout — that's the rectus femoris rep","If the seat reclines, recline it: more stretch, more growth"],
