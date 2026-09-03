@@ -939,7 +939,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.12"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.13"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -5883,6 +5883,17 @@ document.addEventListener("focusin", ev => {
     setTimeout(() => { try { t.scrollIntoView({block:"center", behavior:"smooth"}); } catch(e){} }, 250);
   }
 });
+/* iOS keyboard: while a set input is focused the visual viewport shrinks and scrolls
+   INSIDE the layout viewport, but position:fixed stays attached to the layout viewport —
+   so the status-bar backer (#sbb) slid off the top and the clock/signal icons sat over raw
+   content again while typing. Follow the visual viewport's offset so the strip stays
+   pinned under the icons; offsetTop is 0 whenever the keyboard is down. */
+if (window.visualViewport){
+  const vv = window.visualViewport;
+  const pinSbb = () => { const s = $("#sbb"); if (s) s.style.transform = "translateY(" + Math.round(vv.offsetTop) + "px)"; };
+  vv.addEventListener("scroll", pinSbb);
+  vv.addEventListener("resize", pinSbb);
+}
 /* chart tooltip — the tip element that lives in the SAME chartwrap wins (two charts on a
    page each carry their own #ctip; positioning against the wrong one put tips in space) */
 function showChartTip(c, cx, cy){
