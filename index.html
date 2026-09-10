@@ -640,6 +640,7 @@ const EX = {
   rpd:{n:"Reverse Pec Deck",g:"shoulders",inc:5,sub:"delt_rear"},
   sarpd:{n:"Single-Arm Reverse Pec Deck",g:"shoulders",inc:5,uni:1,sub:"delt_rear"},
   facepull:{n:"Face Pull",g:"shoulders",inc:5,sub:"delt_rear"},
+  crear:{n:"Cable Rear Delt Fly",g:"shoulders",inc:2.5,uni:1,sub:"delt_rear"}, // cross-body single-arm — far hand reaches across, then sweeps wide
   squat:{n:"Back Squat",g:"quads",inc:10,rest:180,bb:1,sub:"quad_comp"},
   smithsquat:{n:"Smith Machine Squat",g:"quads",inc:10,rest:150,sub:"quad_comp"},
   legpress:{n:"Leg Press",g:"quads",inc:25,rest:150,sub:"quad_comp"},
@@ -791,6 +792,7 @@ const MUSC = {
   rpd:{p:["shoulders"],s:["upper_back"]},
   sarpd:{p:["shoulders"],s:["upper_back"],t:["core"]},
   facepull:{p:["shoulders"],s:["upper_back"],t:["biceps","forearms"]},
+  crear:{p:["shoulders"],s:["upper_back"],t:["forearms"]},
   squat:{p:["quads"],s:["glutes","lower_back","core"],t:["hamstrings","calves"]},
   smithsquat:{p:["quads"],s:["glutes"],t:["hamstrings","calves"]}, // guided bar = far less core/lower-back than a free squat
   legpress:{p:["quads"],s:["glutes"],t:["hamstrings","calves"]},
@@ -880,6 +882,7 @@ const INTEL = {
   rpd:{mv:"fly",st:2,sb:3,good:"Rear delts in isolation — stable and easy to progress.",ev:"Neutral (thumbs-up) grip beats pronated for rear-delt recruitment (Schoenfeld 2013)."},
   sarpd:{mv:"fly",st:2,sb:3,good:"Your bigger-ROM version — one side at a time with a deeper reach."},
   facepull:{mv:"pull",st:1,sb:2,good:"Rear delts + mid traps + external rotators — shoulder-health work that builds too."},
+  crear:{mv:"fly",st:3,sb:2,good:"Cross-body single-arm rear delt fly — the reach across the chest loads the stretch, and the cable stays heavy through the whole arc.",ev:"Neutral thumbs-up grip beats pronated for rear-delt recruitment (Schoenfeld 2013).",pair:["facepull"]},
   squat:{mv:"squat",st:3,sb:1,good:"Deep knee + hip loading — quads, glutes and adductors all grow (adductors most of all with depth).",bad:"Does NOT grow the rectus femoris — that one needs leg extensions.",ev:"Full depth beat half squats for glutes (+6.7% vs +2.2%) and adductors (Kubo 2019).",pair:["legext"]},
   smithsquat:{mv:"squat",st:3,sb:3,good:"Guided-path squatting — feet slightly forward (or heels on ramps) and sit deep for a strong quad bias with no balance tax.",bad:"The fixed path takes stabilizers out of it — keep a hinge or single-leg lift elsewhere in the week.",ev:"Smith-machine training matched free weights for muscle growth in a 2023 meta-analysis — the stigma is dead; pick by comfort and depth.",pair:["legext"]},
   legpress:{mv:"squat",st:3,sb:3,good:"Quad growth ≈ squats with far less systemic fatigue — go deep, that's where growth lives."},
@@ -912,7 +915,7 @@ const TGT_INFO = {
   chest_low:{ev:2,note:"Flat/decline pressing and flys (forward-lean dips too). Flat work already covers the lower fibers well."},
   delt_front:{ev:2,note:"Any pressing grows it — dedicated front-delt work is usually redundant."},
   delt_side:{ev:2,note:"Direct lateral raises are the only real driver — presses don't cover this head."},
-  delt_rear:{ev:2,note:"Reverse flys (neutral grip), face pulls, high-elbow rows."},
+  delt_rear:{ev:2,note:"Reverse flys (neutral grip), cross-body cable flys, face pulls, high-elbow rows."},
   tri_long:{ev:2,note:"Overhead / behind-head extensions grew the long head ~1.5× more than pushdowns (Maeo 2023)."},
   tri_lat:{ev:1,note:"Pushdown-pattern + heavy lockout work (dips, close-grip pressing). It biases the pattern — true lateral-head isolation is unproven."},
   bi_curl:{ev:2,note:"Preacher-style biases the lower biceps, incline/behind-body the upper — pairing one of each covers the arm."},
@@ -939,7 +942,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.15"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.16"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -4700,6 +4703,15 @@ const DIAG = {
     + '<path d="M140 64 L170 76" class="mv2"/>' + dgW(174,78,"h2")
     + dgArr("M128 106 Q156 104 172 86", 173, 84, 300)
     + dgRing(140,64) + dgLb(8,26,"sweep back, thumbs up") + dgLd(70,30,62,68),
+  crear: '<text x="110" y="14" text-anchor="middle">TOP VIEW</text>'
+    + '<circle cx="26" cy="34" r="3.5" class="eqf"/>'
+    + dgHd(110,56) + '<path d="M80 64 L140 64" class="fg"/>'
+    + '<path d="M140 64 L84 84" class="mv1"/>' + dgW(80,86,"h1")
+    + '<path d="M26 34 L82 84" class="cbl"/>'
+    + '<path d="M140 64 L170 76" class="mv2"/>' + dgW(174,78,"h2")
+    + '<path d="M26 34 L172 76" class="cbl"/>'
+    + dgArr("M92 96 Q140 112 166 90", 168, 88, 300)
+    + dgRing(140,64) + dgLb(8,26,"start across the chest") + dgLd(70,30,78,80),
   ohext: dgHd(88,44) + '<path d="M88 52 L88 96 L80 120 M88 96 L96 120" class="fg"/>'
     + '<path d="M88 56 L106 36" class="fg"/>'
     + '<path d="M106 36 L92 24" class="mv1"/>' + dgW(88,21,"h1")
@@ -4920,7 +4932,7 @@ const EXDIAG = {bench:"bench",flatdb:"bench",machchest:"bench",cgbp:"bench",revb
   csrow:"csrow",dbrow:"csrow",bbrow:"bbrow",tbar:"bbrow",sapd:"sapd",pullover:"sapd",
   shrug:"shrug",ezcurl:"curl",bbcurl:"curl",cablecurl:"curl",hammer:"curl",revcurl:"curl",
   incurl:"incurl",bayes:"incurl",preacher:"preacher",latraise:"latraise",clat:"latraise",
-  mlat:"latraise",cfront:"cfront",facepull:"facepull",squat:"squat",smithsquat:"squat",legpress:"sled",
+  mlat:"latraise",cfront:"cfront",facepull:"facepull",crear:"crear",squat:"squat",smithsquat:"squat",legpress:"sled",
   hack:"sled",bss:"split",lunge:"split",rdl:"rdl",backext:"backext",legcurl:"curlH",
   seatedcurl:"curlH",legext:"legext",hipthrust:"hipthrust",abduct:"abduct",scalf:"calfS",
   seatcalf:"calfSeat",hlr:"hlr",cablecrunch:"crunch"};
@@ -4978,6 +4990,7 @@ const TIPS = {
   rpd:["Chest on the pad, thumbs-up neutral grip","Wide arc back; squeeze the rear delts","Stop when the arms reach the line of the shoulders"],
   sarpd:["Sit sideways for the bigger reach — your setup","Let the working arm cross fully in front for maximum stretch","One side at a time, strict"],
   facepull:["Cable at face height, rope grip with thumbs toward you","Pull toward the bridge of the nose, elbows high and wide","Finish with hands beside the ears and a one-second squeeze"],
+  crear:["Cable at shoulder height; grab the handle (or just the cable ball) with the far hand","Start reaching across your chest, then sweep the arm wide until it's out beside you","Elbow nearly straight and locked — bending it turns the fly into a row"],
   squat:["Bar on the traps; brace hard before every descent","Sit down between the knees to full depth — depth is the stimulus","Knees track over the toes; drive the whole foot into the floor"],
   smithsquat:["Feet slightly in front of the bar — heels on ramps deepen the quad stretch","Twist the bar off the hooks, then sit straight down to full depth","Drive the whole foot up and re-hook with a twist at lockout"],
   legpress:["Feet mid-platform, about shoulder width","As deep as possible WITHOUT the lower back curling off the pad","Stop just short of slamming lockout"],
