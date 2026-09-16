@@ -100,9 +100,19 @@
     -webkit-mask-image:linear-gradient(180deg,#000 calc(200px + env(safe-area-inset-top, 0px)*0.55),transparent 100%);
     mask-image:linear-gradient(180deg,#000 calc(200px + env(safe-area-inset-top, 0px)*0.55),transparent 100%)}
   #topbar{position:sticky;top:0;z-index:5;
-    background:rgba(14,17,30,.34);backdrop-filter:blur(26px) saturate(1.8);-webkit-backdrop-filter:blur(26px) saturate(1.8);
-    border-bottom:1px solid rgba(165,180,255,.14);
     padding:calc(12px + env(safe-area-inset-top)) 20px 12px;display:flex;align-items:center;gap:9px}
+  /* v9.18: the bar's glass lives on a ::before that overhangs the bottom edge and is
+     masked to a fade — scrolling content dims gradually under the bar instead of hitting
+     a hard border-bottom + blur cutoff (same fix as the #sbb seam in v9.17). */
+  #topbar::before{content:"";position:absolute;left:0;right:0;top:0;bottom:-36px;z-index:-1;
+    pointer-events:none;
+    background:linear-gradient(180deg,
+      rgba(14,17,30,.34) 0,
+      rgba(14,17,30,.34) calc(100% - 36px),
+      rgba(14,17,30,0) 100%);
+    backdrop-filter:blur(26px) saturate(1.8);-webkit-backdrop-filter:blur(26px) saturate(1.8);
+    -webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 36px),transparent 100%);
+    mask-image:linear-gradient(180deg,#000 calc(100% - 36px),transparent 100%)}
   #topbar .mark{color:var(--accent);display:flex}
   #topbar h1{font-size:16px;font-weight:700;letter-spacing:-.01em}
   #topbar .date{margin-left:auto;color:var(--text-3);font-size:13px;font-weight:500}
@@ -948,7 +958,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.17"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.18"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
