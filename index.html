@@ -947,7 +947,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.30"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.31"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -5791,7 +5791,11 @@ document.addEventListener("click", ev => {
   const act = btn.dataset.act, ei = +btn.dataset.ei, si = +btn.dataset.si;
   const d = curDraft();
 
-  if (act === "tab"){ tab = btn.dataset.tab; render(); }
+  if (act === "tab"){
+    // tapping the tab you're already on = scroll back to the top (iOS convention)
+    if (tab === btn.dataset.tab){ $("#scroll").scrollTo({top:0, behavior:"smooth"}); return; }
+    tab = btn.dataset.tab; render();
+  }
   else if (act === "start"){
     const dd = S.drafts[todayStr()] || (S.drafts[todayStr()] = newDraft(todayStr()));
     delete dd.planned;
@@ -6279,7 +6283,10 @@ document.addEventListener("click", ev => {
   }
   else if (act === "hist-month-open"){ openHistMonthModal(); }
   else if (act === "hist-month-pick"){ histMonth = btn.dataset.m; histShow = 15; closeModal(); render(); }
-  else if (act === "ttab"){ S.trendTab = btn.dataset.t; save(); render(); }
+  else if (act === "ttab"){
+    if (S.trendTab === btn.dataset.t){ $("#scroll").scrollTo({top:0, behavior:"smooth"}); return; }
+    S.trendTab = btn.dataset.t; save(); render();
+  }
   else if (act === "trophies"){ openTrophyModal(); }
   else if (act === "mrecap-nav"){
     const ms = monthsWithData();
