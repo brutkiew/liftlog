@@ -213,16 +213,21 @@
     #lens .r3{animation:drift3 38s ease-in-out infinite alternate}
   }
   body.norefract #lens{display:none}
+  /* v9.49: the vertical condense animates ONE value — the button's height — while
+     the icon keeps constant padding and margin, so it rides the capsule as a rigid
+     unit instead of being re-centered through three interacting calcs per frame
+     (that re-layout was the icon jitter). The label keeps its box and just fades,
+     clipped by the shrinking height; icons are layer-promoted so their raster
+     glides at subpixels instead of snapping. */
   #tabs button{flex:1 1 0;min-width:0;overflow:hidden;white-space:nowrap;
     background:none;border:none;color:var(--text-3);font-size:10.5px;
     font-weight:600;letter-spacing:.03em;border-radius:23px;
-    padding:calc(8px - 1px*var(--tmp,0)) 0 calc(5px - 5px*var(--tmp,0));
+    height:calc(55px - 20px*var(--tmp,0));padding:8px 0 0;
     transition:transform .5s cubic-bezier(.22,1.6,.36,1),background .3s}
   #tabs button:active{transform:scale(.94);transition-duration:.07s,.3s}
-  #tabs button .tl{display:block;line-height:15px;
-    height:calc(15px*(1 - var(--tmp,0)));
+  #tabs button .tl{display:block;line-height:15px;height:15px;
     opacity:calc(1 - 1.6*var(--tmp,0))} /* label light gone by ~2/3 condensed */
-  #tabs button .ic{display:block;margin:0 auto calc(3px*(1 - var(--tmp,0)));
+  #tabs button .ic{display:block;margin:0 auto 3px;will-change:transform;
     transition:transform .35s var(--ease)}
   #tabs button.on{color:var(--text-1);background:var(--accent-dim)}
   #tabs button.on .ic{color:var(--accent);transform:scale(1.12) translateY(-1px)}
@@ -1045,7 +1050,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.48"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.49"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -6633,14 +6638,20 @@ if (window.visualViewport){
      target 0 immediately).
    - MOMENTUM (no touch): velocity with hysteresis — >~380 px/s condenses fully, and
      once the glide decays below ~80 px/s for two consecutive events the pills spring
-     back, no waiting for a dead stop. Between the thresholds the state holds.
+     back, no waiting for a dead stop. Between the thresholds the state holds —
+     BUT sustained motion is a GHOST FINGER (v9.49): iOS suppresses touchstart when
+     a finger catches a decelerating scroller, so that drag looks like momentum to
+     us. Physics disambiguates: a sub-80px/s tail cannot outlive ~130ms, so slow
+     motion still arriving past ~8 events with real travel is a finger — scrub it
+     like a drag; and medium-zone motion that persists past ~60px of travel is
+     condensed either way (finger or long glide, it's real scrolling).
    Always: full stop (550ms, armed on release or on momentum events) and the
    top/bottom of the page expand. A huge single-event jump is a programmatic scroll
    (view switch restoring scrollMem) — those never minimize. */
 {
   const sc = $("#scroll"), sb = $("#sbar"), th = $("#sbthumb");
   let hideTO = null, lastY = 0, lastT = 0, minTO = null, slowN = 0, touchOn = false, touchAcc = 0;
-  let dragIntent = false, tStartY = 0;
+  let dragIntent = false, tStartY = 0, crawlAcc = 0;
   // --- the spring animator: sole writer of --tmp ---
   let sCur = 0, sVel = 0, sTgt = 0, sRAF = 0, sLast = 0;
   const setT = t => {
@@ -6670,7 +6681,7 @@ if (window.visualViewport){
     minTO = setTimeout(() => { if (touchAcc < 3) setT(0); }, 40);
   };
   sc.addEventListener("touchstart", e => {
-    touchOn = true; touchAcc = 0; dragIntent = false;
+    touchOn = true; touchAcc = 0; dragIntent = false; crawlAcc = 0;
     const t0 = e.touches && e.touches[0];
     tStartY = t0 ? t0.clientY : 0;
     stillCheck();
@@ -6683,7 +6694,7 @@ if (window.visualViewport){
     }
   }, {passive:true});
   const touchEnd = () => {
-    touchOn = false;
+    touchOn = false; crawlAcc = 0;
     // no momentum after release (still finger-drag stop) → expand shortly;
     // if momentum follows, its scroll events re-arm/replace this timer
     clearTimeout(minTO);
@@ -6710,11 +6721,23 @@ if (window.visualViewport){
           setT(Math.max(sTgt, 1 - (1 - raw) * (1 - raw)));
         } else stillCheck(); // glide-halt residue, not a drag — keep the resting-finger verdict alive
       } else {
-        if (v > .38){ slowN = 0; setT(1); }
-        else if (v < .08 && ++slowN >= 2){ slowN = 0; setT(0); }
-        minTO = setTimeout(() => setT(0), 550);
+        if (v > .38){ slowN = 0; crawlAcc = 0; setT(1); }
+        else if (v < .08){
+          crawlAcc += Math.abs(dy);
+          if (++slowN === 2){ setT(0); crawlAcc = 0; } // the tail is dying — expand
+          else if (slowN > 8 && crawlAcc > 12){
+            // a real tail would have stopped by now — this is a ghost finger, scrub it
+            const raw = Math.min(1, (crawlAcc - 12) / 26);
+            setT(Math.max(sTgt, 1 - (1 - raw) * (1 - raw)));
+          }
+        } else {
+          slowN = 0;
+          crawlAcc += Math.abs(dy);
+          if (crawlAcc > 60) setT(1); // sustained medium motion — condensed either way
+        }
+        minTO = setTimeout(() => { slowN = 0; crawlAcc = 0; setT(0); }, 550);
       }
-    } else { slowN = 0; setT(0); }
+    } else { slowN = 0; crawlAcc = 0; setT(0); }
     const max = sc.scrollHeight - sc.clientHeight;
     if (max < 40){ sb.style.opacity = 0; return; }
     const trackH = sb.clientHeight;
