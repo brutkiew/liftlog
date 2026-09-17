@@ -1041,7 +1041,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.41"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.42"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -6618,7 +6618,9 @@ if (window.visualViewport){
    v9.41: the pill-menu condense, in two regimes (Safari-toolbar feel):
    - FINGER DOWN (touch active on the scroller): any scrolling contact keeps the pills
      condensed no matter how slow — while you're holding the page, the chrome stays
-     out of the way (Bryce 2026-09-17). No expand, no idle timer, until release.
+     out of the way (Bryce 2026-09-17). Movement is ACCUMULATED across the touch
+     (v9.42): a crawl at <1px per event still condenses once ~3px of total travel adds
+     up — per-event thresholds missed it. No expand, no idle timer, until release.
    - MOMENTUM (no touch): velocity with hysteresis — >~380 px/s condenses, and once
      the glide decays below ~160 px/s for two consecutive events they spring back,
      no waiting for a dead stop. Between the thresholds the state holds.
@@ -6627,8 +6629,8 @@ if (window.visualViewport){
    (view switch restoring scrollMem) — those never minimize. */
 {
   const sc = $("#scroll"), sb = $("#sbar"), th = $("#sbthumb");
-  let hideTO = null, lastY = 0, lastT = 0, minTO = null, slowN = 0, touchOn = false;
-  sc.addEventListener("touchstart", () => { touchOn = true; }, {passive:true});
+  let hideTO = null, lastY = 0, lastT = 0, minTO = null, slowN = 0, touchOn = false, touchAcc = 0;
+  sc.addEventListener("touchstart", () => { touchOn = true; touchAcc = 0; }, {passive:true});
   const touchEnd = () => {
     touchOn = false;
     // no momentum after release (still finger-drag stop) → expand shortly;
@@ -6650,7 +6652,8 @@ if (window.visualViewport){
     if (Math.abs(dy) < 160 && !atEdge){ // real finger scrolling, away from the ends
       if (touchOn){
         slowN = 0;
-        if (Math.abs(dy) > 1) document.body.classList.add("tabmin");
+        touchAcc += Math.abs(dy);
+        if (touchAcc > 3) document.body.classList.add("tabmin");
       } else {
         if (v > .38){ slowN = 0; document.body.classList.add("tabmin"); }
         else if (v < .16 && ++slowN >= 2){ slowN = 0; document.body.classList.remove("tabmin"); }
