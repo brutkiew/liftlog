@@ -37,30 +37,16 @@
     color-scheme:dark;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-  html{background:radial-gradient(130% 50% at 50% -10%,rgba(88,108,232,.28),transparent 60%),var(--bg-0)}
+  /* v9.20: the page paints NO background. The iOS shell renders the canvas (base color
+     + aurora glows) as a native layer behind a transparent WKWebView, so scrolling and
+     rubber-band overscroll can never expose a different color — content floats. */
+  html{background:transparent}
   body{color:var(--text-1);background:transparent;min-height:100vh;
     font:15px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI Variable Display","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
     -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
     padding-bottom:calc(104px + env(safe-area-inset-bottom))}
-  /* aurora */
-  body::before,body::after{content:"";position:fixed;z-index:-1;border-radius:50%;filter:blur(90px);pointer-events:none}
-  body::before{width:540px;height:540px;top:-160px;left:-150px;
-    background:radial-gradient(circle,rgba(23,185,160,.26),transparent 65%)}
-  body::after{width:600px;height:600px;bottom:-210px;right:-170px;
-    background:radial-gradient(circle,rgba(139,124,246,.42),transparent 65%)}
-  @media (prefers-reduced-motion:no-preference){
-    body::before{animation:drift1 26s ease-in-out infinite alternate}
-    body::after{animation:drift2 32s ease-in-out infinite alternate}
-    @keyframes drift1{to{transform:translate(80px,60px) scale(1.15)}}
-    @keyframes drift2{to{transform:translate(-70px,-80px) scale(1.1)}}
-  }
-  main::before{content:"";position:fixed;z-index:-1;width:440px;height:440px;border-radius:50%;
-    filter:blur(100px);pointer-events:none;top:30%;right:-180px;
-    background:radial-gradient(circle,rgba(255,123,172,.28),transparent 65%)}
-  @media (prefers-reduced-motion:no-preference){
-    main::before{animation:drift3 38s ease-in-out infinite alternate}
-    @keyframes drift3{to{transform:translate(-70px,70px) scale(1.12)}}
-  }
+  /* aurora blobs now live in the native background layer (AuroraBackground in the
+     iOS shell) — the page draws none of its own */
   ::selection{background:rgba(44,224,139,.28)}
   .num{font-variant-numeric:tabular-nums}
   .ic{vertical-align:-4px}
@@ -95,21 +81,9 @@
     backdrop-filter:blur(26px) saturate(1.8);-webkit-backdrop-filter:blur(26px) saturate(1.8);
     -webkit-mask-image:linear-gradient(180deg,#000,transparent);
     mask-image:linear-gradient(180deg,#000,transparent)}
-  /* rubber-band backers: iOS drags fixed elements with the overscroll bounce, so these
-     sit just outside the viewport and slide in to cover what would otherwise be the
-     WKWebView's flat grey. Tinted to continue the page's own canvas: aurora blue up top,
-     near-black with a violet hint below. */
-  #sbb{position:fixed;top:-200px;left:0;right:0;height:200px;z-index:8;pointer-events:none;
-    background:linear-gradient(180deg,rgb(17,21,40),rgb(30,38,72))}
-  #bob{position:fixed;bottom:-200px;left:0;right:0;height:200px;z-index:8;pointer-events:none;
-    background:rgb(13,13,23)}
-  /* bottom fade: content dims out toward the tab capsule, mirroring the top edge */
-  #bfade{position:fixed;left:0;right:0;bottom:0;z-index:4;pointer-events:none;
-    height:calc(86px + env(safe-area-inset-bottom, 0px));
-    background:linear-gradient(180deg,rgba(10,12,19,0),rgba(10,12,19,.72) 80%);
-    backdrop-filter:blur(12px) saturate(1.4);-webkit-backdrop-filter:blur(12px) saturate(1.4);
-    -webkit-mask-image:linear-gradient(180deg,transparent,#000 80%);
-    mask-image:linear-gradient(180deg,transparent,#000 80%)}
+  /* v9.20: the rubber-band backer strips (#sbb/#bob) and the bottom fade (#bfade) are
+     gone — with the canvas rendered natively behind a transparent WKWebView, overscroll
+     shows background by construction and needs no cover-up layers. */
   /* the liquid-glass refraction lens (v9.10) misrenders in iOS-26 WKWebView — its bezel
      mask fails and it degrades into a translucent aurora box riding the viewport. Off
      until WebKit behaves; the tab capsule's plain glass stands on its own. */
@@ -570,9 +544,6 @@
   <button data-act="t-adj" data-d="-15">−15</button><button data-act="t-adj" data-d="15">+15</button>
   <button data-act="t-skip">Skip</button></div>
 <div id="toast"></div>
-<div id="sbb"></div>
-<div id="bob"></div>
-<div id="bfade"></div>
 <div id="lens" aria-hidden="true"><div class="lensin"><div class="lensbg">
   <i class="rb r1"></i><i class="rb r2"></i><i class="rb r3"></i>
 </div></div></div>
@@ -961,7 +932,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.19"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.20"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -6162,15 +6133,15 @@ document.addEventListener("focusin", ev => {
   }
 });
 /* iOS keyboard: while a set input is focused the visual viewport shrinks and scrolls
-   INSIDE the layout viewport, but position:fixed stays attached to the layout viewport —
-   so the status-bar backer (#sbb) slid off the top and the clock/signal icons sat over raw
-   content again while typing. Follow the visual viewport's offset so the strip stays
-   pinned under the icons; offsetTop is 0 whenever the keyboard is down. */
+   INSIDE the layout viewport, but sticky/fixed stay attached to the layout viewport —
+   so the topbar (whose glass darkens the strip under the clock/signal icons since v9.20)
+   slides off the top and the icons sit over raw content while typing. Follow the visual
+   viewport's offset so the bar stays pinned; offsetTop is 0 when the keyboard is down. */
 if (window.visualViewport){
   const vv = window.visualViewport;
-  const pinSbb = () => { const s = $("#sbb"); if (s) s.style.transform = "translateY(" + Math.round(vv.offsetTop) + "px)"; };
-  vv.addEventListener("scroll", pinSbb);
-  vv.addEventListener("resize", pinSbb);
+  const pinBar = () => { const s = $("#topbar"); if (s) s.style.transform = "translateY(" + Math.round(vv.offsetTop) + "px)"; };
+  vv.addEventListener("scroll", pinBar);
+  vv.addEventListener("resize", pinBar);
 }
 /* chart tooltip — the tip element that lives in the SAME chartwrap wins (two charts on a
    page each carry their own #ctip; positioning against the wrong one put tips in space) */
