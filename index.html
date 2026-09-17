@@ -947,7 +947,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.28"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.29"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -3286,7 +3286,9 @@ function trendsBody(){
     else if (!sp.length)
       html += '<p class="hint" style="margin-top:8px">No step data yet — steps sync from Apple Health each time the app opens.</p>';
     else {
-      const win = sp.filter(e => e.d >= windowStart());
+      /* rolling week, complete days only — same math as the Body widget, so the
+         two never disagree. Today is partial and would only drag it down. */
+      const win = sp.filter(e => e.d > addDays(todayStr(), -7) && e.d < todayStr());
       const avg = win.length ? win.reduce((a,e)=>a+e.s,0)/win.length : 0;
       html += '<div class="stat num" style="margin-top:6px">'+(S.body.steps[todayStr()] || 0).toLocaleString()+'<small> today</small>'
         + (avg ? ' <small style="font-size:13px">· avg '+Math.round(avg).toLocaleString()+'/day</small>' : '')+'</div>'
@@ -5541,7 +5543,7 @@ function claudeText(){
     if (k7.length) L.push("  calories last 7d: avg " + Math.round(k7.reduce((a,e)=>a+e.k,0)/k7.length).toLocaleString() + " vs target " + S.settings.kcalTarget.toLocaleString() + " (" + k7.length + " days logged)");
     const recent = weightEntries().slice(-14);
     L.push("  weigh-ins: " + recent.map(e => fmtShort(e.d)+" "+e.w).join(", "));
-    const sp7 = stepsEntries().filter(e => e.d > addDays(todayStr(), -7));
+    const sp7 = stepsEntries().filter(e => e.d > addDays(todayStr(), -7) && e.d < todayStr());
     if (sp7.length) L.push("  steps last 7d: avg " + Math.round(sp7.reduce((a,e)=>a+e.s,0)/sp7.length).toLocaleString() + "/day (Apple Health)");
   }
   const scores = liftScores();
