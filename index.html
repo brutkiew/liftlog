@@ -1064,7 +1064,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.53"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.54"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -1139,6 +1139,10 @@ for (const [cid, c] of Object.entries(S.custom||{})){
 for (const d of Object.values(S.drafts||{}))
   for (const e of d.exercises||[])
     for (const s of e.sets||[]){ if (s.done === undefined) s.done = +s.r > 0; if (s.warm === undefined) s.warm = false; }
+// v9.54: durations recorded before the last-activity clamp existed could absorb hours of
+// forgot-to-finish dead time — a >3.5 h "lift" is that bug, not a workout. Null falls back
+// to the sets-based estimate everywhere, including the next "Resync history to Health".
+for (const w of S.workouts||[]) if (w.durMin > 210) w.durMin = null;
 const save = () => { if (!storeOK) return;
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){ storeOK = false; } };
 
@@ -2172,6 +2176,8 @@ function render(){
   syncTimerUI();
   nAwakeSync(!!(d && d.active)); // screen stays on for the whole active session, any tab
   nWidgetSync();
+  nRemindSync();
+  nLiveSync();
 }
 
 /* ================= liquid-glass lens ================= */
@@ -2860,6 +2866,7 @@ function toggleSet(ei, si){
   } else {
     s.done = false; row.classList.remove("done");
   }
+  stampActive(d);
   save();
   liveWarmCheck(ei);
   const total = d.exercises.reduce((a,x) => a + x.sets.length, 0);
@@ -2893,7 +2900,16 @@ function toggleSet(ei, si){
                                                  uid/act need shell ≥2 (act "lift"|"walk")
      {type:"healthDelete", workouts:[date], weights:[date]}
      {type:"widget", snap:{...}}                snapshot → App Group file for the
-                                                 home-screen widgets (shell widget ≥ 1) */
+                                                 home-screen widgets (shell widget ≥ 1)
+     {type:"sessionReminder", at:<epoch ms>}    forgot-to-finish nudge (shell notify ≥ 1)
+     {type:"sessionReminderCancel"}              drop it (finished / paused / discarded)
+     {type:"live", st:{...}} / {type:"liveEnd"}  session Live Activity — lock screen +
+                                                 Dynamic Island (shell live ≥ 1)
+     {type:"bg", id}                             switch the native aurora canvas (shell bg ≥ 1;
+                                                 current id injected at boot as __NBG)
+     {type:"geo", op:"set"|"clear"|"opts", arrive, exit}
+                                                 gym geofence ops (shell geo ≥ 1) →
+                                                 nGeoStatus({set, auth, arrive, exit}) */
 const NB = (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.liftlog) || null;
 function nPost(m){ try { if (NB) NB.postMessage(m); } catch(e){} }
 function nHaptic(kind){ nPost({type:"haptic", kind:kind}); }
@@ -2913,6 +2929,73 @@ function nAwakeSync(on){
   _nAwake = on;
   nPost({type:"awake", on:on});
 }
+
+/* ---- forgot-to-finish reminder (shell notify ≥ 1) ---- */
+/* One local notification 45 min after the last logged activity — every set / timer /
+   cardio touch pushes it out, so it only fires once the session has actually gone
+   quiet. The shell replaces the pending one by identifier; render() re-runs this
+   constantly, so finishing, pausing or discarding the draft cancels it by itself. */
+const REMIND_MS = 45*60000;
+let _nRemindAt = 0;
+function nRemindSync(d){
+  if (!NB || !NCAP.notify) return;
+  d = d || S.drafts[todayStr()];
+  const live = d && d.active && d.date === todayStr() && d.lastAt;
+  const at = live ? d.lastAt + REMIND_MS : 0;
+  if (at === _nRemindAt || (at && Math.abs(at - _nRemindAt) < 30000)) return;
+  _nRemindAt = at;
+  nPost(at ? {type:"sessionReminder", at:at} : {type:"sessionReminderCancel"});
+}
+/* the moment of real gym activity, stamped by set toggles, timer starts and cardio
+   edits (callers save right after). finishDraft clamps the session end to this, so a
+   Finish tapped hours late no longer books the dead time as lifting; the reminder
+   above rides the same stamp. */
+function stampActive(d){ d.lastAt = Date.now(); nRemindSync(d); }
+
+/* ---- session Live Activity (shell live ≥ 1) ---- */
+/* Lock-screen / Dynamic Island card for the running session. Page owns all content
+   (same rule as widgets): session name, set count, up-next lift, rest-timer end.
+   Posted from render() and syncTimerUI(); liveEnd tears it down. */
+let _nLiveSig = "";
+function nLiveSync(){
+  if (!NB || !NCAP.live) return;
+  const today = todayStr();
+  const dd = S.drafts[today];
+  let msg = {type:"liveEnd"};
+  if (dd && dd.active && dd.startedAt){
+    const nx = dd.exercises.find(e => !e.sets.every(s => s.done));
+    const tLive = dd.timer && dd.timer.end > Date.now();
+    msg = {type:"live", st:{name:widgetDayName(today) || "Workout", start:dd.startedAt,
+      sets:dd.exercises.reduce((a,e) => a + e.sets.filter(s => s.done || +s.r > 0).length, 0),
+      total:dd.exercises.reduce((a,e) => a + e.sets.length, 0),
+      ex:(tLive && dd.timer.ex) || (nx ? exInfo(nx.id).n : ""),
+      tEnd:tLive ? dd.timer.end : 0}};
+  }
+  const sig = JSON.stringify(msg);
+  if (sig === _nLiveSig) return;
+  _nLiveSig = sig;
+  nPost(msg);
+}
+
+/* ---- native background (shell bg ≥ 1) ---- */
+/* The canvas is painted by the shell (AuroraBackground) — the page only picks a
+   palette. The shell persists the choice and injects the current id at boot. */
+const N_BGS = [["aurora","Aurora"],["tide","Tidepool"],["ember","Ember"],["slate","Graphite"]];
+let _nBg = window.__NBG || "aurora";
+
+/* ---- gym geofence (shell geo ≥ 1) ---- */
+/* The shell owns everything location: coordinates, region monitoring, the leave/arrive
+   notifications. The page is only the switchboard — ops go out, nGeoStatus comes back
+   and repaints Settings. */
+let _nGeo = null;
+window.nGeoStatus = st => { _nGeo = st || null; if (tab === "more") render(); };
+/* the shell's "Finish workout" notification action lands here after the geofence was
+   crossed — the last-activity clamp in finishDraft books the end where lifting stopped */
+window.nGeoFinish = () => {
+  const d = S.drafts[todayStr()];
+  if (!d || !d.active) return;
+  if (finishDraft(todayStr())){ S.editing = null; tab = "home"; render(); showToast("Workout finished ✓"); }
+};
 
 /* ---- device-tilt light (shell motion ≥ 1) ---- */
 /* The shell pushes CoreMotion tilt here (~12 Hz, foreground only): x = lateral roll,
@@ -3084,7 +3167,8 @@ window.nWidgetNav = dest => {
 let timerInt = null;
 function startTimer(sec, name){
   const d = curDraft();
-  d.timer = {end: Date.now() + sec*1000, ex: name}; save();
+  d.timer = {end: Date.now() + sec*1000, ex: name};
+  stampActive(d); save();
   syncTimerUI();
 }
 function syncTimerUI(){
@@ -3093,10 +3177,10 @@ function syncTimerUI(){
   clearInterval(timerInt);
   if (!d || !d.active || !d.timer || d.timer.end <= Date.now()){
     if (d && d.timer && d.timer.end <= Date.now()){ d.timer = null; save(); }
-    nTimerSync();
+    nTimerSync(); nLiveSync();
     t.classList.remove("show"); return;
   }
-  nTimerSync();
+  nTimerSync(); nLiveSync();
   t.classList.add("show");
   $("#t-ex").textContent = d.timer.ex || "";
   const upd = () => {
@@ -3109,7 +3193,7 @@ function syncTimerUI(){
 function timerDone(){
   clearInterval(timerInt);
   const d = curDraft(); d.timer = null; save();
-  nTimerSync(); // finished in-app — the scheduled notification must not also fire
+  nTimerSync(); nLiveSync(); // finished in-app — the scheduled notification must not also fire
   const t = $("#timer");
   $("#t-left").textContent = "0:00";
   t.classList.add("flash");
@@ -3205,6 +3289,17 @@ function computePRs(kept){
 const prLabel = p => !p.kind || p.kind === "e1rm" ? p.name+" "+p.str
   : p.kind === "rm" ? p.name+" · "+p.rm+"-rep best "+p.str
   : p.name+" · volume PR "+p.str;
+/* When the session actually ended: "now", unless the log has been quiet far longer than
+   the session could legitimately coast (treadmill minutes + a changing/walking-out
+   allowance) — then it ended back at the last stamped activity plus that coast. A Finish
+   tapped hours late books ~the real end instead of a 5-hour lift (durMin AND the Health
+   window both read this). Drafts from before v9.54 have no lastAt → old behavior. */
+function endOfSession(d){
+  const now = Date.now();
+  if (!d.lastAt) return now;
+  const coast = ((d.cardio && d.cardio.on ? +d.cardio.min || 20 : 0) + 8) * 60000;
+  return Math.min(now, d.lastAt + coast);
+}
 let lastAutoWarm = 0;
 function finishDraft(dateStr, silent){
   const d = S.drafts[dateStr];
@@ -3257,6 +3352,11 @@ function finishDraft(dateStr, silent){
     .filter(e => e.sets.length);
   if (!kept.length){ if (!silent) alert("Check off at least one set first."); return false; }
   const prs = computePRs(kept);
+  // same sanity cap as the load-time migration: a computed span past 3.5 h means the
+  // clock is lying somehow (stale startedAt, day-spanning draft) — the sets-based
+  // estimate (durMin null) is closer to the truth than any wild wall-clock number
+  let durMin = (dateStr === todayStr() && d.startedAt) ? Math.round((endOfSession(d) - d.startedAt)/60000) : null;
+  if (durMin > 210) durMin = null;
   S.workouts = S.workouts.filter(w => w.date !== dateStr);
   S.workouts.push({id:dateStr.replace(/-/g,"")+"-"+Math.floor(Math.random()*1e6),
     date:dateStr, session:d.session, sesName:(sesDef(d.session)||{}).name || d.bname || "Custom",
@@ -3264,7 +3364,7 @@ function finishDraft(dateStr, silent){
       mph:+d.cardio.mph || S.settings.tmSpeed,
       inc:d.cardio.inc != null ? +d.cardio.inc : S.settings.tmInc} : null,
     note:(d.note||"").trim(), prs,
-    durMin:(dateStr === todayStr() && d.startedAt) ? Math.round((Date.now()-d.startedAt)/60000) : null});
+    durMin:durMin});
   // a finished return-week session closes out that lift's targeted deload
   for (const e of kept){ const dl = S.dl[e.id]; if (dl && dateStr > dl.until) delete S.dl[e.id]; }
   delete S.drafts[dateStr];
@@ -3274,7 +3374,7 @@ function finishDraft(dateStr, silent){
   // every path that lands a workout ends here, so Health stays in step with edits too
   const hw = S.workouts.find(x => x.date === dateStr);
   if (hw){
-    const endMs = dateStr === todayStr() ? Date.now() : 0;
+    const endMs = dateStr === todayStr() ? endOfSession(d) : 0;
     const items = nHealthItemsOf(hw, endMs);
     nHealthWrite({workouts: items});
     // remember the session window so the treadmill's steps can be measured back out
@@ -4819,6 +4919,26 @@ function renderMore(){
     + (S.settings.week ? '<div class="btnrow" style="margin-top:8px"><button data-act="week-reset">Reset to the standard program</button></div>'
         : '<p class="cap" style="margin-top:6px">Currently the standard program: 72 h between repeat muscle groups; treadmill after lifting.</p>')
     + '</div>'
+    + (NB && NCAP.bg
+        ? '<h2>Background</h2><div class="card"><div class="btnrow">'
+          + N_BGS.map(([id,n]) => '<button data-act="bg-pick" data-bg="'+id+'"'
+              + (id === _nBg ? ' style="border-color:var(--accent);color:var(--accent)"' : '')+'>'+n+'</button>').join("")
+          + '</div><p class="cap" style="margin-top:10px">The canvas behind the glass, painted by the app itself. Pick a different aurora when you want a change of pace — the choice sticks until you change it.</p></div>'
+        : '')
+    + (NB && NCAP.geo
+        ? '<h2>Gym geofence</h2><div class="card">'
+          + (_nGeo && _nGeo.set
+            ? '<div class="setrow-lab"><span>Nudge to finish when I leave</span><input type="checkbox" id="st-geo-exit" style="width:22px;height:22px"'+(_nGeo.exit?" checked":"")+'></div>'
+              + '<div class="setrow-lab"><span>Heads-up when I arrive</span><input type="checkbox" id="st-geo-arrive" style="width:22px;height:22px"'+(_nGeo.arrive?" checked":"")+'></div>'
+              + (_nGeo.auth === "denied"
+                  ? '<p class="cap" style="margin-top:6px;color:var(--warn,#e6a23c)">Location access is off — geofencing needs “Always” in iOS Settings → LiftLog → Location.</p>' : '')
+              + '<p class="cap" style="margin-top:8px">Walking out mid-session sends “finish your workout?” with a one-tap Finish, stamped where lifting actually stopped. Arriving on a planned day offers to start it.</p>'
+              + '<div class="btnrow" style="margin-top:8px"><button data-act="geo-set">Re-set to my current location</button>'
+              + '<button class="danger" data-act="geo-clear">Forget the gym</button></div>'
+            : '<p class="cap">Stand at the gym and set it once. Leaving mid-session then nudges you to finish (so a forgotten Finish never books a 5-hour lift), and arriving on a planned day offers to start it. Needs “Always” location access — iOS will ask.</p>'
+              + '<div class="btnrow" style="margin-top:8px"><button data-act="geo-set">Set gym to my current location</button></div>')
+          + '</div>'
+        : '')
     + (nHealthAvail()
         ? '<h2>Apple Health</h2><div class="card">'
           + '<div class="setrow-lab"><span>Sync with Apple Health</span><input type="checkbox" id="st-health" style="width:22px;height:22px"'+(st.health?" checked":"")+'></div>'
@@ -6399,6 +6519,19 @@ document.addEventListener("click", ev => {
     save(); closeModal(); render();
     showToast("Logged — the waist chart lives in Trends → Body.");
   }
+  else if (act === "bg-pick"){
+    _nBg = btn.dataset.bg;
+    nPost({type:"bg", id:_nBg});
+    render();
+  }
+  else if (act === "geo-set"){
+    nPost({type:"geo", op:"set"});
+    showToast("Getting a location fix — iOS may ask for permission first…");
+  }
+  else if (act === "geo-clear"){
+    if (!confirm("Forget the gym location and stop all geofence nudges?")) return;
+    nPost({type:"geo", op:"clear"});
+  }
   else if (act === "hk-resync"){
     if (!nHealthOn()) return;
     nHealthBackfillAll();
@@ -6533,10 +6666,10 @@ document.addEventListener("change", ev => {
     d0.date = nv; S.drafts[nv] = d0; S.editing = nv;
     save(); render();
   }
-  else if (t.id === "cardio-on"){ curDraft().cardio.on = t.checked; save(); render(); } // render: speed/incline row appears
-  else if (t.id === "cardio-min"){ curDraft().cardio.min = Math.max(0, +t.value||0); save(); }
-  else if (t.id === "cardio-mph"){ const v = parseFloat(t.value); curDraft().cardio.mph = isNaN(v) || v <= 0 ? S.settings.tmSpeed : v; save(); }
-  else if (t.id === "cardio-inc"){ const v = parseFloat(t.value); curDraft().cardio.inc = isNaN(v) || v < 0 ? S.settings.tmInc : v; save(); }
+  else if (t.id === "cardio-on"){ const c = curDraft(); c.cardio.on = t.checked; stampActive(c); save(); render(); } // render: speed/incline row appears
+  else if (t.id === "cardio-min"){ const c = curDraft(); c.cardio.min = Math.max(0, +t.value||0); stampActive(c); save(); }
+  else if (t.id === "cardio-mph"){ const c = curDraft(), v = parseFloat(t.value); c.cardio.mph = isNaN(v) || v <= 0 ? S.settings.tmSpeed : v; stampActive(c); save(); }
+  else if (t.id === "cardio-inc"){ const c = curDraft(), v = parseFloat(t.value); c.cardio.inc = isNaN(v) || v < 0 ? S.settings.tmInc : v; stampActive(c); save(); }
   else if (t.id === "prog-sel"){ S.progSel = t.value; save(); render(); }
   else if (t.id === "st-kcal"){ S.settings.kcalTarget = Math.max(0, +t.value||0) || 2510; save(); }
   else if (t.id === "st-goal"){ S.settings.goalWeight = t.value; save(); }
@@ -6550,6 +6683,10 @@ document.addEventListener("change", ev => {
   else if (t.id === "st-refract"){ S.settings.refract = t.checked; save(); lensBuild(); }
   else if (t.id === "st-chk"){ S.settings.checkOff = t.checked; save(); render(); }
   else if (t.id === "st-areg"){ S.settings.autoReg = t.checked; save(); }
+  else if (t.id === "st-geo-exit" || t.id === "st-geo-arrive"){
+    if (_nGeo){ _nGeo[t.id === "st-geo-exit" ? "exit" : "arrive"] = t.checked;
+      nPost({type:"geo", op:"opts", arrive:!!_nGeo.arrive, exit:!!_nGeo.exit}); }
+  }
   else if (t.id === "st-health"){
     S.settings.health = t.checked; save();
     if (t.checked) nPost({type:"healthAuth"}); // nHealthAuthDone picks it up from here
