@@ -141,19 +141,21 @@
   h2::before{content:"";width:16px;height:3px;border-radius:2px;background:var(--grad2)}
   /* the tab bar floats as a detached glass capsule — the iOS-26 signature — with content
      scrolling underneath it */
-  /* v9.35 morph: scrolling down tucks the tab LABELS away, so the capsule slims to an
-     icon-only rail — all five tabs stay visible and tappable (v9.34's collapse-to-one
-     looked the part but hid the other four; Bryce 2026-09-17). Springs back full on
-     scroll-up, at the top, or when scrolling stops. */
+  /* v9.36 morph: scrolling down condenses the capsule BOTH ways — labels tuck away
+     (icon-only rail, all five tabs stay tappable) AND the capsule narrows around the
+     icons, one fluid shrink. Springs back full on scroll-up, at the top, or when
+     scrolling stops. Fill is Apple-Music-thin (v9.36): the material is basically
+     blur + saturation; the rim gradient and inner glow carry the pane's definition. */
   #tabs{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(10px + env(safe-area-inset-bottom));z-index:6;
     width:min(456px, 100% - 24px);
-    background:linear-gradient(180deg,rgba(27,33,56,.24),rgba(22,27,47,.20)) padding-box,
+    background:linear-gradient(180deg,rgba(27,33,56,.12),rgba(22,27,47,.09)) padding-box,
       var(--rim) border-box;
-    backdrop-filter:blur(28px) saturate(1.85);-webkit-backdrop-filter:blur(28px) saturate(1.85);
+    backdrop-filter:blur(28px) saturate(1.9);-webkit-backdrop-filter:blur(28px) saturate(1.9);
     border:1px solid transparent;border-radius:30px;display:flex;
-    padding:7px;
+    padding:7px;transition:width .5s var(--ease);
     box-shadow:inset 0 1px 1px rgba(255,255,255,.14), inset 0 -1px 1px rgba(140,160,255,.05),
       inset 0 0 18px rgba(255,255,255,.035), 0 18px 44px rgba(0,0,0,.5)}
+  body.tabmin #tabs{width:272px}
   /* fake edge lensing: a thin inner band just inside the rim where the "glass" bends
      light — brighter above, denser below — masked to a ring so the middle stays clean.
      (The true feDisplacementMap lens is still parked — see #lens above.) */
@@ -448,17 +450,24 @@
   .banner{border-color:rgba(255,214,10,.3)}
   /* ===== trends ===== */
   .seg{display:flex;border:1px solid transparent;border-radius:999px;padding:3px;margin-bottom:14px;
-    background:linear-gradient(rgba(24,29,50,.20),rgba(24,29,50,.20)) padding-box, var(--rim) border-box;
+    background:linear-gradient(rgba(24,29,50,.09),rgba(24,29,50,.09)) padding-box, var(--rim) border-box;
     backdrop-filter:blur(24px) saturate(1.7);-webkit-backdrop-filter:blur(24px) saturate(1.7);
     box-shadow:inset 0 1px 1px rgba(255,255,255,.12), inset 0 0 12px rgba(255,255,255,.03), 0 10px 30px rgba(0,0,0,.30)}
   /* Trends keeps its segment pill floating under the topbar — just the glass pill, no strip */
   /* v9.22: fixed, not sticky — like the tab capsule, the Trends pill is chrome: it sits
      outside the scroller's coordinate space and never rides the bounce. .segspace holds
      its place in the content flow. */
-  .segwrap{position:fixed;top:calc(56px + env(safe-area-inset-top));left:20px;right:20px;
-    max-width:440px;margin:0 auto;z-index:4}
+  .segwrap{position:fixed;top:calc(56px + env(safe-area-inset-top));left:50%;
+    transform:translateX(-50%);width:min(440px, 100% - 40px);z-index:4;
+    transition:width .5s var(--ease)}
   .segwrap .seg{margin-bottom:0;
-    backdrop-filter:blur(28px) saturate(1.8);-webkit-backdrop-filter:blur(28px) saturate(1.8)}
+    backdrop-filter:blur(28px) saturate(1.9);-webkit-backdrop-filter:blur(28px) saturate(1.9)}
+  /* v9.36: the Trends pill condenses in step with the tab capsule (same body.tabmin
+     trigger) — narrower, shorter, smaller type, one fluid glass shrink */
+  body.tabmin .segwrap{width:304px}
+  .segwrap .seg button{transition:transform .5s cubic-bezier(.22,1.6,.36,1),background .3s,
+    padding .45s var(--ease),font-size .45s var(--ease)}
+  body.tabmin .segwrap .seg button{padding:6px 2px;font-size:12px}
   .segspace{height:58px}
   .seg button{flex:1;background:none;border:none;border-radius:999px;color:var(--text-3);padding:9px;font-size:13.5px;font-weight:600}
   .seg button.on{background:var(--grad);color:#0A0B0D;box-shadow:0 4px 14px rgba(44,224,139,.22), inset 0 1px 0 rgba(255,255,255,.35)}
@@ -1029,7 +1038,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.35"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.36"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
