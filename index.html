@@ -947,7 +947,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.22"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.23"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -2044,6 +2044,7 @@ function render(){
   else if (tab === "coach") renderCoach();
   else renderMore();
   syncTimerUI();
+  nAwakeSync(!!(d && d.active)); // screen stays on for the whole active session, any tab
 }
 
 /* ================= liquid-glass lens ================= */
@@ -2743,6 +2744,34 @@ function toggleSet(ei, si){
   }
 }
 
+/* ================= native bridge (iOS shell) ================= */
+/* The Swift shell registers webkit.messageHandlers.liftlog. Feature-detected: in a
+   plain browser NB is null and every nPost is a no-op, so nothing here may be
+   load-bearing for the page itself. Messages:
+     {type:"timer", end:<epoch ms>, ex, sound}  schedule "rest over" notification
+     {type:"timerCancel"}                        drop it (skipped / finished in-app)
+     {type:"haptic", kind:"timer"|"success"}     native haptic tap
+     {type:"awake", on:bool}                     keep screen on during a session */
+const NB = (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.liftlog) || null;
+function nPost(m){ try { if (NB) NB.postMessage(m); } catch(e){} }
+function nHaptic(kind){ nPost({type:"haptic", kind:kind}); }
+let _nTimerSig = "", _nAwake = null;
+/* dedupe: render()/syncTimerUI run constantly; only state changes cross the bridge */
+function nTimerSync(){
+  const d = S.drafts[S.editing || todayStr()];
+  const live = d && d.active && d.timer && d.timer.end > Date.now();
+  const sig = live ? d.timer.end + "|" + (d.timer.ex || "") : "";
+  if (sig === _nTimerSig) return;
+  _nTimerSig = sig;
+  nPost(live ? {type:"timer", end:d.timer.end, ex:d.timer.ex || "", sound:!!S.settings.sound}
+             : {type:"timerCancel"});
+}
+function nAwakeSync(on){
+  if (on === _nAwake) return;
+  _nAwake = on;
+  nPost({type:"awake", on:on});
+}
+
 /* ================= rest timer / toast ================= */
 let timerInt = null;
 function startTimer(sec, name){
@@ -2756,8 +2785,10 @@ function syncTimerUI(){
   clearInterval(timerInt);
   if (!d || !d.active || !d.timer || d.timer.end <= Date.now()){
     if (d && d.timer && d.timer.end <= Date.now()){ d.timer = null; save(); }
+    nTimerSync();
     t.classList.remove("show"); return;
   }
+  nTimerSync();
   t.classList.add("show");
   $("#t-ex").textContent = d.timer.ex || "";
   const upd = () => {
@@ -2770,10 +2801,11 @@ function syncTimerUI(){
 function timerDone(){
   clearInterval(timerInt);
   const d = curDraft(); d.timer = null; save();
+  nTimerSync(); // finished in-app — the scheduled notification must not also fire
   const t = $("#timer");
   $("#t-left").textContent = "0:00";
   t.classList.add("flash");
-  if (S.settings.vibrate && navigator.vibrate) navigator.vibrate([180,90,180]);
+  if (S.settings.vibrate){ nHaptic("timer"); if (navigator.vibrate) navigator.vibrate([180,90,180]); }
   if (S.settings.sound) beep();
   setTimeout(() => { t.classList.remove("flash","show"); }, 1600);
 }
@@ -5766,7 +5798,8 @@ document.addEventListener("click", ev => {
     const w = S.workouts.find(x => x.date === fdate);
     const rt = w && rateWorkout(w);
     let msg = rt ? "Session score <b class='grad-ink'>"+rt.score+" · "+rt.grade+"</b>" : "";
-    if (prs.length) msg += (msg ? "<br>" : "") + "<b class='wr'>"+prs.length+" PR"+(prs.length>1?"s":"")+"</b> — "+prs.map(p => esc(prLabel(p))).join(" · ");
+    if (prs.length){ nHaptic("success");
+      msg += (msg ? "<br>" : "") + "<b class='wr'>"+prs.length+" PR"+(prs.length>1?"s":"")+"</b> — "+prs.map(p => esc(prLabel(p))).join(" · "); }
     if (lastAutoWarm) msg += (msg ? "<br>" : "") + '<span style="font-size:12.5px;color:var(--text-2)">'
       + lastAutoWarm+" light lead-in set"+(lastAutoWarm>1?"s":"")+" counted as warm-ups — tap a set number to change.</span>";
     const ton = S.workouts.reduce((a,x) => a + tonOf(x), 0);
