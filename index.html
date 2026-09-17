@@ -41,10 +41,17 @@
      + aurora glows) as a native layer behind a transparent WKWebView, so scrolling and
      rubber-band overscroll can never expose a different color — content floats. */
   html{background:transparent}
-  body{color:var(--text-1);background:transparent;min-height:100vh;
-    font:15px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI Variable Display","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
-    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+  /* v9.21: the PAGE doesn't scroll — #scroll (an inner container) does. This is how
+     native apps keep bars static while content bounces: the chrome (topbar, tab capsule,
+     timer, toast) lives outside the scroller, so iOS's rubber-band only ever displaces
+     content INSIDE #scroll. Bounce back on, chrome bolted down. */
+  html,body{height:100%;overflow:hidden}
+  #scroll{position:absolute;inset:0;z-index:1;overflow-y:auto;overflow-x:hidden;
+    -webkit-overflow-scrolling:touch;overscroll-behavior:contain;overflow-anchor:none;
     padding-bottom:calc(104px + env(safe-area-inset-bottom))}
+  body{color:var(--text-1);background:transparent;
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI Variable Display","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
   /* aurora blobs now live in the native background layer (AuroraBackground in the
      iOS shell) — the page draws none of its own */
   ::selection{background:rgba(44,224,139,.28)}
@@ -65,7 +72,7 @@
      ONE glass layer covers the top: the topbar itself. Its background gradient darkens
      the safe-area strip for the system clock/battery and relaxes into the bar tint, all
      in one paint — no second strip, no seams, and the bar's own text stays crisp. */
-  #topbar{position:sticky;top:0;z-index:5;
+  #topbar{position:fixed;top:0;left:0;right:0;z-index:5;
     background:linear-gradient(180deg,
       rgba(8,11,24,.78) 0,
       rgba(8,11,24,.58) env(safe-area-inset-top, 0px),
@@ -91,7 +98,9 @@
   #topbar .mark{color:var(--accent);display:flex}
   #topbar h1{font-size:16px;font-weight:700;letter-spacing:-.01em}
   #topbar .date{margin-left:auto;color:var(--text-3);font-size:13px;font-weight:500}
-  main{max-width:480px;margin:0 auto;padding:16px 20px 24px}
+  /* topbar is fixed (out of flow) now, so main clears it with padding: bar is
+     12 + 24 (h1 line) + 12 = 48px tall plus the safe-area inset, plus the old 16px gap */
+  main{max-width:480px;margin:0 auto;padding:calc(64px + env(safe-area-inset-top)) 20px 24px}
   h2{font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;font-weight:600;
     margin:24px 2px 12px;display:flex;align-items:center;gap:8px}
   h2::before{content:"";width:16px;height:3px;border-radius:2px;background:var(--grad2)}
@@ -484,7 +493,7 @@
     @keyframes ovlIn{from{background:rgba(4,6,12,0)}}
     @keyframes sheetIn{from{transform:translateY(48px)}}
   }
-  body.mlock{position:fixed;left:0;right:0;width:100%;overflow:hidden}
+  body.mlock #scroll{overflow:hidden}
   #modal input,#modal select,#modal textarea{min-width:0;max-width:100%}
   /* auto-regulation: readiness sliders + pump/soreness check-in */
   .rdrow{margin-top:14px}
@@ -539,7 +548,7 @@
   <span class="mark"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1.8 12h1.7M20.5 12h1.7M8.3 12h7.4"/><rect x="4.6" y="7.4" width="2.7" height="9.2" rx="1.2"/><rect x="16.7" y="7.4" width="2.7" height="9.2" rx="1.2"/></svg></span>
   <h1>LiftLog</h1><span class="date" id="hdrdate"></span>
 </header>
-<main id="view"></main>
+<div id="scroll"><main id="view"></main></div>
 <div id="timer"><span class="tex" id="t-ex"></span><span class="tt num" id="t-left">0:00</span>
   <button data-act="t-adj" data-d="-15">−15</button><button data-act="t-adj" data-d="15">+15</button>
   <button data-act="t-skip">Skip</button></div>
@@ -932,7 +941,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.20"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.21"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -4374,8 +4383,7 @@ let pendingToast = null;
 function openModal(html){
   $("#modal").innerHTML = '<div class="grab"></div>' + html;
   if (!document.body.classList.contains("mlock")){
-    modScrollY = window.scrollY || 0;
-    document.body.style.top = -modScrollY + "px";
+    modScrollY = $("#scroll").scrollTop || 0;
     document.body.classList.add("mlock");
   }
   $("#modal").scrollTop = 0;
@@ -4385,8 +4393,7 @@ function closeModal(){
   $("#ovl").classList.remove("show");
   if (document.body.classList.contains("mlock")){
     document.body.classList.remove("mlock");
-    document.body.style.top = "";
-    window.scrollTo(0, modScrollY);
+    $("#scroll").scrollTop = modScrollY;
   }
   if (pendingToast){ const m = pendingToast; pendingToast = null; showToast(m); }
 }
@@ -6235,9 +6242,9 @@ function dragEnd(commit){
       const order = [...document.querySelectorAll(".xcard")].map(c => +c.dataset.ei);
       d.exercises = order.map(i => d.exercises[i]);
       save();
-      const sy = window.scrollY;
+      const sy = $("#scroll").scrollTop;
       render();
-      window.scrollTo(0, sy);
+      $("#scroll").scrollTop = sy;
     }
   } else if (drag.moved) render();
   drag = null;
@@ -6258,8 +6265,8 @@ document.addEventListener("pointermove", ev => {
   ev.preventDefault();
   drag.moved = true;
   const y = ev.clientY;
-  if (y < 130) window.scrollBy(0, -14);
-  else if (y > innerHeight - 130) window.scrollBy(0, 14);
+  if (y < 130) $("#scroll").scrollBy(0, -14);
+  else if (y > innerHeight - 130) $("#scroll").scrollBy(0, 14);
   for (const c of document.querySelectorAll(".xcard")){
     if (c === drag.card) continue;
     const r = c.getBoundingClientRect();
