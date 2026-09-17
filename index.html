@@ -95,6 +95,18 @@
      mask fails and it degrades into a translucent aurora box riding the viewport. Off
      until WebKit behaves; the tab capsule's plain glass stands on its own. */
   #lens{display:none !important}
+  /* custom scroll indicator (v9.33): the native overlay one runs the full screen
+     height — straight through the topbar's logo/date — and can't be shortened. So
+     it's hidden and this thin thumb tracks #scroll instead, living strictly between
+     the topbar and the tab capsule and fading out like the system one. */
+  #scroll{scrollbar-width:none}
+  #scroll::-webkit-scrollbar{width:0;display:none}
+  #sbar{position:fixed;right:4px;z-index:4;width:3px;pointer-events:none;
+    top:calc(56px + env(safe-area-inset-top));
+    bottom:calc(78px + env(safe-area-inset-bottom));
+    opacity:0;transition:opacity .3s}
+  #sbthumb{position:absolute;left:0;right:0;top:0;border-radius:2px;
+    background:rgba(255,255,255,.30)}
   #topbar .mark{color:var(--accent);display:flex}
   #topbar h1{font-size:16px;font-weight:700;letter-spacing:-.01em}
   #topbar .date{margin-left:auto;color:var(--text-3);font-size:13px;font-weight:500}
@@ -555,6 +567,7 @@
   <h1>LiftLog</h1><span class="date" id="hdrdate"></span>
 </header>
 <div id="scroll"><main id="view"></main></div>
+<div id="sbar" aria-hidden="true"><div id="sbthumb"></div></div>
 <div id="timer"><span class="tex" id="t-ex"></span><span class="tt num" id="t-left">0:00</span>
   <button data-act="t-adj" data-d="-15">−15</button><button data-act="t-adj" data-d="15">+15</button>
   <button data-act="t-skip">Skip</button></div>
@@ -947,7 +960,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.32"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.33"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -6498,6 +6511,23 @@ if (window.visualViewport){
   const pinBar = () => { const s = $("#topbar"); if (s) s.style.transform = "translateY(" + Math.round(vv.offsetTop) + "px)"; };
   vv.addEventListener("scroll", pinBar);
   vv.addEventListener("resize", pinBar);
+}
+/* custom scroll indicator — see the #sbar CSS for why it exists */
+{
+  const sc = $("#scroll"), sb = $("#sbar"), th = $("#sbthumb");
+  let hideTO = null;
+  sc.addEventListener("scroll", () => {
+    const max = sc.scrollHeight - sc.clientHeight;
+    if (max < 40){ sb.style.opacity = 0; return; }
+    const trackH = sb.clientHeight;
+    const h = Math.max(36, trackH * sc.clientHeight / sc.scrollHeight);
+    const y = Math.min(Math.max(sc.scrollTop / max, 0), 1) * (trackH - h);
+    th.style.height = h + "px";
+    th.style.transform = "translateY(" + y.toFixed(1) + "px)";
+    sb.style.opacity = 1;
+    clearTimeout(hideTO);
+    hideTO = setTimeout(() => { sb.style.opacity = 0; }, 650);
+  }, {passive:true});
 }
 /* chart tooltip — the tip element that lives in the SAME chartwrap wins (two charts on a
    page each carry their own #ctip; positioning against the wrong one put tips in space) */
