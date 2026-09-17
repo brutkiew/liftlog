@@ -146,10 +146,12 @@
      around the icons, one fluid shrink; it springs back when scrolling stops or at
      either end of the page (v9.38). The material is basically a whisper of blur +
      saturation; the rim gradient carries the pane's definition. */
-  /* v9.47: the morph is a continuous progress — --tmp (0..1, set by the scroll
-     listener) scrubs every geometry value via calc(); transitions on the properties
-     smooth each step. body.tscrub (finger down) shortens the fuses so the morph
-     tracks the thumb; released, the .65-.7s fuses give the fluid settle. */
+  /* v9.48: the morph is a continuous progress — --tmp (0..1) — written every display
+     frame by ONE critically-damped spring animator in JS (the native architecture:
+     WWDC18 Fluid Interfaces — interruptible, velocity-preserving, retargets blend).
+     The geometry reads it via calc() and carries NO transitions of its own: CSS
+     transitions restart their ease on every retarget, which is exactly the jitter
+     v9.47 had during slow scrub. */
   #tabs{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(10px + env(safe-area-inset-bottom));z-index:6;
     width:calc((1 - var(--tmp,0)) * min(456px, 100% - 24px) + var(--tmp,0) * 272px);
     background:linear-gradient(180deg,rgba(27,33,56,.04),rgba(22,27,47,.03)) padding-box,
@@ -159,10 +161,9 @@
        the rim gradient, and the drop shadow. */
     backdrop-filter:blur(2.5px) saturate(1.5);-webkit-backdrop-filter:blur(2.5px) saturate(1.5);
     border:1px solid transparent;border-radius:30px;display:flex;
-    padding:7px;transition:width .7s var(--ease);
+    padding:7px;
     box-shadow:inset 0 1px 1px rgba(255,255,255,.14), inset 0 -1px 1px rgba(140,160,255,.05),
       0 18px 44px rgba(0,0,0,.5)}
-  body.tscrub #tabs{transition-duration:.12s}
   /* fake edge lensing: a thin inner band just inside the rim where the "glass" bends
      light — brighter above, denser below — masked to a ring so the middle stays clean.
      (The true feDisplacementMap lens is still parked — see #lens above.) */
@@ -216,17 +217,13 @@
     background:none;border:none;color:var(--text-3);font-size:10.5px;
     font-weight:600;letter-spacing:.03em;border-radius:23px;
     padding:calc(8px - 1px*var(--tmp,0)) 0 calc(5px - 5px*var(--tmp,0));
-    transition:transform .5s cubic-bezier(.22,1.6,.36,1),background .3s,padding .65s var(--ease)}
-  #tabs button:active{transform:scale(.94);transition-duration:.07s,.3s,.65s}
+    transition:transform .5s cubic-bezier(.22,1.6,.36,1),background .3s}
+  #tabs button:active{transform:scale(.94);transition-duration:.07s,.3s}
   #tabs button .tl{display:block;line-height:15px;
     height:calc(15px*(1 - var(--tmp,0)));
-    opacity:calc(1 - 1.6*var(--tmp,0)); /* label light gone by ~2/3 condensed */
-    transition:height .65s var(--ease),opacity .45s}
+    opacity:calc(1 - 1.6*var(--tmp,0))} /* label light gone by ~2/3 condensed */
   #tabs button .ic{display:block;margin:0 auto calc(3px*(1 - var(--tmp,0)));
-    transition:transform .35s var(--ease),margin .65s var(--ease)}
-  body.tscrub #tabs button{transition-duration:.5s,.3s,.12s}
-  body.tscrub #tabs button .tl{transition-duration:.12s,.12s}
-  body.tscrub #tabs button .ic{transition-duration:.35s,.12s}
+    transition:transform .35s var(--ease)}
   #tabs button.on{color:var(--text-1);background:var(--accent-dim)}
   #tabs button.on .ic{color:var(--accent);transform:scale(1.12) translateY(-1px)}
   /* each tab owns a hue */
@@ -469,9 +466,7 @@
      its place in the content flow. */
   .segwrap{position:fixed;top:calc(56px + env(safe-area-inset-top));left:50%;
     transform:translateX(-50%);z-index:4;
-    width:calc((1 - var(--tmp,0)) * min(440px, 100% - 40px) + var(--tmp,0) * 304px);
-    transition:width .7s var(--ease)}
-  body.tscrub .segwrap{transition-duration:.12s}
+    width:calc((1 - var(--tmp,0)) * min(440px, 100% - 40px) + var(--tmp,0) * 304px)}
   .segwrap .seg{margin-bottom:0;
     backdrop-filter:blur(2.5px) saturate(1.5);-webkit-backdrop-filter:blur(2.5px) saturate(1.5)}
   /* the Trends pill condenses in step with the tab capsule (same --tmp progress) —
@@ -479,9 +474,7 @@
   .segwrap .seg button{
     padding:calc(9px - 3px*var(--tmp,0)) calc(9px - 7px*var(--tmp,0));
     font-size:calc(13.5px - 1.5px*var(--tmp,0));
-    transition:transform .5s cubic-bezier(.22,1.6,.36,1),background .3s,
-    padding .65s var(--ease),font-size .65s var(--ease)}
-  body.tscrub .segwrap .seg button{transition-duration:.5s,.3s,.12s,.12s}
+    transition:transform .5s cubic-bezier(.22,1.6,.36,1),background .3s}
   .segspace{height:58px}
   .seg button{flex:1;background:none;border:none;border-radius:999px;color:var(--text-3);padding:9px;font-size:13.5px;font-weight:600}
   .seg button.on{background:var(--grad);color:#0A0B0D;box-shadow:0 4px 14px rgba(44,224,139,.22), inset 0 1px 0 rgba(255,255,255,.35)}
@@ -1052,7 +1045,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.47"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.48"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -6626,17 +6619,18 @@ if (window.visualViewport){
   vv.addEventListener("resize", pinBar);
 }
 /* custom scroll indicator — see the #sbar CSS for why it exists.
-   v9.47: the pill-menu condense is a continuous PROGRESS (--tmp, 0..1) that all the
-   morph geometry reads via calc(), in two regimes (iOS-26 feel):
-   - FINGER DOWN (touch active on the scroller): the morph SCRUBS with the drag —
-     accumulated travel maps to progress (starts ~2px in, fully condensed by ~40px;
-     Bryce: the point should be low), so a slight nudge slightly condenses and holds
-     there. body.tscrub shortens the transition fuses to ~.12s while the finger
-     drives, so the pills track the thumb instead of gliding .7s behind it. Progress
-     only ratchets UP during a touch (touchAcc grows monotonically); no expand, no
-     idle timer until release — EXCEPT a resting finger (v9.45): no touchmove
-     drag-intent (>6px) within 40ms of touchdown = the page was caught → expand
-     near-instantly.
+   v9.48: the pill-menu condense recreates the native animation architecture (WWDC18
+   "Designing Fluid Interfaces" / the iOS-26 tab bar): ONE critically-damped spring,
+   stepped every display frame in rAF, is the only writer of --tmp — everything else
+   just moves its TARGET. Retargets blend through the spring's current velocity
+   instead of restarting an ease, which is what kills the slow-scrub jitter; the
+   spring is tight while the finger drives (~.18s response, tracks the thumb) and
+   soft for the hands-off settle (expand ~.55s — no abrupt pop). Regimes:
+   - FINGER DOWN: the morph scrubs with accumulated travel through an ease-out curve
+     (visible within a few px, fully condensed by ~27px — slow short scrolls register
+     early), ratcheting up only. No expand until release — EXCEPT a resting finger
+     (no touchmove drag-intent >6px within 40ms of touchdown = the page was caught →
+     target 0 immediately).
    - MOMENTUM (no touch): velocity with hysteresis — >~380 px/s condenses fully, and
      once the glide decays below ~80 px/s for two consecutive events the pills spring
      back, no waiting for a dead stop. Between the thresholds the state holds.
@@ -6646,13 +6640,30 @@ if (window.visualViewport){
 {
   const sc = $("#scroll"), sb = $("#sbar"), th = $("#sbthumb");
   let hideTO = null, lastY = 0, lastT = 0, minTO = null, slowN = 0, touchOn = false, touchAcc = 0;
-  let dragIntent = false, tStartY = 0, curT = 0;
+  let dragIntent = false, tStartY = 0;
+  // --- the spring animator: sole writer of --tmp ---
+  let sCur = 0, sVel = 0, sTgt = 0, sRAF = 0, sLast = 0;
   const setT = t => {
     t = Math.min(1, Math.max(0, t));
-    if (t === curT) return;
-    curT = t;
-    document.documentElement.style.setProperty("--tmp", t.toFixed(3));
+    if (t === sTgt) return;
+    sTgt = t;
+    if (!sRAF){ sLast = performance.now(); sRAF = requestAnimationFrame(sTick); }
   };
+  function sTick(now){
+    const dt = Math.min((now - sLast) / 1000, .25) || .008; sLast = now;
+    const resp = touchOn ? .18 : (sTgt > sCur ? .30 : .55); // s — perceptual response time
+    // closed-form critically damped spring — exact for any dt, cannot diverge
+    // (numeric integration blew up on long frame gaps)
+    const w = 2 * Math.PI / resp;
+    const err = sCur - sTgt;
+    const e = Math.exp(-w * dt);
+    const a = sVel + w * err;
+    sCur = sTgt + (err + a * dt) * e;
+    sVel = (sVel - a * w * dt) * e;
+    if (Math.abs(sCur - sTgt) < .001 && Math.abs(sVel) < .02){ sCur = sTgt; sVel = 0; }
+    document.documentElement.style.setProperty("--tmp", sCur.toFixed(4));
+    sRAF = (sCur !== sTgt) ? requestAnimationFrame(sTick) : 0;
+  }
   const stillCheck = () => {
     if (dragIntent) return;
     clearTimeout(minTO);
@@ -6662,7 +6673,6 @@ if (window.visualViewport){
     touchOn = true; touchAcc = 0; dragIntent = false;
     const t0 = e.touches && e.touches[0];
     tStartY = t0 ? t0.clientY : 0;
-    document.body.classList.add("tscrub");
     stillCheck();
   }, {passive:true});
   sc.addEventListener("touchmove", e => {
@@ -6674,7 +6684,6 @@ if (window.visualViewport){
   }, {passive:true});
   const touchEnd = () => {
     touchOn = false;
-    document.body.classList.remove("tscrub"); // long, fluid fuses for the settle
     // no momentum after release (still finger-drag stop) → expand shortly;
     // if momentum follows, its scroll events re-arm/replace this timer
     clearTimeout(minTO);
@@ -6695,8 +6704,11 @@ if (window.visualViewport){
       if (touchOn){
         slowN = 0;
         touchAcc += Math.abs(dy);
-        if (touchAcc > 2) setT(Math.max(curT, (touchAcc - 2) / 38)); // scrub, ratcheting up
-        else stillCheck(); // glide-halt residue, not a drag — keep the resting-finger verdict alive
+        if (touchAcc > 1){
+          // ease-out travel curve: quick to register, full by ~27px — then ratchet up
+          const raw = Math.min(1, (touchAcc - 1) / 26);
+          setT(Math.max(sTgt, 1 - (1 - raw) * (1 - raw)));
+        } else stillCheck(); // glide-halt residue, not a drag — keep the resting-finger verdict alive
       } else {
         if (v > .38){ slowN = 0; setT(1); }
         else if (v < .08 && ++slowN >= 2){ slowN = 0; setT(0); }
