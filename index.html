@@ -947,7 +947,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.27"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.28"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -2914,7 +2914,8 @@ function nWidgetSync(){
       todayIdx:new Date(today+"T12:00:00").getDay()},
     body:{steps:S.body.steps[today] || 0,
       weight:tr.length ? Math.round(tr[tr.length-1].t*10)/10 : 0,
-      rate:rate === null ? 0 : Math.round(rate*100)/100}
+      rate:rate === null ? 0 : Math.round(rate*100)/100,
+      bars:[...Array(7)].map((_, i) => S.body.steps[addDays(today, i - 6)] || 0)}
   };
   const sig = JSON.stringify(snap);
   if (sig === _nWidgetSig) return;
