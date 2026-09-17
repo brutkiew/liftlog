@@ -947,11 +947,11 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.25"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.26"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
-  age:30, bodyFat:"", cardioKcal:7.8, autoReg:true, week:null, // week null = standard program (DEF_WEEK)
+  age:30, bodyFat:"", tmSpeed:3.5, tmInc:5, autoReg:true, week:null, // week null = standard program (DEF_WEEK)
   refract:true, // liquid-glass edge refraction under the tab capsule
   health:false, // Apple Health sync — only offered when the iOS shell reports the capability
   level:"auto"}; // training experience: auto (scorecard) | novice | intermediate | advanced — sets stall windows
@@ -2013,7 +2013,8 @@ function openWorkoutDraft(w){
       plan:(sd && sd.plan.find(p => p[0] === e.id))
         ? (p => ({n:p[1],lo:p[2],hi:p[3]}))(sd.plan.find(p => p[0] === e.id)) : null,
       sets:e.sets.map(s => ({w:String(s.w||""), r:String(s.r), done:true, warm:!!s.warm}))})),
-    cardio:{on:!!w.cardio, min:w.cardio ? w.cardio.min : 20}, note:w.note||""};
+    cardio:{on:!!w.cardio, min:w.cardio ? w.cardio.min : 20,
+      mph:w.cardio ? w.cardio.mph : undefined, inc:w.cardio ? w.cardio.inc : undefined}, note:w.note||""};
   S.workouts = S.workouts.filter(x => x.id !== w.id);
   S.editing = w.date === todayStr() ? null : w.date;
   save(); tab = "home"; render();
@@ -2646,11 +2647,17 @@ function renderWorkout(d){
     + '<button class="addset" style="margin:0" data-act="add-ex">+ Add exercise</button>'
     + '<button class="addset" style="margin:0" data-act="tpl-load-open">Use template</button>'
     + '<button class="addset" style="margin:0" data-act="tpl-save">Save template</button></div>';
-  html += '<div class="card rowline">'
+  html += '<div class="card"><div class="rowline">'
     + '<label class="grow rowline" style="gap:8px"><input type="checkbox" id="cardio-on" style="width:20px;height:20px"'+(d.cardio.on?" checked":"")+'>'
     + '<span style="font-size:14px">Incline treadmill</span></label>'
     + '<input id="cardio-min" class="num" type="number" inputmode="numeric" value="'+d.cardio.min+'" style="width:64px;text-align:center">'
-    + '<span class="cap">min</span></div>';
+    + '<span class="cap">min</span></div>'
+    + (d.cardio.on
+        ? '<div class="rowline" style="margin-top:8px;gap:6px"><span class="cap grow">speed × incline sets the burn</span>'
+          + '<input id="cardio-mph" class="num" type="number" inputmode="decimal" step="0.1" value="'+(d.cardio.mph != null ? d.cardio.mph : S.settings.tmSpeed)+'" style="width:58px;text-align:center;padding:10px 4px"><span class="cap">mph</span>'
+          + '<input id="cardio-inc" class="num" type="number" inputmode="decimal" step="0.5" value="'+(d.cardio.inc != null ? d.cardio.inc : S.settings.tmInc)+'" style="width:58px;text-align:center;padding:10px 4px"><span class="cap">%</span></div>'
+        : '')
+    + '</div>';
   html += '<div class="card"><textarea id="wnote" rows="2" placeholder="Workout notes…">'+esc(d.note||"")+'</textarea></div>';
   $("#view").innerHTML = html;
 
@@ -2757,7 +2764,10 @@ function toggleSet(ei, si){
      {type:"awake", on:bool}                     keep screen on during a session
      {type:"healthAuth"}                         Health permission → nHealthAuthDone(ok)
      {type:"healthSteps", days:N}                daily step sums → nHealthSteps([{d,s}])
-     {type:"healthWrite", workouts:[{date,start,end,kcal,name}], weights:[{date,lb}]}
+     {type:"healthStepsWin", date, start, end}   steps inside one session window (shell ≥2)
+                                                 → nHealthStepsWin(date, n)
+     {type:"healthWrite", workouts:[{date,start,end,kcal,name,uid,act}], weights:[{date,lb}]}
+                                                 uid/act need shell ≥2 (act "lift"|"walk")
      {type:"healthDelete", workouts:[date], weights:[date]} */
 const NB = (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.liftlog) || null;
 function nPost(m){ try { if (NB) NB.postMessage(m); } catch(e){} }
@@ -2789,19 +2799,35 @@ const nHealthAvail = () => !!(NB && NCAP.health);
 const nHealthOn = () => nHealthAvail() && !!S.settings.health;
 function nHealthWrite(msg){ if (nHealthOn()) nPost(Object.assign({type:"healthWrite"}, msg)); }
 function nHealthDelete(msg){ if (nHealthOn()) nPost(Object.assign({type:"healthDelete"}, msg)); }
-/* one HK workout per LiftLog date (externalUUID llwk-<date>, so a re-finished or
-   edited day REPLACES its Health entry). endMs 0 = backfilled day with no clock
-   time on record — anchor it at 6 pm. kcal: lifting at MET ≈ 4 on the smoothed
-   bodyweight, cardio minutes at the user's kcal/min setting (same as Insights). */
-function nHealthWorkoutOf(w, endMs){
+/* a LiftLog date becomes HK entries keyed by externalUUID, so a re-finished or
+   edited day REPLACES its Health entries. Shell ≥2: strength (llwk-<date>) plus,
+   when there was treadmill, a separate Walking entry (llcd-<date>) at the tail of
+   the session with the ACSM incline burn. Shell 1 would write both items as
+   duplicate strength workouts, so it gets the old single combined entry. endMs 0 =
+   backfilled day with no clock time on record — anchor it at 6 pm. Lifting kcal:
+   MET≈4 net of resting → 3 (resting kcal belong to BMR, and Apple's active-energy
+   semantics are net). */
+function nHealthItemsOf(w, endMs){
   const sets = w.exercises.reduce((a,e) => a + e.sets.length, 0);
-  const cMin = w.cardio ? +w.cardio.min || 0 : 0;
+  const c = w.cardio, cMin = c ? +c.min || 0 : 0;
   const min = w.durMin || (Math.min(120, Math.max(25, Math.round(sets*3.5))) + cMin);
   const liftMin = Math.max(min - cMin, Math.round(min*0.5));
-  const kcal = Math.round(4 * 3.5 * bodyweight()*0.45359 / 200 * liftMin
-                          + (S.settings.cardioKcal || 7.8) * cMin);
   const end = endMs || new Date(w.date+"T18:00:00")*1;
-  return {date:w.date, start:end - min*60000, end:end, kcal:kcal, name:w.sesName || ""};
+  const liftKcal = Math.round(3 * 3.5 * bodyweight()*0.45359 / 200 * liftMin);
+  const mph = c && c.mph || S.settings.tmSpeed, inc = c && c.inc != null ? c.inc : S.settings.tmInc;
+  const walkKcal = cMin ? Math.round(walkKcalMin(mph, inc) * cMin) : 0;
+  if (!(NCAP.health >= 2))
+    return [{date:w.date, start:end - min*60000, end:end, kcal:liftKcal + walkKcal, name:w.sesName || ""}];
+  const cStart = end - cMin*60000;
+  const items = [{date:w.date, uid:"llwk-"+w.date, act:"lift",
+                  start:end - min*60000, end:cMin ? cStart : end, kcal:liftKcal, name:w.sesName || ""}];
+  if (cMin) items.push({date:w.date, uid:"llcd-"+w.date, act:"walk", start:cStart, end:end,
+                        kcal:walkKcal, name:"Incline treadmill · "+mph+" mph @ "+inc+"%"});
+  return items;
+}
+function nHealthBackfillAll(){ // idempotent by uid — also the "Resync history" button
+  nHealthWrite({workouts: S.workouts.reduce((a,w) => a.concat(nHealthItemsOf(w, 0)), []),
+                weights: weightEntries().map(e => ({date:e.d, lb:e.w}))});
 }
 let _nStepsAsk = 0;
 function nHealthStepsSync(){ // boot + return-to-foreground, 15-min throttle
@@ -2820,7 +2846,16 @@ window.nHealthSteps = arr => {
   if (!Array.isArray(arr)) return;
   for (const p of arr) if (p && p.d && p.s > 0) S.body.steps[p.d] = Math.round(p.s);
   save();
+  // Health commits pedometer steps with a lag, so re-measure recent session windows
+  // here (each sync) rather than trusting the number captured right at finish
+  if (NCAP.health >= 2) for (const w of S.workouts)
+    if (w.hkw && w.cardio && w.date >= addDays(todayStr(), -2))
+      nPost({type:"healthStepsWin", date:w.date, start:w.hkw.s, end:w.hkw.e});
   if (tab === "trends") render(); // never re-render mid-workout — it would blur an input
+};
+window.nHealthStepsWin = (date, n) => {
+  const w = S.workouts.find(x => x.date === date);
+  if (w && n >= 0){ w.stepsIn = Math.round(n); save(); }
 };
 window.nHealthAuthDone = ok => {
   if (!ok){
@@ -2831,8 +2866,7 @@ window.nHealthAuthDone = ok => {
   render(); nHealthStepsSync();
   const n = S.workouts.length, m = weightEntries().length;
   if ((n || m) && confirm("Connected. Also add your "+n+" past workout"+(n===1?"":"s")+" and "+m+" weigh-in"+(m===1?"":"s")+" to Apple Health?")){
-    nHealthWrite({workouts: S.workouts.map(w => nHealthWorkoutOf(w, 0)),
-                  weights: weightEntries().map(e => ({date:e.d, lb:e.w}))});
+    nHealthBackfillAll();
     showToast("Sent to Apple Health ✓");
   }
 };
@@ -3017,7 +3051,9 @@ function finishDraft(dateStr, silent){
   S.workouts = S.workouts.filter(w => w.date !== dateStr);
   S.workouts.push({id:dateStr.replace(/-/g,"")+"-"+Math.floor(Math.random()*1e6),
     date:dateStr, session:d.session, sesName:(sesDef(d.session)||{}).name || d.bname || "Custom",
-    exercises:kept, cardio:d.cardio.on ? {min:+d.cardio.min || 20} : null,
+    exercises:kept, cardio:d.cardio.on ? {min:+d.cardio.min || 20,
+      mph:+d.cardio.mph || S.settings.tmSpeed,
+      inc:d.cardio.inc != null ? +d.cardio.inc : S.settings.tmInc} : null,
     note:(d.note||"").trim(), prs,
     durMin:(dateStr === todayStr() && d.startedAt) ? Math.round((Date.now()-d.startedAt)/60000) : null});
   // a finished return-week session closes out that lift's targeted deload
@@ -3028,7 +3064,17 @@ function finishDraft(dateStr, silent){
   save();
   // every path that lands a workout ends here, so Health stays in step with edits too
   const hw = S.workouts.find(x => x.date === dateStr);
-  if (hw) nHealthWrite({workouts:[nHealthWorkoutOf(hw, dateStr === todayStr() ? Date.now() : 0)]});
+  if (hw){
+    const endMs = dateStr === todayStr() ? Date.now() : 0;
+    const items = nHealthItemsOf(hw, endMs);
+    nHealthWrite({workouts: items});
+    // remember the session window so the treadmill's steps can be measured back out
+    // of the day's flat-step credit (flatStepsOf) — real clock times only
+    if (NCAP.health >= 2 && hw.cardio && endMs){
+      hw.hkw = {s:items[0].start, e:endMs}; save();
+      if (nHealthOn()) nPost({type:"healthStepsWin", date:dateStr, start:items[0].start, end:endMs});
+    }
+  }
   return prs;
 }
 
@@ -3764,6 +3810,33 @@ function bmrKcal(){
   if (bf > 0 && bf < 60) return Math.round(370 + 21.6*kg*(1-bf/100)); // Katch-McArdle
   return Math.round(10*kg + 6.25*heightCm() - 5*(+S.settings.age||30) + (S.settings.sex === "female" ? -161 : 5));
 }
+/* ================= walking physiology =================
+   One model for every walking calorie in the app: ACSM walking equation, NET of
+   resting (the resting term belongs to BMR — keeping it here would double-count),
+   on the smoothed trend bodyweight. Incline is the whole game: at 3.5 mph and
+   Bryce's weight, 5% ≈ 6.5 kcal/min vs 2.9 flat. */
+function walkKcalMin(mph, inc){
+  const mpm = mph * 26.8224; // m/min
+  return (0.1*mpm + 1.8*mpm*(inc/100)) * bodyweight()*0.45359 / 200;
+}
+/* steps/min while walking at mph — step length ≈ 0.415 × height */
+function tmCadence(mph){ return mph*26.8224 / (0.415*heightCm()/100); }
+/* what one everyday step is worth: an easy ~3 mph flat walk, per step (net) */
+function stepKcal(){ return walkKcalMin(3, 0) / tmCadence(3); }
+/* a day's Health steps minus the treadmill's share, so incline minutes (valued by
+   walkKcalMin) and flat steps never pay for the same footfalls. Deduct the SMALLER
+   of what was measured during the session window (w.stepsIn — phone left on the
+   bench → ~0 → nothing deducted) and what the belt could have produced. */
+function flatStepsOf(ds){
+  let s = S.body.steps[ds] || 0;
+  if (!s) return 0;
+  const w = S.workouts.find(x => x.date === ds);
+  if (w && w.cardio && w.cardio.min){
+    const est = Math.round(tmCadence(w.cardio.mph || S.settings.tmSpeed) * w.cardio.min);
+    s = Math.max(0, s - Math.min(w.stepsIn != null ? w.stepsIn : est, est));
+  }
+  return s;
+}
 function energyModel(){
   const b = bmrKcal();
   /* steady-week model: a typical session (average of the last 10 logged) done on every
@@ -3772,15 +3845,25 @@ function energyModel(){
      estimate is for. One-side-at-a-time lifts count double: each logged set is performed
      once per limb. */
   const recent = S.workouts.slice().sort((x,y) => x.date < y.date ? -1 : 1).slice(-10);
-  let sets = 0, cmin = 0;
+  let sets = 0, ck = 0;
   for (const w of recent){
     sets += w.exercises.reduce((x,e) => x + workSets(e.sets).length*(isUni(e.id)?2:1), 0);
-    cmin += w.cardio ? w.cardio.min : 0; }
+    if (w.cardio) ck += w.cardio.min * walkKcalMin(w.cardio.mph || S.settings.tmSpeed,
+                                                   w.cardio.inc != null ? w.cardio.inc : S.settings.tmInc); }
   const weekSes = WEEK.filter(Boolean).length;
   const perDay = recent.length ? weekSes/7/recent.length : 0; // sessions/day × per-session share
-  const lift = sets*perDay*9, cardio = cmin*perDay*(+S.settings.cardioKcal||7.8);
-  const neat = Math.round(b*0.35); // NEAT + TEF for a mostly-desk day outside the gym
-  return {bmr:b, neat, lift:Math.round(lift), cardio:Math.round(cardio), weekSes,
+  const lift = sets*perDay*9, cardio = ck*perDay;
+  /* daily living: with Apple Health steps on record it's MEASURED — flat steps (the
+     treadmill's share removed) at the per-step cost, plus 0.22×BMR for digestion and
+     non-step fidgeting, calibrated so ~8k steps lands where the old flat 0.35×BMR
+     desk-day guess sat. Without step data (PC, Health off) the old guess stands. */
+  const sp = stepsEntries().filter(e => e.d >= addDays(todayStr(), -14) && e.d < todayStr());
+  let neat, stepsAvg = null;
+  if (sp.length >= 5){
+    stepsAvg = sp.reduce((a,e) => a + flatStepsOf(e.d), 0) / sp.length;
+    neat = Math.round(b*0.22 + stepsAvg*stepKcal());
+  } else neat = Math.round(b*0.35); // NEAT + TEF for a mostly-desk day outside the gym
+  return {bmr:b, neat, stepsAvg, lift:Math.round(lift), cardio:Math.round(cardio), weekSes,
     tdee: Math.round((b + neat + lift + cardio)/25)*25};
 }
 function stdE1UpTo(id, dateEnd){
@@ -4078,7 +4161,7 @@ function trendsLab(){
     const thisWk = cw[cw.length-1];
     const prev = cw.slice(0, -1).filter(p => p.val > 0);
     const typ = prev.length ? Math.round(prev.reduce((a,p) => a+p.val, 0) / prev.length) : null;
-    const kc = Math.round(thisWk.val * (+S.settings.cardioKcal || 7.8));
+    const kc = Math.round(thisWk.val * walkKcalMin(S.settings.tmSpeed, S.settings.tmInc));
     html += '<div class="card"><span class="lbl">Cardio · incline treadmill'+qBtn("cardio")+'</span>'
       + '<div class="stat num" style="margin-top:6px">'+thisWk.val+'<small> min this week</small>'
       + ' <small class="cap" style="font-size:12px">· '+thisWk.n+' session'+(thisWk.n===1?"":"s")
@@ -4094,7 +4177,7 @@ function trendsLab(){
     + '<div class="cap">modelled from your body stats + a steady week on your schedule ('+em.weekSes+' typical sessions, spread evenly — a light stretch won\'t drag it down)</div>'
     + '<div class="recap-block">'
     + li("Base metabolism ("+(+S.settings.bodyFat > 0 ? "Katch-McArdle" : "Mifflin-St Jeor")+")", em.bmr)
-    + li("Daily living · NEAT + digestion", em.neat)
+    + li("Daily living · " + (em.stepsAvg != null ? Math.round(em.stepsAvg).toLocaleString()+" steps/day + digestion" : "NEAT + digestion"), em.neat)
     + li("Lifting (avg/day)", em.lift)
     + li("Treadmill (avg/day)", em.cardio)+'</div>'
     + (real
@@ -4484,7 +4567,8 @@ function renderMore(){
     + '<div class="set-item"><span class="lbl">Height (feeds calorie math)</span><input id="st-height" value="'+esc(st.height||"")+'"></div>'
     + '<div class="set-item"><span class="lbl">Age (feeds calorie math)</span><input id="st-age" type="number" inputmode="numeric" value="'+(st.age||30)+'"></div>'
     + '<div class="set-item"><span class="lbl">Body fat % (optional — sharpens BMR + unlocks lean-mass stats)</span><input id="st-bf" type="number" inputmode="decimal" value="'+esc(st.bodyFat)+'" placeholder="e.g. 14"></div>'
-    + '<div class="set-item"><span class="lbl">Cardio burn · kcal per minute (treadmill ~150–160 per 20 min ≈ 7.8)</span><input id="st-cardiok" type="number" inputmode="decimal" step="0.1" value="'+(st.cardioKcal||7.8)+'"></div>'
+    + '<div class="set-item"><span class="lbl">Treadmill speed · mph (your usual — each workout can override)</span><input id="st-tmspeed" type="number" inputmode="decimal" step="0.1" value="'+(st.tmSpeed||3.5)+'"></div>'
+    + '<div class="set-item"><span class="lbl">Treadmill incline · % (burn is computed from speed × incline × your weight)</span><input id="st-tminc" type="number" inputmode="decimal" step="0.5" value="'+(st.tmInc!=null?st.tmInc:5)+'"></div>'
     + '<div class="set-item"><span class="lbl">Sex (for strength standards)</span><select id="st-sex">'
     + '<option value="male"'+(st.sex==="male"?" selected":"")+'>Male</option>'
     + '<option value="female"'+(st.sex==="female"?" selected":"")+'>Female</option></select></div>'
@@ -4527,7 +4611,9 @@ function renderMore(){
     + (nHealthAvail()
         ? '<h2>Apple Health</h2><div class="card">'
           + '<div class="setrow-lab"><span>Sync with Apple Health</span><input type="checkbox" id="st-health" style="width:22px;height:22px"'+(st.health?" checked":"")+'></div>'
-          + '<p class="cap" style="margin-top:4px">Finished workouts and morning weigh-ins are saved to Health, and your daily steps come back into Trends → Body. Editing or deleting a workout here updates Health too. Access can be changed anytime in the Health app under your profile → Apps.</p>'
+          + '<p class="cap" style="margin-top:4px">Finished workouts (lifting + a separate treadmill walk) and morning weigh-ins are saved to Health, and your daily steps come back into Trends → Body. Editing or deleting a workout here updates Health too. Access can be changed anytime in the Health app under your profile → Apps.</p>'
+          + (st.health ? '<div class="btnrow" style="margin-top:8px"><button data-act="hk-resync">Resync history to Health</button></div>'
+            + '<p class="cap" style="margin-top:6px">Rewrites every workout and weigh-in in place — run it after a calorie-model update so old Health entries get the new math.</p>' : '')
           + '</div>'
         : '')
     + '<h2>Data</h2><div class="card"><div class="btnrow">'
@@ -4671,7 +4757,7 @@ const HELP = {
   ovr:{t:"Overall strength index", b:"Each lift's best e1RM per week, divided by its own first-week baseline (that's 100), then averaged across every lift — one line answering \"am I actually getting stronger?\". Weeks you skip a lift, its last value carries forward. The chips cut the same math to one muscle group."},
   rel:{t:"Pound-for-pound", b:"The strength index corrected for bodyweight change. On a cut this is the win condition: if it climbs while the scale falls, you're holding or gaining strength in a smaller body."},
   you:{t:"Your numbers", b:"The denominator behind every grade on this page. Weight is your smoothed <b>trend</b> — each morning weigh-in only nudges it a little — so strength-per-pound doesn't jump around with scale noise. Set body-fat % in Settings to unlock lean mass and FFMI."},
-  cardio:{t:"Cardio tracking", b:"Counted from the \"Incline treadmill\" line on the workout screen. Minutes feed the daily-energy model below (minutes × your kcal/min setting), earn a small session-score bonus, and show in the weekly recap."},
+  cardio:{t:"Cardio tracking", b:"Counted from the \"Incline treadmill\" line on the workout screen. Burn comes from the ACSM walking equation — speed × incline × your current trend weight — so 3.5 mph at 5% counts for roughly double flat walking, and the number self-corrects as you lose weight. With Apple Health connected, steps taken during the session are subtracted from that day's everyday-step credit, so the treadmill is never paid twice. Minutes also earn a small session-score bonus and show in the weekly recap."},
   ready:{t:"Readiness check", b:"Auto-regulation, Juggernaut-style: rate sleep, energy, food and how fresh your body feels, 1–5 each. A strong day (average ≥ 4.25) nudges today's ghost targets <b>+5%</b>; a rough one pulls them <b>−5 to −10%</b>. It only scales the <i>suggestions</i> — what you actually lift is always your call, and progression math still runs on what you log. Asked once, at the day's first workout start; tap the banner to redo it."},
   pumpfb:{t:"Pump & soreness check-in", b:"The feedback loop the $200/yr apps run, in two taps per muscle. <b>Pump</b> = did today's volume do its job — a muscle that never pumps and never progresses probably needs more sets. <b>Coming in</b> = had it healed from last time? That answer tunes the muscle's recovery clock on the freshness map: \"still sore\" makes its clock run slower, \"fresh\" makes it run faster. Two or three check-ins per muscle are enough to see the map shift."},
   volband:{t:"Growth-zone check", b:"Research puts the productive weekly dose for one muscle near <b>10–20 counted sets</b> (primary work = 1, secondary = ½; grip/bracing riders don't count) — and that's a zone, <b>not a limit</b>: trained lifters kept growing at 20–30+ sets in multiple trials (Schoenfeld 2019, Enes 2024), and 2024–25 meta-analyses show returns that flatten rather than reverse. Regions that pool several heads or soak up half-credits from everything get wider bands — delts (three heads, half credit from every press and row) run 12–30. So the check flags <b>under</b> the zone, or volume so high your own soreness check-ins say recovery is losing — being above the zone while recovering fine is a choice, not an error. Forearms and lower back are never nagged: they ride along with nearly every lift."},
@@ -6098,6 +6184,11 @@ document.addEventListener("click", ev => {
     save(); closeModal(); render();
     showToast("Logged — the waist chart lives in Trends → Body.");
   }
+  else if (act === "hk-resync"){
+    if (!nHealthOn()) return;
+    nHealthBackfillAll();
+    showToast("Rewrote "+S.workouts.length+" workout"+(S.workouts.length===1?"":"s")+" + "+weightEntries().length+" weigh-ins in Health ✓");
+  }
   else if (act === "backup-later"){ S.backupSnooze = todayStr(); save(); render(); }
   else if (act === "score-why"){ openScoreModal(btn.dataset.id); }
   else if (act === "goto-trends"){ tab = "trends"; S.trendTab = "body"; render(); }
@@ -6224,8 +6315,10 @@ document.addEventListener("change", ev => {
     d0.date = nv; S.drafts[nv] = d0; S.editing = nv;
     save(); render();
   }
-  else if (t.id === "cardio-on"){ curDraft().cardio.on = t.checked; save(); }
+  else if (t.id === "cardio-on"){ curDraft().cardio.on = t.checked; save(); render(); } // render: speed/incline row appears
   else if (t.id === "cardio-min"){ curDraft().cardio.min = Math.max(0, +t.value||0); save(); }
+  else if (t.id === "cardio-mph"){ const v = parseFloat(t.value); curDraft().cardio.mph = isNaN(v) || v <= 0 ? S.settings.tmSpeed : v; save(); }
+  else if (t.id === "cardio-inc"){ const v = parseFloat(t.value); curDraft().cardio.inc = isNaN(v) || v < 0 ? S.settings.tmInc : v; save(); }
   else if (t.id === "prog-sel"){ S.progSel = t.value; save(); render(); }
   else if (t.id === "st-kcal"){ S.settings.kcalTarget = Math.max(0, +t.value||0) || 2510; save(); }
   else if (t.id === "st-goal"){ S.settings.goalWeight = t.value; save(); }
@@ -6251,7 +6344,8 @@ document.addEventListener("change", ev => {
   }
   else if (t.id === "st-age"){ S.settings.age = Math.max(14, Math.min(99, +t.value||30)); save(); }
   else if (t.id === "st-bf"){ S.settings.bodyFat = t.value; save(); }
-  else if (t.id === "st-cardiok"){ S.settings.cardioKcal = Math.max(0, +t.value||7.8); save(); }
+  else if (t.id === "st-tmspeed"){ const v = parseFloat(t.value); S.settings.tmSpeed = isNaN(v) || v <= 0 ? 3.5 : v; save(); }
+  else if (t.id === "st-tminc"){ const v = parseFloat(t.value); S.settings.tmInc = isNaN(v) || v < 0 ? 5 : v; save(); }
   else if (t.id === "st-apikey"){ S.settings.apiKey = t.value.trim(); save(); }
   else if (t.id === "importfile"){
     const f = t.files[0]; if (!f) return;
