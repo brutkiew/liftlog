@@ -374,8 +374,14 @@
     backdrop-filter:blur(24px) saturate(1.7);-webkit-backdrop-filter:blur(24px) saturate(1.7);
     box-shadow:inset 0 1px 0 rgba(255,255,255,.10), 0 10px 30px rgba(0,0,0,.30)}
   /* Trends keeps its segment pill floating under the topbar — just the glass pill, no strip */
-  .segwrap{position:sticky;top:calc(56px + env(safe-area-inset-top));z-index:4;margin-bottom:14px}
-  .segwrap .seg{margin-bottom:0}
+  /* v9.22: fixed, not sticky — like the tab capsule, the Trends pill is chrome: it sits
+     outside the scroller's coordinate space and never rides the bounce. .segspace holds
+     its place in the content flow. */
+  .segwrap{position:fixed;top:calc(56px + env(safe-area-inset-top));left:20px;right:20px;
+    max-width:440px;margin:0 auto;z-index:4}
+  .segwrap .seg{margin-bottom:0;
+    backdrop-filter:blur(28px) saturate(1.8);-webkit-backdrop-filter:blur(28px) saturate(1.8)}
+  .segspace{height:58px}
   .seg button{flex:1;background:none;border:none;border-radius:999px;color:var(--text-3);padding:9px;font-size:13.5px;font-weight:600}
   .seg button.on{background:var(--grad);color:#0A0B0D;box-shadow:0 4px 14px rgba(44,224,139,.22), inset 0 1px 0 rgba(255,255,255,.35)}
   .ranges{display:flex;gap:6px;margin-bottom:12px}
@@ -941,7 +947,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.21"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.22"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -2997,7 +3003,8 @@ function renderTrends(){
     + '<button data-act="ttab" data-t="ins" class="'+(S.trendTab==="ins"?"on":"")+'">Insights</button>'
     + '<button data-act="ttab" data-t="lab" class="'+(S.trendTab==="lab"?"on":"")+'">Lab</button>'
     + '<button data-act="ttab" data-t="body" class="'+(S.trendTab==="body"?"on":"")+'">Body</button>'
-    + '<button data-act="ttab" data-t="str" class="'+(S.trendTab==="str"?"on":"")+'">Strength</button></div></div>';
+    + '<button data-act="ttab" data-t="str" class="'+(S.trendTab==="str"?"on":"")+'">Strength</button></div></div>'
+    + '<div class="segspace"></div>';
   html += S.trendTab === "body" ? trendsBody() : S.trendTab === "str" ? trendsStrength()
     : S.trendTab === "lab" ? trendsLab() : trendsInsights();
   $("#view").innerHTML = html;
