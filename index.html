@@ -1064,7 +1064,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.54"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.55"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -2896,9 +2896,13 @@ function toggleSet(ei, si){
      {type:"healthSteps", days:N}                daily step sums → nHealthSteps([{d,s}])
      {type:"healthStepsWin", date, start, end}   steps inside one session window (shell ≥2)
                                                  → nHealthStepsWin(date, n)
-     {type:"healthWrite", workouts:[{date,start,end,kcal,name,uid,act}], weights:[{date,lb}]}
-                                                 uid/act need shell ≥2 (act "lift"|"walk")
+     {type:"healthWrite", workouts:[{date,start,end,kcal,name,uid,act}], weights:[{date,lb}],
+                          all:1?}                uid/act need shell ≥2 (act "lift"|"walk");
+                                                 all:1 (shell ≥3) = full resync, shell wipes
+                                                 everything it ever wrote first
      {type:"healthDelete", workouts:[date], weights:[date]}
+     {type:"healthAudit", days:N}                per-day inventory of LiftLog's Health
+                                                 entries (shell ≥3) → nHealthAudit([...])
      {type:"widget", snap:{...}}                snapshot → App Group file for the
                                                  home-screen widgets (shell widget ≥ 1)
      {type:"sessionReminder", at:<epoch ms>}    forgot-to-finish nudge (shell notify ≥ 1)
@@ -3041,7 +3045,9 @@ function nHealthItemsOf(w, endMs){
   const c = w.cardio, cMin = c ? +c.min || 0 : 0;
   const min = w.durMin || (Math.min(120, Math.max(25, Math.round(sets*3.5))) + cMin);
   const liftMin = Math.max(min - cMin, Math.round(min*0.5));
-  const end = endMs || new Date(w.date+"T18:00:00")*1;
+  // the 6 pm anchor must never land in the future (HealthKit rejects it and the day
+  // vanishes) — a today-resync before 6 pm anchors at "now" instead
+  const end = endMs || Math.min(new Date(w.date+"T18:00:00")*1, Date.now());
   const liftKcal = Math.round(3 * 3.5 * bodyweight()*0.45359 / 200 * liftMin);
   const mph = c && c.mph || S.settings.tmSpeed, inc = c && c.inc != null ? c.inc : S.settings.tmInc;
   const walkKcal = cMin ? Math.round(walkKcalMin(mph, inc) * cMin) : 0;
@@ -3054,10 +3060,38 @@ function nHealthItemsOf(w, endMs){
                         kcal:walkKcal, name:"Incline treadmill · "+mph+" mph @ "+inc+"%"});
   return items;
 }
-function nHealthBackfillAll(){ // idempotent by uid — also the "Resync history" button
-  nHealthWrite({workouts: S.workouts.reduce((a,w) => a.concat(nHealthItemsOf(w, 0)), []),
+function nHealthBackfillAll(){ // the "Resync history" button — a full rebuild
+  // all:1 (shell ≥3): wipe everything LiftLog ever wrote before rewriting — the only
+  // way to clear pre-v9.55 energy samples, which carried no uid and were orphaned by
+  // every rewrite (they kept inflating the Move ring invisibly). End times: the stored
+  // finish clock (w.end, v9.55+), else the cardio session window, else the 6 pm anchor.
+  nHealthWrite({all: NCAP.health >= 3 ? 1 : 0,
+                workouts: S.workouts.reduce((a,w) => a.concat(nHealthItemsOf(w, w.end || (w.hkw && w.hkw.e) || 0)), []),
                 weights: weightEntries().map(e => ({date:e.d, lb:e.w}))});
 }
+/* ---- Health audit (shell health ≥ 3) ---- */
+/* Ground truth from HealthKit itself: per day, the workout entries LiftLog owns and
+   the count/sum of its energy samples. Energy kcal exceeding the workouts' kcal means
+   orphaned duplicates (the pre-v9.55 bug) — flagged red; "Resync history" clears them. */
+window.nHealthAudit = days => {
+  if (!Array.isArray(days)) return;
+  if (!days.length){ openModal('<h3>Health audit</h3><p class="hint">No LiftLog entries found in Health for the window (or read access is off — Health app → profile → Apps → LiftLog).</p>'); return; }
+  let bad = 0;
+  const rows = days.map(x => {
+    const wk = (x.w||[]).reduce((a,w) => a + w.k, 0);
+    const dup = x.ek > wk + 10 || (x.w||[]).length > 2;
+    if (dup) bad++;
+    return '<div class="card" style="margin-bottom:8px'+(dup ? ';border-color:#e66' : '')+'">'
+      + '<b>'+fmtDate(x.d)+'</b>'+(dup ? ' <span style="color:#e66">· duplicates</span>' : '')
+      + (x.w||[]).map(w => '<div class="cap">'+(w.act === "walk" ? "Walk" : "Lift")+' '+w.s+'–'+w.e+' · '+w.k+' kcal</div>').join("")
+      + '<div class="cap">energy: '+x.en+' sample'+(x.en===1?"":"s")+' · '+Math.round(x.ek)+' kcal'
+      + (x.ek > wk + 10 ? ' (workouts say '+wk+')' : '')+'</div></div>';
+  }).join("");
+  openModal('<h3>Health audit</h3>'
+    + (bad ? '<p class="hint" style="color:#e66">'+bad+' day'+(bad===1?" has":"s have")+' duplicate energy — run "Resync history to Health" below to rebuild everything clean, then audit again.</p>'
+           : '<p class="hint">Every day matches — energy in Health equals what the workouts say. ✓</p>')
+    + rows);
+};
 let _nStepsAsk = 0;
 function nHealthStepsSync(){ // boot + return-to-foreground, 15-min throttle
   if (!nHealthOn() || Date.now() - _nStepsAsk < 9e5) return;
@@ -3364,7 +3398,9 @@ function finishDraft(dateStr, silent){
       mph:+d.cardio.mph || S.settings.tmSpeed,
       inc:d.cardio.inc != null ? +d.cardio.inc : S.settings.tmInc} : null,
     note:(d.note||"").trim(), prs,
-    durMin:durMin});
+    durMin:durMin,
+    // real clock end (clamped) — future resyncs keep true times instead of the 6 pm anchor
+    end:(dateStr === todayStr() && d.startedAt) ? endOfSession(d) : undefined});
   // a finished return-week session closes out that lift's targeted deload
   for (const e of kept){ const dl = S.dl[e.id]; if (dl && dateStr > dl.until) delete S.dl[e.id]; }
   delete S.drafts[dateStr];
@@ -4943,8 +4979,9 @@ function renderMore(){
         ? '<h2>Apple Health</h2><div class="card">'
           + '<div class="setrow-lab"><span>Sync with Apple Health</span><input type="checkbox" id="st-health" style="width:22px;height:22px"'+(st.health?" checked":"")+'></div>'
           + '<p class="cap" style="margin-top:4px">Finished workouts (lifting + a separate treadmill walk) and morning weigh-ins are saved to Health, and your daily steps come back into Trends → Body. Editing or deleting a workout here updates Health too. Access can be changed anytime in the Health app under your profile → Apps.</p>'
-          + (st.health ? '<div class="btnrow" style="margin-top:8px"><button data-act="hk-resync">Resync history to Health</button></div>'
-            + '<p class="cap" style="margin-top:6px">Rewrites every workout and weigh-in in place — run it after a calorie-model update so old Health entries get the new math.</p>' : '')
+          + (st.health ? '<div class="btnrow" style="margin-top:8px"><button data-act="hk-resync">Resync history to Health</button>'
+            + (NCAP.health >= 3 ? '<button data-act="hk-audit">Audit Health entries</button>' : '')+'</div>'
+            + '<p class="cap" style="margin-top:6px">Resync wipes everything LiftLog ever wrote to Health and rebuilds it — run it after a calorie-model update, or when Audit flags duplicate energy. Audit lists LiftLog\'s Health entries day by day (first run asks for read access).</p>' : '')
           + '</div>'
         : '')
     + '<h2>Data</h2><div class="card"><div class="btnrow">'
@@ -6536,6 +6573,11 @@ document.addEventListener("click", ev => {
     if (!nHealthOn()) return;
     nHealthBackfillAll();
     showToast("Rewrote "+S.workouts.length+" workout"+(S.workouts.length===1?"":"s")+" + "+weightEntries().length+" weigh-ins in Health ✓");
+  }
+  else if (act === "hk-audit"){
+    if (!nHealthOn()) return;
+    nPost({type:"healthAudit", days:45});
+    showToast("Reading Health…");
   }
   else if (act === "backup-later"){ S.backupSnooze = todayStr(); save(); render(); }
   else if (act === "score-why"){ openScoreModal(btn.dataset.id); }
