@@ -947,7 +947,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.24"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.25"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -2807,7 +2807,14 @@ let _nStepsAsk = 0;
 function nHealthStepsSync(){ // boot + return-to-foreground, 15-min throttle
   if (!nHealthOn() || Date.now() - _nStepsAsk < 9e5) return;
   _nStepsAsk = Date.now();
-  nPost({type:"healthSteps", days: Object.keys(S.body.steps).length ? 35 : 365});
+  let days = 35; // rolling refresh — late-settling Health data lands well within this
+  if (!Object.keys(S.body.steps).length){
+    // first pull reaches back to LiftLog's own first logged day, not a fixed year —
+    // steps from before the LiftLog era would chart a life the log never saw
+    const first = S.workouts.map(w => w.date).concat(weightEntries().map(e => e.d)).sort()[0];
+    days = first ? Math.min(365, Math.round((new Date(todayStr()+"T12:00:00") - new Date(first+"T12:00:00"))/864e5) + 1) : 35;
+  }
+  nPost({type:"healthSteps", days: days});
 }
 window.nHealthSteps = arr => {
   if (!Array.isArray(arr)) return;
