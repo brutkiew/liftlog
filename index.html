@@ -1041,7 +1041,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.43"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.44"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -6622,8 +6622,9 @@ if (window.visualViewport){
      (v9.42): a crawl at <1px per event still condenses once ~3px of total travel adds
      up — per-event thresholds missed it. No expand, no idle timer, until release.
    - MOMENTUM (no touch): velocity with hysteresis — >~380 px/s condenses, and once
-     the glide decays below ~160 px/s for two consecutive events they spring back,
-     no waiting for a dead stop. Between the thresholds the state holds.
+     the glide decays below ~80 px/s for two consecutive events they spring back, no
+     waiting for a dead stop (160 expanded while still visibly moving, v9.44).
+     Between the thresholds the state holds.
    Always: full stop (550ms, armed on release or on momentum events — long enough
    that stop-and-go nudge scrolling holds condensed instead of flapping, v9.43) and
    the top/bottom of the page expand. A huge single-event jump is a programmatic scroll
@@ -6657,7 +6658,7 @@ if (window.visualViewport){
         if (touchAcc > 3) document.body.classList.add("tabmin");
       } else {
         if (v > .38){ slowN = 0; document.body.classList.add("tabmin"); }
-        else if (v < .16 && ++slowN >= 2){ slowN = 0; document.body.classList.remove("tabmin"); }
+        else if (v < .08 && ++slowN >= 2){ slowN = 0; document.body.classList.remove("tabmin"); }
         minTO = setTimeout(() => document.body.classList.remove("tabmin"), 550);
       }
     } else { slowN = 0; document.body.classList.remove("tabmin"); }
