@@ -73,46 +73,47 @@
   .tint::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
     background:radial-gradient(130% 100% at 18% 0%,var(--tint),transparent 55%)}
   /* ===== chrome ===== */
-  /* status-bar backer: in standalone mode the iPhone's clock/signal/battery sit over the
-     page (black-translucent + viewport-fit=cover), and the topbar glass alone is too
-     transparent to keep them readable while content scrolls beneath. This fixed strip
-     holds a darker blur behind the system icons and fades out; on desktop the safe-area
-     inset is 0 so it has no height at all.
-     v9.10 fix: this rule used to live on body::before, which was ALREADY the teal aurora
-     blob — it silently replaced the blob (and inherited its 50% radius + blur + drift
-     animation). Now a real element (#sbb); the teal aurora is back. */
-  #sbb{position:fixed;top:-200px;left:0;right:0;z-index:8;pointer-events:none;
-    height:calc(200px + env(safe-area-inset-top, 0px)*2.2);
-    /* the 200px above the viewport is normally offscreen; iOS drags fixed elements with
-       the rubber-band bounce, so a hard fling to the top reveals this dark extension
-       instead of the raw black "outside the app". Stops are offset by the same 200px so
-       the visible part reads identically: solid behind the icons, fading out below.
-       v9.17: backdrop-filter used to cut off in a hard horizontal line at the element's
-       bottom edge (a blur can't fade with its own alpha gradient) — the visible seam
-       between the status-bar strip and the topbar below it. The mask now fades the tint
-       AND the blur together over a longer run, and the tint hue matches the topbar's
-       blue-dark instead of neutral dark. */
-    background:linear-gradient(180deg,
-      rgba(12,16,30,.85) 0,
-      rgba(12,16,30,.85) calc(200px + env(safe-area-inset-top, 0px)*0.55),
-      rgba(12,16,30,0) 100%);
-    backdrop-filter:blur(18px) saturate(1.6);-webkit-backdrop-filter:blur(18px) saturate(1.6);
-    -webkit-mask-image:linear-gradient(180deg,#000 calc(200px + env(safe-area-inset-top, 0px)*0.55),transparent 100%);
-    mask-image:linear-gradient(180deg,#000 calc(200px + env(safe-area-inset-top, 0px)*0.55),transparent 100%)}
+  /* Top chrome, v9.19 restructure. Lessons from v9.17/9.18: overlapping blur layers wash
+     over the logo/date (a backdrop-filter blurs everything painted behind its element —
+     including another layer's text — but NEVER the element's own children). So exactly
+     ONE glass layer covers the top: the topbar itself. Its background gradient darkens
+     the safe-area strip for the system clock/battery and relaxes into the bar tint, all
+     in one paint — no second strip, no seams, and the bar's own text stays crisp. */
   #topbar{position:sticky;top:0;z-index:5;
-    padding:calc(12px + env(safe-area-inset-top)) 20px 12px;display:flex;align-items:center;gap:9px}
-  /* v9.18: the bar's glass lives on a ::before that overhangs the bottom edge and is
-     masked to a fade — scrolling content dims gradually under the bar instead of hitting
-     a hard border-bottom + blur cutoff (same fix as the #sbb seam in v9.17). */
-  #topbar::before{content:"";position:absolute;left:0;right:0;top:0;bottom:-36px;z-index:-1;
-    pointer-events:none;
     background:linear-gradient(180deg,
-      rgba(14,17,30,.34) 0,
-      rgba(14,17,30,.34) calc(100% - 36px),
-      rgba(14,17,30,0) 100%);
+      rgba(8,11,24,.78) 0,
+      rgba(8,11,24,.58) env(safe-area-inset-top, 0px),
+      rgba(14,17,30,.34) calc(env(safe-area-inset-top, 0px) + 16px));
     backdrop-filter:blur(26px) saturate(1.8);-webkit-backdrop-filter:blur(26px) saturate(1.8);
-    -webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 36px),transparent 100%);
-    mask-image:linear-gradient(180deg,#000 calc(100% - 36px),transparent 100%)}
+    padding:calc(12px + env(safe-area-inset-top)) 20px 12px;display:flex;align-items:center;gap:9px}
+  /* soft under-edge: a short strip below the bar where tint AND blur fade to nothing
+     (mask fades both together), so scrolling content dims gradually into the bar instead
+     of hitting a hard border/blur cutoff. No text lives here, so nothing can get fuzzy. */
+  #topbar::after{content:"";position:absolute;left:0;right:0;top:100%;height:34px;
+    pointer-events:none;
+    background:linear-gradient(180deg,rgba(14,17,30,.34),rgba(14,17,30,0));
+    backdrop-filter:blur(26px) saturate(1.8);-webkit-backdrop-filter:blur(26px) saturate(1.8);
+    -webkit-mask-image:linear-gradient(180deg,#000,transparent);
+    mask-image:linear-gradient(180deg,#000,transparent)}
+  /* rubber-band backers: iOS drags fixed elements with the overscroll bounce, so these
+     sit just outside the viewport and slide in to cover what would otherwise be the
+     WKWebView's flat grey. Tinted to continue the page's own canvas: aurora blue up top,
+     near-black with a violet hint below. */
+  #sbb{position:fixed;top:-200px;left:0;right:0;height:200px;z-index:8;pointer-events:none;
+    background:linear-gradient(180deg,rgb(17,21,40),rgb(30,38,72))}
+  #bob{position:fixed;bottom:-200px;left:0;right:0;height:200px;z-index:8;pointer-events:none;
+    background:rgb(13,13,23)}
+  /* bottom fade: content dims out toward the tab capsule, mirroring the top edge */
+  #bfade{position:fixed;left:0;right:0;bottom:0;z-index:4;pointer-events:none;
+    height:calc(86px + env(safe-area-inset-bottom, 0px));
+    background:linear-gradient(180deg,rgba(10,12,19,0),rgba(10,12,19,.72) 80%);
+    backdrop-filter:blur(12px) saturate(1.4);-webkit-backdrop-filter:blur(12px) saturate(1.4);
+    -webkit-mask-image:linear-gradient(180deg,transparent,#000 80%);
+    mask-image:linear-gradient(180deg,transparent,#000 80%)}
+  /* the liquid-glass refraction lens (v9.10) misrenders in iOS-26 WKWebView — its bezel
+     mask fails and it degrades into a translucent aurora box riding the viewport. Off
+     until WebKit behaves; the tab capsule's plain glass stands on its own. */
+  #lens{display:none !important}
   #topbar .mark{color:var(--accent);display:flex}
   #topbar h1{font-size:16px;font-weight:700;letter-spacing:-.01em}
   #topbar .date{margin-left:auto;color:var(--text-3);font-size:13px;font-weight:500}
@@ -570,6 +571,8 @@
   <button data-act="t-skip">Skip</button></div>
 <div id="toast"></div>
 <div id="sbb"></div>
+<div id="bob"></div>
+<div id="bfade"></div>
 <div id="lens" aria-hidden="true"><div class="lensin"><div class="lensbg">
   <i class="rb r1"></i><i class="rb r2"></i><i class="rb r3"></i>
 </div></div></div>
@@ -958,7 +961,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.18"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.19"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
