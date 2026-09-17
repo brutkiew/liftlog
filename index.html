@@ -146,8 +146,12 @@
      around the icons, one fluid shrink; it springs back when scrolling stops or at
      either end of the page (v9.38). The material is basically a whisper of blur +
      saturation; the rim gradient carries the pane's definition. */
+  /* v9.47: the morph is a continuous progress — --tmp (0..1, set by the scroll
+     listener) scrubs every geometry value via calc(); transitions on the properties
+     smooth each step. body.tscrub (finger down) shortens the fuses so the morph
+     tracks the thumb; released, the .65-.7s fuses give the fluid settle. */
   #tabs{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(10px + env(safe-area-inset-bottom));z-index:6;
-    width:min(456px, 100% - 24px);
+    width:calc((1 - var(--tmp,0)) * min(456px, 100% - 24px) + var(--tmp,0) * 272px);
     background:linear-gradient(180deg,rgba(27,33,56,.04),rgba(22,27,47,.03)) padding-box,
       var(--rim) border-box;
     /* v9.39: Music-app clear — blur 2.5px, fill ~.03, no inner glow (each pass Bryce
@@ -158,7 +162,7 @@
     padding:7px;transition:width .7s var(--ease);
     box-shadow:inset 0 1px 1px rgba(255,255,255,.14), inset 0 -1px 1px rgba(140,160,255,.05),
       0 18px 44px rgba(0,0,0,.5)}
-  body.tabmin #tabs{width:272px}
+  body.tscrub #tabs{transition-duration:.12s}
   /* fake edge lensing: a thin inner band just inside the rim where the "glass" bends
      light — brighter above, denser below — masked to a ring so the middle stays clean.
      (The true feDisplacementMap lens is still parked — see #lens above.) */
@@ -210,16 +214,19 @@
   body.norefract #lens{display:none}
   #tabs button{flex:1 1 0;min-width:0;overflow:hidden;white-space:nowrap;
     background:none;border:none;color:var(--text-3);font-size:10.5px;
-    font-weight:600;padding:8px 0 5px;letter-spacing:.03em;border-radius:23px;
+    font-weight:600;letter-spacing:.03em;border-radius:23px;
+    padding:calc(8px - 1px*var(--tmp,0)) 0 calc(5px - 5px*var(--tmp,0));
     transition:transform .5s cubic-bezier(.22,1.6,.36,1),background .3s,padding .65s var(--ease)}
   #tabs button:active{transform:scale(.94);transition-duration:.07s,.3s,.65s}
-  #tabs button .tl{display:block;height:15px;line-height:15px;
+  #tabs button .tl{display:block;line-height:15px;
+    height:calc(15px*(1 - var(--tmp,0)));
+    opacity:calc(1 - 1.6*var(--tmp,0)); /* label light gone by ~2/3 condensed */
     transition:height .65s var(--ease),opacity .45s}
-  body.tabmin #tabs button{padding:7px 0}
-  body.tabmin #tabs button .tl{height:0;opacity:0}
-  body.tabmin #tabs button .ic{margin-bottom:0}
-  #tabs button .ic{display:block;margin:0 auto 3px;
-    transition:transform .35s var(--ease),margin-bottom .65s var(--ease)}
+  #tabs button .ic{display:block;margin:0 auto calc(3px*(1 - var(--tmp,0)));
+    transition:transform .35s var(--ease),margin .65s var(--ease)}
+  body.tscrub #tabs button{transition-duration:.5s,.3s,.12s}
+  body.tscrub #tabs button .tl{transition-duration:.12s,.12s}
+  body.tscrub #tabs button .ic{transition-duration:.35s,.12s}
   #tabs button.on{color:var(--text-1);background:var(--accent-dim)}
   #tabs button.on .ic{color:var(--accent);transform:scale(1.12) translateY(-1px)}
   /* each tab owns a hue */
@@ -461,16 +468,20 @@
      outside the scroller's coordinate space and never rides the bounce. .segspace holds
      its place in the content flow. */
   .segwrap{position:fixed;top:calc(56px + env(safe-area-inset-top));left:50%;
-    transform:translateX(-50%);width:min(440px, 100% - 40px);z-index:4;
+    transform:translateX(-50%);z-index:4;
+    width:calc((1 - var(--tmp,0)) * min(440px, 100% - 40px) + var(--tmp,0) * 304px);
     transition:width .7s var(--ease)}
+  body.tscrub .segwrap{transition-duration:.12s}
   .segwrap .seg{margin-bottom:0;
     backdrop-filter:blur(2.5px) saturate(1.5);-webkit-backdrop-filter:blur(2.5px) saturate(1.5)}
-  /* v9.36: the Trends pill condenses in step with the tab capsule (same body.tabmin
-     trigger) — narrower, shorter, smaller type, one fluid glass shrink */
-  body.tabmin .segwrap{width:304px}
-  .segwrap .seg button{transition:transform .5s cubic-bezier(.22,1.6,.36,1),background .3s,
+  /* the Trends pill condenses in step with the tab capsule (same --tmp progress) —
+     narrower, shorter, smaller type, one fluid glass shrink */
+  .segwrap .seg button{
+    padding:calc(9px - 3px*var(--tmp,0)) calc(9px - 7px*var(--tmp,0));
+    font-size:calc(13.5px - 1.5px*var(--tmp,0));
+    transition:transform .5s cubic-bezier(.22,1.6,.36,1),background .3s,
     padding .65s var(--ease),font-size .65s var(--ease)}
-  body.tabmin .segwrap .seg button{padding:6px 2px;font-size:12px}
+  body.tscrub .segwrap .seg button{transition-duration:.5s,.3s,.12s,.12s}
   .segspace{height:58px}
   .seg button{flex:1;background:none;border:none;border-radius:999px;color:var(--text-3);padding:9px;font-size:13.5px;font-weight:600}
   .seg button.on{background:var(--grad);color:#0A0B0D;box-shadow:0 4px 14px rgba(44,224,139,.22), inset 0 1px 0 rgba(255,255,255,.35)}
@@ -1041,7 +1052,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.46"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.47"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -6615,51 +6626,59 @@ if (window.visualViewport){
   vv.addEventListener("resize", pinBar);
 }
 /* custom scroll indicator — see the #sbar CSS for why it exists.
-   v9.41: the pill-menu condense, in two regimes (Safari-toolbar feel):
-   - FINGER DOWN (touch active on the scroller): any scrolling contact keeps the pills
-     condensed no matter how slow — while you're holding the page, the chrome stays
-     out of the way (Bryce 2026-09-17). Movement is ACCUMULATED across the touch
-     (v9.42): a crawl at <1px per event still condenses once ~3px of total travel adds
-     up — per-event thresholds missed it. No expand, no idle timer, until release —
-     EXCEPT a resting finger (v9.45): planting a finger that shows no drag intent
-     within 40ms means the page was caught/held — expand practically instantly, don't
-     make the thumb wait out the stop fuse. Drag intent is read from touchmove (>6px
-     of finger travel, v9.46) — it fires frames before scroll events do, so real
-     drags and flicks cancel the verdict long before it lands; no flicker.
-   - MOMENTUM (no touch): velocity with hysteresis — >~380 px/s condenses, and once
-     the glide decays below ~80 px/s for two consecutive events they spring back, no
-     waiting for a dead stop (160 expanded while still visibly moving, v9.44).
-     Between the thresholds the state holds.
-   Always: full stop (550ms, armed on release or on momentum events — long enough
-   that stop-and-go nudge scrolling holds condensed instead of flapping, v9.43) and
-   the top/bottom of the page expand. A huge single-event jump is a programmatic scroll
+   v9.47: the pill-menu condense is a continuous PROGRESS (--tmp, 0..1) that all the
+   morph geometry reads via calc(), in two regimes (iOS-26 feel):
+   - FINGER DOWN (touch active on the scroller): the morph SCRUBS with the drag —
+     accumulated travel maps to progress (starts ~2px in, fully condensed by ~40px;
+     Bryce: the point should be low), so a slight nudge slightly condenses and holds
+     there. body.tscrub shortens the transition fuses to ~.12s while the finger
+     drives, so the pills track the thumb instead of gliding .7s behind it. Progress
+     only ratchets UP during a touch (touchAcc grows monotonically); no expand, no
+     idle timer until release — EXCEPT a resting finger (v9.45): no touchmove
+     drag-intent (>6px) within 40ms of touchdown = the page was caught → expand
+     near-instantly.
+   - MOMENTUM (no touch): velocity with hysteresis — >~380 px/s condenses fully, and
+     once the glide decays below ~80 px/s for two consecutive events the pills spring
+     back, no waiting for a dead stop. Between the thresholds the state holds.
+   Always: full stop (550ms, armed on release or on momentum events) and the
+   top/bottom of the page expand. A huge single-event jump is a programmatic scroll
    (view switch restoring scrollMem) — those never minimize. */
 {
   const sc = $("#scroll"), sb = $("#sbar"), th = $("#sbthumb");
   let hideTO = null, lastY = 0, lastT = 0, minTO = null, slowN = 0, touchOn = false, touchAcc = 0;
-  let dragIntent = false, tStartY = 0;
+  let dragIntent = false, tStartY = 0, curT = 0;
+  const setT = t => {
+    t = Math.min(1, Math.max(0, t));
+    if (t === curT) return;
+    curT = t;
+    document.documentElement.style.setProperty("--tmp", t.toFixed(3));
+  };
   const stillCheck = () => {
     if (dragIntent) return;
     clearTimeout(minTO);
-    minTO = setTimeout(() => { if (touchAcc < 3) document.body.classList.remove("tabmin"); }, 40);
+    minTO = setTimeout(() => { if (touchAcc < 3) setT(0); }, 40);
   };
   sc.addEventListener("touchstart", e => {
     touchOn = true; touchAcc = 0; dragIntent = false;
-    tStartY = e.touches[0] ? e.touches[0].clientY : 0;
+    const t0 = e.touches && e.touches[0];
+    tStartY = t0 ? t0.clientY : 0;
+    document.body.classList.add("tscrub");
     stillCheck();
   }, {passive:true});
   sc.addEventListener("touchmove", e => {
-    if (!dragIntent && e.touches[0] && Math.abs(e.touches[0].clientY - tStartY) > 6){
+    const t0 = e.touches && e.touches[0];
+    if (!dragIntent && t0 && Math.abs(t0.clientY - tStartY) > 6){
       dragIntent = true;         // a real drag/flick — the resting-finger verdict is off
       clearTimeout(minTO);
     }
   }, {passive:true});
   const touchEnd = () => {
     touchOn = false;
+    document.body.classList.remove("tscrub"); // long, fluid fuses for the settle
     // no momentum after release (still finger-drag stop) → expand shortly;
     // if momentum follows, its scroll events re-arm/replace this timer
     clearTimeout(minTO);
-    minTO = setTimeout(() => document.body.classList.remove("tabmin"), 550);
+    minTO = setTimeout(() => setT(0), 550);
   };
   sc.addEventListener("touchend", touchEnd, {passive:true});
   sc.addEventListener("touchcancel", touchEnd, {passive:true});
@@ -6676,14 +6695,14 @@ if (window.visualViewport){
       if (touchOn){
         slowN = 0;
         touchAcc += Math.abs(dy);
-        if (touchAcc > 3) document.body.classList.add("tabmin");
+        if (touchAcc > 2) setT(Math.max(curT, (touchAcc - 2) / 38)); // scrub, ratcheting up
         else stillCheck(); // glide-halt residue, not a drag — keep the resting-finger verdict alive
       } else {
-        if (v > .38){ slowN = 0; document.body.classList.add("tabmin"); }
-        else if (v < .08 && ++slowN >= 2){ slowN = 0; document.body.classList.remove("tabmin"); }
-        minTO = setTimeout(() => document.body.classList.remove("tabmin"), 550);
+        if (v > .38){ slowN = 0; setT(1); }
+        else if (v < .08 && ++slowN >= 2){ slowN = 0; setT(0); }
+        minTO = setTimeout(() => setT(0), 550);
       }
-    } else { slowN = 0; document.body.classList.remove("tabmin"); }
+    } else { slowN = 0; setT(0); }
     const max = sc.scrollHeight - sc.clientHeight;
     if (max < 40){ sb.style.opacity = 0; return; }
     const trackH = sb.clientHeight;
