@@ -947,15 +947,16 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.23"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.24"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
   age:30, bodyFat:"", cardioKcal:7.8, autoReg:true, week:null, // week null = standard program (DEF_WEEK)
   refract:true, // liquid-glass edge refraction under the tab capsule
+  health:false, // Apple Health sync — only offered when the iOS shell reports the capability
   level:"auto"}; // training experience: auto (scorecard) | novice | intermediate | advanced — sets stall windows
 let S = {workouts:[], drafts:{}, custom:{}, templates:{}, coach:[], milestone:0, uniO:{},
-  body:{weights:{}, kcals:{}, meas:{}, sleep:{}, energy:{}},
+  body:{weights:{}, kcals:{}, meas:{}, sleep:{}, energy:{}, steps:{}},
   settings:Object.assign({}, DEF_SET),
   progSel:null, editing:null, trendTab:"ins", range:30, recapSeen:""};
 let storeOK = true;
@@ -969,7 +970,7 @@ try { const raw = localStorage.getItem(KEY); if (raw){
    fresh device (no stored data at all) crashed in the morning check-in before Home could
    paint: the 2026-08-22 blank-screen bug, hidden for weeks because every real device
    already had data. */
-S.body = Object.assign({weights:{},kcals:{},meas:{},sleep:{},energy:{}}, S.body||{});
+S.body = Object.assign({weights:{},kcals:{},meas:{},sleep:{},energy:{},steps:{}}, S.body||{});
 S.templates = S.templates || {}; S.coach = S.coach || []; S.milestone = S.milestone || 0;
 S.uniO = S.uniO || {};
 S.dl = S.dl || {}; // per-lift targeted deloads: {base, w, n, until}
@@ -1369,6 +1370,8 @@ function weightEntries(){ return Object.entries(S.body.weights)
   .map(([d,w]) => ({d, w:+w})).filter(e => e.w > 0).sort((a,b) => a.d.localeCompare(b.d)); }
 function kcalEntries(){ return Object.entries(S.body.kcals)
   .map(([d,k]) => ({d, k:+k})).filter(e => e.k > 0).sort((a,b) => a.d.localeCompare(b.d)); }
+function stepsEntries(){ return Object.entries(S.body.steps) // synced from Apple Health
+  .map(([d,s]) => ({d, s:+s})).filter(e => e.s > 0).sort((a,b) => a.d.localeCompare(b.d)); }
 function trendSeries(){
   const ws = weightEntries();
   if (!ws.length) return [];
@@ -2751,7 +2754,11 @@ function toggleSet(ei, si){
      {type:"timer", end:<epoch ms>, ex, sound}  schedule "rest over" notification
      {type:"timerCancel"}                        drop it (skipped / finished in-app)
      {type:"haptic", kind:"timer"|"success"}     native haptic tap
-     {type:"awake", on:bool}                     keep screen on during a session */
+     {type:"awake", on:bool}                     keep screen on during a session
+     {type:"healthAuth"}                         Health permission → nHealthAuthDone(ok)
+     {type:"healthSteps", days:N}                daily step sums → nHealthSteps([{d,s}])
+     {type:"healthWrite", workouts:[{date,start,end,kcal,name}], weights:[{date,lb}]}
+     {type:"healthDelete", workouts:[date], weights:[date]} */
 const NB = (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.liftlog) || null;
 function nPost(m){ try { if (NB) NB.postMessage(m); } catch(e){} }
 function nHaptic(kind){ nPost({type:"haptic", kind:kind}); }
@@ -2771,6 +2778,57 @@ function nAwakeSync(on){
   _nAwake = on;
   nPost({type:"awake", on:on});
 }
+
+/* ---- Apple Health ---- */
+/* The handler alone can't say WHICH messages a shell understands — an old shell
+   would silently swallow health messages — so the shell injects __NCAP and the
+   page gates every Health feature (and its UI) on it. The page computes all
+   values (dates, lb, kcal); the shell just reads/writes HealthKit. */
+const NCAP = window.__NCAP || {};
+const nHealthAvail = () => !!(NB && NCAP.health);
+const nHealthOn = () => nHealthAvail() && !!S.settings.health;
+function nHealthWrite(msg){ if (nHealthOn()) nPost(Object.assign({type:"healthWrite"}, msg)); }
+function nHealthDelete(msg){ if (nHealthOn()) nPost(Object.assign({type:"healthDelete"}, msg)); }
+/* one HK workout per LiftLog date (externalUUID llwk-<date>, so a re-finished or
+   edited day REPLACES its Health entry). endMs 0 = backfilled day with no clock
+   time on record — anchor it at 6 pm. kcal: lifting at MET ≈ 4 on the smoothed
+   bodyweight, cardio minutes at the user's kcal/min setting (same as Insights). */
+function nHealthWorkoutOf(w, endMs){
+  const sets = w.exercises.reduce((a,e) => a + e.sets.length, 0);
+  const cMin = w.cardio ? +w.cardio.min || 0 : 0;
+  const min = w.durMin || (Math.min(120, Math.max(25, Math.round(sets*3.5))) + cMin);
+  const liftMin = Math.max(min - cMin, Math.round(min*0.5));
+  const kcal = Math.round(4 * 3.5 * bodyweight()*0.45359 / 200 * liftMin
+                          + (S.settings.cardioKcal || 7.8) * cMin);
+  const end = endMs || new Date(w.date+"T18:00:00")*1;
+  return {date:w.date, start:end - min*60000, end:end, kcal:kcal, name:w.sesName || ""};
+}
+let _nStepsAsk = 0;
+function nHealthStepsSync(){ // boot + return-to-foreground, 15-min throttle
+  if (!nHealthOn() || Date.now() - _nStepsAsk < 9e5) return;
+  _nStepsAsk = Date.now();
+  nPost({type:"healthSteps", days: Object.keys(S.body.steps).length ? 35 : 365});
+}
+window.nHealthSteps = arr => {
+  if (!Array.isArray(arr)) return;
+  for (const p of arr) if (p && p.d && p.s > 0) S.body.steps[p.d] = Math.round(p.s);
+  save();
+  if (tab === "trends") render(); // never re-render mid-workout — it would blur an input
+};
+window.nHealthAuthDone = ok => {
+  if (!ok){
+    S.settings.health = false; save(); render();
+    alert("Health access wasn't granted. In the Health app go to your profile → Apps → LiftLog and turn the categories on, then flip this switch again.");
+    return;
+  }
+  render(); nHealthStepsSync();
+  const n = S.workouts.length, m = weightEntries().length;
+  if ((n || m) && confirm("Connected. Also add your "+n+" past workout"+(n===1?"":"s")+" and "+m+" weigh-in"+(m===1?"":"s")+" to Apple Health?")){
+    nHealthWrite({workouts: S.workouts.map(w => nHealthWorkoutOf(w, 0)),
+                  weights: weightEntries().map(e => ({date:e.d, lb:e.w}))});
+    showToast("Sent to Apple Health ✓");
+  }
+};
 
 /* ================= rest timer / toast ================= */
 let timerInt = null;
@@ -2833,6 +2891,7 @@ document.addEventListener("visibilitychange", () => {
   wl = null;
   const d = S.drafts[S.editing || todayStr()];
   if (document.visibilityState === "visible" && d && d.active){ wakeLock(); syncTimerUI(); }
+  if (document.visibilityState === "visible") nHealthStepsSync();
 });
 function showToast(html){
   const t = $("#toast");
@@ -2960,6 +3019,9 @@ function finishDraft(dateStr, silent){
   if (S.editing === dateStr) S.editing = null;
   if (wl){ try{ wl.release(); }catch(e){} wl = null; }
   save();
+  // every path that lands a workout ends here, so Health stays in step with edits too
+  const hw = S.workouts.find(x => x.date === dateStr);
+  if (hw) nHealthWrite({workouts:[nHealthWorkoutOf(hw, dateStr === todayStr() ? Date.now() : 0)]});
   return prs;
 }
 
@@ -3098,6 +3160,24 @@ function trendsBody(){
   const ks = kcalEntries();
   html += '<div class="card"><span class="lbl">Calories</span><div class="cap" style="margin:4px 0 8px">vs your '+S.settings.kcalTarget.toLocaleString()+' target</div>'
     + '<div class="chartwrap">'+(ks.length ? kcalChart(ks) : '<p class="hint" style="padding:8px 0">Log calories in the morning check-in and they chart here.</p>')+'</div></div>';
+  // steps ride in from Apple Health — only the iOS shell can offer this card
+  if (nHealthAvail()){
+    const sp = stepsEntries();
+    html += '<div class="card"><span class="lbl">Steps</span>';
+    if (!nHealthOn())
+      html += '<p class="hint" style="margin-top:8px">Flip on Apple Health in Settings and your daily steps land here — everyday movement is the quiet half of the calorie ledger.</p>';
+    else if (!sp.length)
+      html += '<p class="hint" style="margin-top:8px">No step data yet — steps sync from Apple Health each time the app opens.</p>';
+    else {
+      const win = sp.filter(e => e.d >= windowStart());
+      const avg = win.length ? win.reduce((a,e)=>a+e.s,0)/win.length : 0;
+      html += '<div class="stat num" style="margin-top:6px">'+(S.body.steps[todayStr()] || 0).toLocaleString()+'<small> today</small>'
+        + (avg ? ' <small style="font-size:13px">· avg '+Math.round(avg).toLocaleString()+'/day</small>' : '')+'</div>'
+        + '<div class="cap" style="margin:4px 0 8px">from Apple Health — the walking that never makes the workout log</div>'
+        + '<div class="chartwrap">'+stepsChart(sp)+'</div>';
+    }
+    html += '</div>';
+  }
   return html;
 }
 
@@ -4117,6 +4197,40 @@ function kcalChart(ks){
     return '<text x="'+lx.toFixed(1)+'" y="'+(H-7)+'" text-anchor="middle" font-size="10" fill="rgba(255,255,255,.38)">'+fmtShort(dsx)+'</text>'; }).join("");
   return '<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="daily calories">'+g+bars+avgPath+tl+xlab+'</svg>';
 }
+/* daily steps from Apple Health — kcalChart's twin minus the target line */
+function stepsChart(sp){
+  const start = windowStart();
+  const s2 = sp.filter(e => e.d >= start);
+  if (!s2.length) return '<p class="hint" style="padding:8px 0">No steps in this window.</p>';
+  const W=360,H=180,L=40,R=10,T=10,B=22;
+  const hi = Math.max(...s2.map(e=>e.s)) * 1.08;
+  const t0 = new Date((S.range ? start : s2[0].d)+"T12:00:00")*1;
+  const t1 = new Date(todayStr()+"T12:00:00")*1;
+  const days = Math.max(Math.round((t1-t0)/864e5)+1, 2);
+  const X = ds => L + (W-L-R) * ((new Date(ds+"T12:00:00")*1 - t0) / Math.max(t1-t0, 864e5));
+  const Y = v => T + (H-T-B) * (1 - v/hi);
+  const bw2 = Math.max(Math.min((W-L-R)/days*0.65, 14), 2);
+  let g = "";
+  for (let i=1;i<4;i++){ const v = hi*i/4, y = Y(v);
+    g += '<line x1="'+L+'" y1="'+y+'" x2="'+(W-R)+'" y2="'+y+'" stroke="rgba(255,255,255,.07)"/>'
+      + '<text x="'+(L-5)+'" y="'+(y+4)+'" text-anchor="end" font-size="10" fill="rgba(255,255,255,.38)">'+(Math.round(v/100)*100/1000).toFixed(1)+'k</text>'; }
+  const bars = s2.map((p,i) =>
+    '<rect class="pt" x="'+(X(p.d)-bw2/2).toFixed(1)+'" y="'+Y(p.s).toFixed(1)+'" width="'+bw2.toFixed(1)+'" height="'+(Y(0)-Y(p.s)).toFixed(1)+'" rx="2" fill="'+(i===s2.length-1?"#2CE08B":"rgba(255,255,255,.25)")+'" data-d="'+p.d+'" data-v="'+p.s.toLocaleString()+' steps" data-l=""/>').join("");
+  const avg = s2.map(p => { const win = s2.filter(q => q.d <= p.d && q.d > addDays(p.d,-7));
+    return {d:p.d, v:win.reduce((a,q)=>a+q.s,0)/win.length}; });
+  const avgPath = avg.length > 1 ? '<path d="'+avg.map((p,i)=>(i?"L":"M")+X(p.d).toFixed(1)+" "+Y(p.v).toFixed(1)).join(" ")
+    + '" fill="none" stroke="#2CE08B" stroke-width="2" opacity=".8"/>' : "";
+  const xR2 = X(s2[s2.length-1].d), xL2 = X(s2[0].d);
+  let labDs = xR2 - xL2 < 48 ? [s2[s2.length-1].d] : [s2[0].d, s2[s2.length-1].d];
+  if (s2.length > 2 && xR2 - xL2 >= 150){
+    const mid = s2[Math.floor(s2.length/2)].d, xm = X(mid);
+    if (xm - xL2 >= 48 && xR2 - xm >= 48) labDs = [s2[0].d, mid, s2[s2.length-1].d];
+  }
+  const xlab = [...new Set(labDs)].map(dsx => {
+    const lx = Math.max(L+14, Math.min(W-16, X(dsx)));
+    return '<text x="'+lx.toFixed(1)+'" y="'+(H-7)+'" text-anchor="middle" font-size="10" fill="rgba(255,255,255,.38)">'+fmtShort(dsx)+'</text>'; }).join("");
+  return '<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="daily steps">'+g+bars+avgPath+xlab+'</svg>';
+}
 function e1rmChart(pts){
   if (pts.length < 2) return '<p class="hint" style="padding:8px 0">Log this lift twice to see a trend.</p>';
   const W=360,H=190,L=40,R=12,T=14,B=26;
@@ -4403,6 +4517,12 @@ function renderMore(){
     + (S.settings.week ? '<div class="btnrow" style="margin-top:8px"><button data-act="week-reset">Reset to the standard program</button></div>'
         : '<p class="cap" style="margin-top:6px">Currently the standard program: 72 h between repeat muscle groups; treadmill after lifting.</p>')
     + '</div>'
+    + (nHealthAvail()
+        ? '<h2>Apple Health</h2><div class="card">'
+          + '<div class="setrow-lab"><span>Sync with Apple Health</span><input type="checkbox" id="st-health" style="width:22px;height:22px"'+(st.health?" checked":"")+'></div>'
+          + '<p class="cap" style="margin-top:4px">Finished workouts and morning weigh-ins are saved to Health, and your daily steps come back into Trends → Body. Editing or deleting a workout here updates Health too. Access can be changed anytime in the Health app under your profile → Apps.</p>'
+          + '</div>'
+        : '')
     + '<h2>Data</h2><div class="card"><div class="btnrow">'
     + '<button data-act="copy-claude">Copy for Claude</button>'
     + '<button data-act="export">Backup</button>'
@@ -5264,6 +5384,8 @@ function claudeText(){
     if (k7.length) L.push("  calories last 7d: avg " + Math.round(k7.reduce((a,e)=>a+e.k,0)/k7.length).toLocaleString() + " vs target " + S.settings.kcalTarget.toLocaleString() + " (" + k7.length + " days logged)");
     const recent = weightEntries().slice(-14);
     L.push("  weigh-ins: " + recent.map(e => fmtShort(e.d)+" "+e.w).join(", "));
+    const sp7 = stepsEntries().filter(e => e.d > addDays(todayStr(), -7));
+    if (sp7.length) L.push("  steps last 7d: avg " + Math.round(sp7.reduce((a,e)=>a+e.s,0)/sp7.length).toLocaleString() + "/day (Apple Health)");
   }
   const scores = liftScores();
   if (scores.length){
@@ -5916,7 +6038,9 @@ document.addEventListener("click", ev => {
   else if (act === "hist-toggle"){ $("#h-"+btn.dataset.id).classList.toggle("open"); }
   else if (act === "hist-del"){
     if (confirm("Delete this workout permanently?")){
+      const dw = S.workouts.find(w => w.id === btn.dataset.id);
       S.workouts = S.workouts.filter(w => w.id !== btn.dataset.id); save(); render();
+      if (dw) nHealthDelete({workouts:[dw.date]});
     }
   }
   else if (act === "hist-edit"){
@@ -5949,7 +6073,7 @@ document.addEventListener("click", ev => {
     }
     const w = +($("#ci-w").value || 0), k = +($("#ci-k").value || 0);
     const sl = +($("#ci-s").value || 0), en = +($("#ci-e").value || 0);
-    if (w > 0) S.body.weights[todayStr()] = w;
+    if (w > 0){ S.body.weights[todayStr()] = w; nHealthWrite({weights:[{date:todayStr(), lb:w}]}); }
     if (k > 0) S.body.kcals[addDays(todayStr(),-1)] = k;
     if (sl > 0 && sl <= 16) S.body.sleep[todayStr()] = sl;
     if (en >= 1 && en <= 5) S.body.energy[todayStr()] = en;
@@ -6108,6 +6232,10 @@ document.addEventListener("change", ev => {
   else if (t.id === "st-refract"){ S.settings.refract = t.checked; save(); lensBuild(); }
   else if (t.id === "st-chk"){ S.settings.checkOff = t.checked; save(); render(); }
   else if (t.id === "st-areg"){ S.settings.autoReg = t.checked; save(); }
+  else if (t.id === "st-health"){
+    S.settings.health = t.checked; save();
+    if (t.checked) nPost({type:"healthAuth"}); // nHealthAuthDone picks it up from here
+  }
   else if (/^st-wk-[0-6]$/.test(t.id||"")){
     // clone before editing — settings.week may still be the shared DEF_SET default (null) or absent
     if (!Array.isArray(S.settings.week) || S.settings.week.length !== 7) S.settings.week = WEEK.slice();
@@ -6128,7 +6256,7 @@ document.addEventListener("change", ev => {
         S = Object.assign({drafts:{},custom:{},templates:{},coach:[],milestone:0,uniO:{},body:{weights:{},kcals:{}},progSel:null,editing:null,trendTab:"body",range:30,recapSeen:""}, data);
         S.settings = Object.assign({}, DEF_SET, data.settings||{});
         if (!S.settings.apiKey) S.settings.apiKey = keptKey; // backups don't carry the key
-        S.body = Object.assign({weights:{},kcals:{},meas:{},sleep:{},energy:{}}, S.body||{});
+        S.body = Object.assign({weights:{},kcals:{},meas:{},sleep:{},energy:{},steps:{}}, S.body||{});
         S.uniO = S.uniO || {};
         syncWeek();
         save(); alert("Restored " + S.workouts.length + " workouts."); render();
@@ -6321,6 +6449,7 @@ document.addEventListener("pointercancel", ev => { if (drag && ev.pointerId === 
 
 render();
 lensBuild();
+nHealthStepsSync();
 
 /* PWA: register the service worker only when served over http(s) —
    the desktop file:// copy skips this. */
