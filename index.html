@@ -1041,7 +1041,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.40"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.41"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -6615,16 +6615,29 @@ if (window.visualViewport){
   vv.addEventListener("resize", pinBar);
 }
 /* custom scroll indicator — see the #sbar CSS for why it exists.
-   v9.40: the pill-menu condense is VELOCITY-based with hysteresis, like Safari's
-   toolbar: a brisk scroll (>~380 px/s) condenses the pills; once the momentum glide
-   decays below ~160 px/s for two consecutive events they spring back — no waiting
-   for a dead stop. Between the thresholds the current state holds (no flapping).
-   Fallbacks: full stop (300ms) and the top/bottom of the page always expand. A huge
-   single-event jump is a programmatic scroll (view switch restoring scrollMem) —
-   those never minimize. */
+   v9.41: the pill-menu condense, in two regimes (Safari-toolbar feel):
+   - FINGER DOWN (touch active on the scroller): any scrolling contact keeps the pills
+     condensed no matter how slow — while you're holding the page, the chrome stays
+     out of the way (Bryce 2026-09-17). No expand, no idle timer, until release.
+   - MOMENTUM (no touch): velocity with hysteresis — >~380 px/s condenses, and once
+     the glide decays below ~160 px/s for two consecutive events they spring back,
+     no waiting for a dead stop. Between the thresholds the state holds.
+   Always: full stop (300ms, armed on release or on momentum events) and the
+   top/bottom of the page expand. A huge single-event jump is a programmatic scroll
+   (view switch restoring scrollMem) — those never minimize. */
 {
   const sc = $("#scroll"), sb = $("#sbar"), th = $("#sbthumb");
-  let hideTO = null, lastY = 0, lastT = 0, minTO = null, slowN = 0;
+  let hideTO = null, lastY = 0, lastT = 0, minTO = null, slowN = 0, touchOn = false;
+  sc.addEventListener("touchstart", () => { touchOn = true; }, {passive:true});
+  const touchEnd = () => {
+    touchOn = false;
+    // no momentum after release (still finger-drag stop) → expand shortly;
+    // if momentum follows, its scroll events re-arm/replace this timer
+    clearTimeout(minTO);
+    minTO = setTimeout(() => document.body.classList.remove("tabmin"), 300);
+  };
+  sc.addEventListener("touchend", touchEnd, {passive:true});
+  sc.addEventListener("touchcancel", touchEnd, {passive:true});
   sc.addEventListener("scroll", () => {
     const now = performance.now();
     const dy = sc.scrollTop - lastY;
@@ -6635,9 +6648,14 @@ if (window.visualViewport){
     const atEdge = sc.scrollTop < 60 || sc.scrollTop > smax - 60;
     const v = Math.abs(dy) / dt; // px per ms
     if (Math.abs(dy) < 160 && !atEdge){ // real finger scrolling, away from the ends
-      if (v > .38){ slowN = 0; document.body.classList.add("tabmin"); }
-      else if (v < .16 && ++slowN >= 2){ slowN = 0; document.body.classList.remove("tabmin"); }
-      minTO = setTimeout(() => document.body.classList.remove("tabmin"), 300);
+      if (touchOn){
+        slowN = 0;
+        if (Math.abs(dy) > 1) document.body.classList.add("tabmin");
+      } else {
+        if (v > .38){ slowN = 0; document.body.classList.add("tabmin"); }
+        else if (v < .16 && ++slowN >= 2){ slowN = 0; document.body.classList.remove("tabmin"); }
+        minTO = setTimeout(() => document.body.classList.remove("tabmin"), 300);
+      }
     } else { slowN = 0; document.body.classList.remove("tabmin"); }
     const max = sc.scrollHeight - sc.clientHeight;
     if (max < 40){ sb.style.opacity = 0; return; }
