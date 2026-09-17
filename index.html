@@ -947,7 +947,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.26"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.27"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -2049,6 +2049,7 @@ function render(){
   else renderMore();
   syncTimerUI();
   nAwakeSync(!!(d && d.active)); // screen stays on for the whole active session, any tab
+  nWidgetSync();
 }
 
 /* ================= liquid-glass lens ================= */
@@ -2768,7 +2769,9 @@ function toggleSet(ei, si){
                                                  → nHealthStepsWin(date, n)
      {type:"healthWrite", workouts:[{date,start,end,kcal,name,uid,act}], weights:[{date,lb}]}
                                                  uid/act need shell ≥2 (act "lift"|"walk")
-     {type:"healthDelete", workouts:[date], weights:[date]} */
+     {type:"healthDelete", workouts:[date], weights:[date]}
+     {type:"widget", snap:{...}}                snapshot → App Group file for the
+                                                 home-screen widgets (shell widget ≥ 1) */
 const NB = (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.liftlog) || null;
 function nPost(m){ try { if (NB) NB.postMessage(m); } catch(e){} }
 function nHaptic(kind){ nPost({type:"haptic", kind:kind}); }
@@ -2868,6 +2871,66 @@ window.nHealthAuthDone = ok => {
   if ((n || m) && confirm("Connected. Also add your "+n+" past workout"+(n===1?"":"s")+" and "+m+" weigh-in"+(m===1?"":"s")+" to Apple Health?")){
     nHealthBackfillAll();
     showToast("Sent to Apple Health ✓");
+  }
+};
+
+/* ---- home-screen widgets (shell widget ≥ 1) ---- */
+/* The widget extension can't read localStorage, so the page pushes a compact
+   snapshot over the bridge whenever state changes (called from render(), deduped
+   like nTimerSync); the shell writes it to the App Group container and pokes
+   WidgetKit. The page computes everything — the widget only renders. days[] lets
+   the widget flip to tomorrow's plan at 5 AM without the app opening. */
+let _nWidgetSig = "";
+function widgetDayName(ds){
+  const dd = S.drafts[ds];
+  const ses = dd && sesDef(dd.session);
+  if (ses) return ses.name;
+  if (dd && dd.bname) return dd.bname;
+  if (dd && dd.planned) return "Planned workout";
+  const wk = WEEK[new Date(ds+"T12:00:00").getDay()];
+  return wk && sesDef(wk) ? sesDef(wk).name : null;
+}
+function nWidgetSync(){
+  if (!NB || !NCAP.widget) return;
+  const today = todayStr();
+  const done = S.workouts.find(w => w.date === today);
+  const dd = S.drafts[today] || newDraft(today);
+  const setsDone = dd.exercises.reduce((a,e) => a + e.sets.filter(s => s.done || +s.r > 0).length, 0);
+  const ws = weekStart(today), wk = {};
+  for (const w of S.workouts) if (w.date >= ws) wk[w.date] = (wk[w.date] || 0) + tonOf(w);
+  const bars = [...Array(7)].map((_, i) => Math.round(wk[addDays(ws, i)] || 0));
+  const tr = trendSeries(), rate = weeklyRate(tr);
+  const snap = {
+    v:1,
+    today:{date:today, name:widgetDayName(today) || "Rest day",
+      status:done ? "done" : dd.active ? "active" : (widgetDayName(today) ? "planned" : "rest"),
+      ex:dd.exercises.length, sets:setsDone,
+      setsTotal:dd.exercises.reduce((a,e) => a + e.sets.length, 0),
+      startedAt:(dd.active && dd.startedAt) || 0,
+      ton:done ? Math.round(tonOf(done)) : 0, min:done ? Math.round(done.durMin || 0) : 0},
+    days:[1,2,3].map(n => ({date:addDays(today, n), name:widgetDayName(addDays(today, n))})),
+    week:{done:S.workouts.filter(w => w.date >= ws && w.date <= today).length,
+      plan:WEEK.filter(Boolean).length, ton:bars.reduce((a,b) => a + b, 0), bars:bars,
+      todayIdx:new Date(today+"T12:00:00").getDay()},
+    body:{steps:S.body.steps[today] || 0,
+      weight:tr.length ? Math.round(tr[tr.length-1].t*10)/10 : 0,
+      rate:rate === null ? 0 : Math.round(rate*100)/100}
+  };
+  const sig = JSON.stringify(snap);
+  if (sig === _nWidgetSig) return;
+  _nWidgetSig = sig;
+  nPost({type:"widget", snap:snap});
+}
+/* widget taps land here (shell relays the deep link / Start button). "start"
+   re-uses the real Start button so autoReg readiness etc. all behave normally. */
+window.nWidgetNav = dest => {
+  S.editing = null;
+  if (dest === "body"){ tab = "trends"; S.trendTab = "body"; render(); return; }
+  if (dest === "str"){ tab = "trends"; S.trendTab = "str"; render(); return; }
+  tab = "home"; render();
+  if (dest === "start" && !S.workouts.some(w => w.date === todayStr())){
+    const b = document.querySelector('[data-act="start"]');
+    if (b) b.click();
   }
 };
 
