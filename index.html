@@ -19,7 +19,10 @@
     /* liquid glass — one material system (v9.0): translucent fill over the aurora,
        backdrop blur + saturation, a specular top edge and a soft inner shade at the
        bottom, so every surface reads as a pane of glass with light hitting its rim */
-    --glass:rgba(26,32,53,.34); --glass-2:rgba(31,38,62,.38);
+    /* v9.35: fills dropped a full third — the backdrop blur carries legibility, the
+       tint only warms it, so the aurora reads THROUGH the glass (Bryce: "a lot more
+       transparent", 2026-09-17) */
+    --glass:rgba(26,32,53,.20); --glass-2:rgba(31,38,62,.24);
     --glass-stroke:rgba(165,180,255,.17);
     --glass-blur:blur(22px) saturate(1.7);
     --spec:inset 0 1px 0 rgba(255,255,255,.10), inset 0 -1px 0 rgba(8,10,18,.30);
@@ -88,9 +91,9 @@
      in one paint — no second strip, no seams, and the bar's own text stays crisp. */
   #topbar{position:fixed;top:0;left:0;right:0;z-index:5;
     background:linear-gradient(180deg,
-      rgba(8,11,24,.78) 0,
-      rgba(8,11,24,.58) env(safe-area-inset-top, 0px),
-      rgba(14,17,30,.34) calc(env(safe-area-inset-top, 0px) + 16px));
+      rgba(8,11,24,.62) 0,
+      rgba(8,11,24,.42) env(safe-area-inset-top, 0px),
+      rgba(14,17,30,.20) calc(env(safe-area-inset-top, 0px) + 16px));
     backdrop-filter:blur(26px) saturate(1.8);-webkit-backdrop-filter:blur(26px) saturate(1.8);
     padding:calc(12px + env(safe-area-inset-top)) 20px 12px;display:flex;align-items:center;gap:9px}
   /* v9.34: live topbar sheen — a broad soft light pooled above the bar's top edge that
@@ -104,7 +107,7 @@
      of hitting a hard border/blur cutoff. No text lives here, so nothing can get fuzzy. */
   #topbar::after{content:"";position:absolute;left:0;right:0;top:100%;height:34px;
     pointer-events:none;
-    background:linear-gradient(180deg,rgba(14,17,30,.34),rgba(14,17,30,0));
+    background:linear-gradient(180deg,rgba(14,17,30,.20),rgba(14,17,30,0));
     backdrop-filter:blur(26px) saturate(1.8);-webkit-backdrop-filter:blur(26px) saturate(1.8);
     -webkit-mask-image:linear-gradient(180deg,#000,transparent);
     mask-image:linear-gradient(180deg,#000,transparent)}
@@ -138,19 +141,19 @@
   h2::before{content:"";width:16px;height:3px;border-radius:2px;background:var(--grad2)}
   /* the tab bar floats as a detached glass capsule — the iOS-26 signature — with content
      scrolling underneath it */
-  /* v9.34: width-positioned (not left/right pinned) so the capsule can morph — while
-     you scroll down it collapses to a compact pill holding just the active tab (the
-     iOS-26 minimize), springing back full on scroll-up or when scrolling stops. */
+  /* v9.35 morph: scrolling down tucks the tab LABELS away, so the capsule slims to an
+     icon-only rail — all five tabs stay visible and tappable (v9.34's collapse-to-one
+     looked the part but hid the other four; Bryce 2026-09-17). Springs back full on
+     scroll-up, at the top, or when scrolling stops. */
   #tabs{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(10px + env(safe-area-inset-bottom));z-index:6;
     width:min(456px, 100% - 24px);
-    background:linear-gradient(180deg,rgba(27,33,56,.40),rgba(22,27,47,.36)) padding-box,
+    background:linear-gradient(180deg,rgba(27,33,56,.24),rgba(22,27,47,.20)) padding-box,
       var(--rim) border-box;
     backdrop-filter:blur(28px) saturate(1.85);-webkit-backdrop-filter:blur(28px) saturate(1.85);
     border:1px solid transparent;border-radius:30px;display:flex;
-    padding:7px;transition:width .5s var(--ease);
+    padding:7px;
     box-shadow:inset 0 1px 1px rgba(255,255,255,.14), inset 0 -1px 1px rgba(140,160,255,.05),
       inset 0 0 18px rgba(255,255,255,.035), 0 18px 44px rgba(0,0,0,.5)}
-  body.tabmin #tabs{width:128px}
   /* fake edge lensing: a thin inner band just inside the rim where the "glass" bends
      light — brighter above, denser below — masked to a ring so the middle stays clean.
      (The true feDisplacementMap lens is still parked — see #lens above.) */
@@ -203,11 +206,15 @@
   #tabs button{flex:1 1 0;min-width:0;overflow:hidden;white-space:nowrap;
     background:none;border:none;color:var(--text-3);font-size:10.5px;
     font-weight:600;padding:8px 0 5px;letter-spacing:.03em;border-radius:23px;
-    transition:transform .5s cubic-bezier(.22,1.6,.36,1),background .3s,
-      flex-grow .5s var(--ease),opacity .22s,padding .5s var(--ease)}
-  #tabs button:active{transform:scale(.94);transition-duration:.07s,.3s,.5s,.22s,.5s}
-  body.tabmin #tabs button:not(.on){flex-grow:.001;opacity:0;pointer-events:none}
-  #tabs button .ic{display:block;margin:0 auto 3px;transition:transform .35s var(--ease)}
+    transition:transform .5s cubic-bezier(.22,1.6,.36,1),background .3s,padding .45s var(--ease)}
+  #tabs button:active{transform:scale(.94);transition-duration:.07s,.3s,.45s}
+  #tabs button .tl{display:block;height:15px;line-height:15px;
+    transition:height .45s var(--ease),opacity .3s}
+  body.tabmin #tabs button{padding:7px 0}
+  body.tabmin #tabs button .tl{height:0;opacity:0}
+  body.tabmin #tabs button .ic{margin-bottom:0}
+  #tabs button .ic{display:block;margin:0 auto 3px;
+    transition:transform .35s var(--ease),margin-bottom .45s var(--ease)}
   #tabs button.on{color:var(--text-1);background:var(--accent-dim)}
   #tabs button.on .ic{color:var(--accent);transform:scale(1.12) translateY(-1px)}
   /* each tab owns a hue */
@@ -231,7 +238,7 @@
   /* gel press: fast squish down, springy overshoot back — glass with give */
   .card.tap:active{transform:scale(.97);transition-duration:.08s}
   .hero{border:1px solid transparent;
-    background:linear-gradient(180deg,rgba(33,41,66,.54),rgba(21,26,45,.48)) padding-box,
+    background:linear-gradient(180deg,rgba(33,41,66,.38),rgba(21,26,45,.32)) padding-box,
       linear-gradient(135deg,rgba(44,224,139,.55),rgba(139,124,246,.5)) border-box;
     backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
     box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 10px 36px rgba(23,185,160,.10)}
@@ -334,7 +341,7 @@
   .spark{margin-top:10px;display:block}
   /* ===== workout ===== */
   #sessbar{position:sticky;top:calc(49px + env(safe-area-inset-top));z-index:4;
-    background:rgba(14,17,30,.34);backdrop-filter:blur(24px) saturate(1.7);-webkit-backdrop-filter:blur(24px) saturate(1.7);
+    background:rgba(14,17,30,.20);backdrop-filter:blur(24px) saturate(1.7);-webkit-backdrop-filter:blur(24px) saturate(1.7);
     display:flex;align-items:center;gap:10px;padding:10px 8px;border-bottom:1px solid var(--stroke);
     box-shadow:inset 0 1px 0 rgba(255,255,255,.07), inset 0 -1px 0 rgba(8,10,18,.25);
     margin:0 -20px 14px;padding-left:14px;padding-right:14px}
@@ -410,7 +417,7 @@
   @keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
   #timer{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom));
     z-index:7;display:none;align-items:center;gap:6px;
-    background:rgba(21,26,45,.68);backdrop-filter:blur(26px) saturate(1.8);-webkit-backdrop-filter:blur(26px) saturate(1.8);
+    background:rgba(21,26,45,.48);backdrop-filter:blur(26px) saturate(1.8);-webkit-backdrop-filter:blur(26px) saturate(1.8);
     border:1px solid rgba(44,224,139,.5);border-radius:999px;padding:7px 9px 7px 17px;
     box-shadow:inset 0 1px 0 rgba(255,255,255,.12), 0 16px 48px rgba(0,0,0,.55)}
   #timer.show{display:flex}
@@ -421,7 +428,7 @@
   #timer button{padding:6px 11px;font-size:13px;border-radius:999px}
   #toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(66px + env(safe-area-inset-top));
     z-index:9;border:1px solid transparent;
-    background:linear-gradient(rgba(35,42,68,.78),rgba(35,42,68,.78)) padding-box, var(--rim-soft) border-box;
+    background:linear-gradient(rgba(35,42,68,.58),rgba(35,42,68,.58)) padding-box, var(--rim-soft) border-box;
     backdrop-filter:blur(24px) saturate(1.7);-webkit-backdrop-filter:blur(24px) saturate(1.7);
     color:var(--text-1);
     border-radius:16px;padding:12px 18px;font-size:14px;display:none;
@@ -441,7 +448,7 @@
   .banner{border-color:rgba(255,214,10,.3)}
   /* ===== trends ===== */
   .seg{display:flex;border:1px solid transparent;border-radius:999px;padding:3px;margin-bottom:14px;
-    background:linear-gradient(rgba(24,29,50,.35),rgba(24,29,50,.35)) padding-box, var(--rim) border-box;
+    background:linear-gradient(rgba(24,29,50,.20),rgba(24,29,50,.20)) padding-box, var(--rim) border-box;
     backdrop-filter:blur(24px) saturate(1.7);-webkit-backdrop-filter:blur(24px) saturate(1.7);
     box-shadow:inset 0 1px 1px rgba(255,255,255,.12), inset 0 0 12px rgba(255,255,255,.03), 0 10px 30px rgba(0,0,0,.30)}
   /* Trends keeps its segment pill floating under the topbar — just the glass pill, no strip */
@@ -541,7 +548,7 @@
   .exdiag .ring{stroke:var(--accent);fill:none;stroke-width:1.5;stroke-dasharray:3 2.5;opacity:.85}
   .coach-q{background:var(--accent-dim);border:1px solid rgba(44,224,139,.25);
     border-radius:14px 14px 4px 14px;padding:11px 14px;margin:16px 0 8px 36px;font-size:14px}
-  .coach-a{background:rgba(26,32,53,.32);backdrop-filter:blur(18px) saturate(1.6);-webkit-backdrop-filter:blur(18px) saturate(1.6);
+  .coach-a{background:rgba(26,32,53,.20);backdrop-filter:blur(18px) saturate(1.6);-webkit-backdrop-filter:blur(18px) saturate(1.6);
     border:1px solid var(--glass-stroke);border-radius:14px 14px 14px 4px;
     padding:14px 15px;font-size:14px;line-height:1.55;color:var(--text-2);margin-right:16px;
     box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
@@ -559,7 +566,7 @@
   #ovl.show{display:flex}
   /* sheets are the heaviest glass in the app — thick blur, bright rim, content showing through */
   #modal{border:1px solid transparent;
-    background:linear-gradient(rgba(23,28,49,.50),rgba(23,28,49,.50)) padding-box, var(--rim) border-box;
+    background:linear-gradient(rgba(23,28,49,.34),rgba(23,28,49,.34)) padding-box, var(--rim) border-box;
     backdrop-filter:blur(34px) saturate(1.8);-webkit-backdrop-filter:blur(34px) saturate(1.8);
     border-radius:26px 26px 0 0;width:100%;max-width:480px;
     max-height:84vh;overflow-y:auto;overflow-x:hidden;padding:20px 18px calc(20px + env(safe-area-inset-bottom));
@@ -1022,7 +1029,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.34"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.35"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -2101,7 +2108,7 @@ let lastView = "";
 let scrollMem = {}; // per-view scroll positions (session-only), keyed by viewKey
 function renderTabs(){
   $("#tabs").innerHTML = TABS.map(([t,label,ic]) =>
-    '<button data-act="tab" data-tab="'+t+'" class="'+(tab===t?"on":"")+'">'+icon(ic,21)+label+'</button>').join("");
+    '<button data-act="tab" data-tab="'+t+'" class="'+(tab===t?"on":"")+'">'+icon(ic,21)+'<span class="tl">'+label+'</span></button>').join("");
 }
 let ssPick = null; // exercise index waiting for a superset partner (tap-a-card mode)
 function ssExitPick(){
@@ -6597,8 +6604,8 @@ if (window.visualViewport){
 }
 /* custom scroll indicator — see the #sbar CSS for why it exists.
    v9.34: the same listener drives the tab-capsule minimize (iOS-26 morph): scrolling
-   down collapses #tabs to just the active tab; scrolling up, reaching the top, or
-   simply stopping (900ms) springs it back. A huge single-event jump is a programmatic
+   down slims #tabs to an icon-only rail (labels tuck away, all tabs stay tappable);
+   scrolling up, reaching the top, or simply stopping (900ms) springs it back. A huge single-event jump is a programmatic
    scroll (view switch restoring scrollMem) — those never minimize. */
 {
   const sc = $("#scroll"), sb = $("#sbar"), th = $("#sbthumb");
