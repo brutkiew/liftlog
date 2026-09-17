@@ -141,23 +141,23 @@
   h2::before{content:"";width:16px;height:3px;border-radius:2px;background:var(--grad2)}
   /* the tab bar floats as a detached glass capsule — the iOS-26 signature — with content
      scrolling underneath it */
-  /* v9.36 morph: scrolling down condenses the capsule BOTH ways — labels tuck away
-     (icon-only rail, all five tabs stay tappable) AND the capsule narrows around the
-     icons, one fluid shrink. Springs back full on scroll-up, at the top, or when
-     scrolling stops. Fill is Apple-Music-thin (v9.36): the material is basically
-     blur + saturation; the rim gradient and inner glow carry the pane's definition. */
+  /* v9.36 morph: while the page is IN MOTION the capsule condenses both ways — labels
+     tuck away (icon-only rail, all five tabs stay tappable) AND the capsule narrows
+     around the icons, one fluid shrink; it springs back when scrolling stops or at
+     either end of the page (v9.38). The material is basically a whisper of blur +
+     saturation; the rim gradient carries the pane's definition. */
   #tabs{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(10px + env(safe-area-inset-bottom));z-index:6;
     width:min(456px, 100% - 24px);
-    background:linear-gradient(180deg,rgba(27,33,56,.12),rgba(22,27,47,.09)) padding-box,
+    background:linear-gradient(180deg,rgba(27,33,56,.07),rgba(22,27,47,.05)) padding-box,
       var(--rim) border-box;
-    /* v9.37: blur cut 28→12px on the pills — at 28 the backdrop was an opaque frost;
-       at 12 content genuinely shows through (you can read shapes, almost words) while
-       edges still smear enough to say "glass" */
-    backdrop-filter:blur(12px) saturate(1.9);-webkit-backdrop-filter:blur(12px) saturate(1.9);
+    /* v9.38: frost stripped to almost nothing — blur 5px (12 still read as frost to
+       Bryce), fill ~.06, inner glow halved. What's left is a hint of smear + the rim;
+       content is plainly visible through the pane. */
+    backdrop-filter:blur(5px) saturate(1.7);-webkit-backdrop-filter:blur(5px) saturate(1.7);
     border:1px solid transparent;border-radius:30px;display:flex;
     padding:7px;transition:width .5s var(--ease);
     box-shadow:inset 0 1px 1px rgba(255,255,255,.14), inset 0 -1px 1px rgba(140,160,255,.05),
-      inset 0 0 18px rgba(255,255,255,.035), 0 18px 44px rgba(0,0,0,.5)}
+      inset 0 0 18px rgba(255,255,255,.02), 0 18px 44px rgba(0,0,0,.5)}
   body.tabmin #tabs{width:272px}
   /* fake edge lensing: a thin inner band just inside the rim where the "glass" bends
      light — brighter above, denser below — masked to a ring so the middle stays clean.
@@ -453,9 +453,9 @@
   .banner{border-color:rgba(255,214,10,.3)}
   /* ===== trends ===== */
   .seg{display:flex;border:1px solid transparent;border-radius:999px;padding:3px;margin-bottom:14px;
-    background:linear-gradient(rgba(24,29,50,.09),rgba(24,29,50,.09)) padding-box, var(--rim) border-box;
-    backdrop-filter:blur(12px) saturate(1.8);-webkit-backdrop-filter:blur(12px) saturate(1.8);
-    box-shadow:inset 0 1px 1px rgba(255,255,255,.12), inset 0 0 12px rgba(255,255,255,.03), 0 10px 30px rgba(0,0,0,.30)}
+    background:linear-gradient(rgba(24,29,50,.05),rgba(24,29,50,.05)) padding-box, var(--rim) border-box;
+    backdrop-filter:blur(5px) saturate(1.7);-webkit-backdrop-filter:blur(5px) saturate(1.7);
+    box-shadow:inset 0 1px 1px rgba(255,255,255,.12), inset 0 0 12px rgba(255,255,255,.015), 0 10px 30px rgba(0,0,0,.30)}
   /* Trends keeps its segment pill floating under the topbar — just the glass pill, no strip */
   /* v9.22: fixed, not sticky — like the tab capsule, the Trends pill is chrome: it sits
      outside the scroller's coordinate space and never rides the bounce. .segspace holds
@@ -464,7 +464,7 @@
     transform:translateX(-50%);width:min(440px, 100% - 40px);z-index:4;
     transition:width .5s var(--ease)}
   .segwrap .seg{margin-bottom:0;
-    backdrop-filter:blur(12px) saturate(1.9);-webkit-backdrop-filter:blur(12px) saturate(1.9)}
+    backdrop-filter:blur(5px) saturate(1.7);-webkit-backdrop-filter:blur(5px) saturate(1.7)}
   /* v9.36: the Trends pill condenses in step with the tab capsule (same body.tabmin
      trigger) — narrower, shorter, smaller type, one fluid glass shrink */
   body.tabmin .segwrap{width:304px}
@@ -1041,7 +1041,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.37"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.38"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -6615,21 +6615,23 @@ if (window.visualViewport){
   vv.addEventListener("resize", pinBar);
 }
 /* custom scroll indicator — see the #sbar CSS for why it exists.
-   v9.34: the same listener drives the tab-capsule minimize (iOS-26 morph): scrolling
-   down slims #tabs to an icon-only rail (labels tuck away, all tabs stay tappable);
-   it STAYS condensed while you sit scrolled down — only scrolling up or reaching the
-   top springs it back, like Apple Music's bar (v9.37; the 900ms idle re-expand felt
-   wrong to Bryce). A huge single-event jump is a programmatic
-   scroll (view switch restoring scrollMem) — those never minimize. */
+   v9.38: the same listener drives the pill-menu condense: the pills shrink WHILE the
+   page is in motion (either direction — momentum events keep them condensed through
+   the glide) and spring back when scrolling stops (420ms), or the moment you reach
+   the top or bottom of the page (Bryce 2026-09-17). A huge single-event jump is a
+   programmatic scroll (view switch restoring scrollMem) — those never minimize. */
 {
   const sc = $("#scroll"), sb = $("#sbar"), th = $("#sbthumb");
-  let hideTO = null, lastY = 0;
+  let hideTO = null, lastY = 0, minTO = null;
   sc.addEventListener("scroll", () => {
     const dy = sc.scrollTop - lastY;
     lastY = sc.scrollTop;
-    if (Math.abs(dy) < 160){ // real finger scrolling, not a programmatic jump
-      if (dy > 6 && sc.scrollTop > 140) document.body.classList.add("tabmin");
-      else if (dy < -6 || sc.scrollTop < 60) document.body.classList.remove("tabmin");
+    clearTimeout(minTO);
+    const smax = sc.scrollHeight - sc.clientHeight;
+    const atEdge = sc.scrollTop < 60 || sc.scrollTop > smax - 60;
+    if (Math.abs(dy) < 160 && !atEdge){ // real finger scrolling, away from the ends
+      if (Math.abs(dy) > 4) document.body.classList.add("tabmin");
+      minTO = setTimeout(() => document.body.classList.remove("tabmin"), 420);
     } else document.body.classList.remove("tabmin");
     const max = sc.scrollHeight - sc.clientHeight;
     if (max < 40){ sb.style.opacity = 0; return; }
