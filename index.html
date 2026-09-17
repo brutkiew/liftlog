@@ -354,13 +354,27 @@
   .wkstrip .dl{font-size:9.5px;color:var(--text-3);font-weight:600;margin-top:4px;letter-spacing:.05em}
   .spark{margin-top:10px;display:block}
   /* ===== workout ===== */
-  #sessbar{position:sticky;top:calc(49px + env(safe-area-inset-top));z-index:4;
-    background:rgba(14,17,30,.20);backdrop-filter:blur(24px) saturate(1.7);-webkit-backdrop-filter:blur(24px) saturate(1.7);
-    display:flex;align-items:center;gap:10px;padding:10px 8px;border-bottom:1px solid var(--stroke);
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.07), inset 0 -1px 0 rgba(8,10,18,.25);
-    margin:0 -20px 14px;padding-left:14px;padding-right:14px}
-  #sessbar .t{font-size:13px;color:var(--text-3)}
-  #sessbar b{font-size:14.5px;font-weight:650;letter-spacing:-.01em}
+  /* v9.53: the session bar joins the fixed chrome (same move as the Trends pill, v9.22):
+     fixed, not sticky — outside the scroller's coordinate space, so it never rides the
+     bounce. .sessspace holds its place in the content flow. Material is the v9.52 pill
+     language (rim gradient + near-clear fill + 2.5px blur), not the old frost. It slims
+     IN PLACE with the pill morph — padding/type read --tmp via calc(), width and the
+     Finish tap target stay constant — and the morph geometry carries NO transitions
+     (v9.48: transitions restart their ease per retarget = jitter; the spring writes
+     --tmp every frame). Keyboard: pinned to the visual viewport alongside the topbar
+     (see pinBar). */
+  #sessbar{position:fixed;top:calc(56px + env(safe-area-inset-top));left:50%;
+    transform:translateX(-50%);z-index:4;width:min(440px, 100% - 40px);
+    display:flex;align-items:center;gap:10px;
+    padding:calc(10px - 3px*var(--tmp,0)) 9px;
+    border:1px solid transparent;border-radius:999px;
+    background:linear-gradient(rgba(24,29,50,.03),rgba(24,29,50,.03)) padding-box, var(--rim) border-box;
+    backdrop-filter:blur(2.5px) saturate(1.5);-webkit-backdrop-filter:blur(2.5px) saturate(1.5);
+    box-shadow:inset 0 1px 1px rgba(255,255,255,.12), 0 10px 30px rgba(0,0,0,.30)}
+  #sessbar .t{font-size:calc(13px - 1px*var(--tmp,0));color:var(--text-3)}
+  #sessbar b{font-size:calc(14.5px - 1.5px*var(--tmp,0));font-weight:650;letter-spacing:-.01em;
+    min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sessspace{height:58px}
   .xcard{padding:14px 15px 15px}
   .xhead{display:flex;align-items:center;gap:7px}
   .xname{background:none;border:none;color:var(--text-1);font-size:15px;font-weight:650;padding:4px 0;
@@ -1050,7 +1064,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.52"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.53"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -2675,7 +2689,7 @@ function renderWorkout(d){
       : (S.settings.showClock ? '<span class="t num" id="elapsed"></span>' : '')
         + '<span class="t num" id="setcount">'+doneN+'/'+total+'</span>'
         + '<button class="primary small" data-act="finish">Finish</button>')
-    + '</div>';
+    + '</div><div class="sessspace"></div>';
   if (planning)
     html += '<div class="card"><span class="lbl">Planning ahead</span>'
       + '<div class="hint" style="margin-top:5px">Set it up now — it\'ll be waiting on Home, ready to start '
@@ -6619,7 +6633,13 @@ document.addEventListener("focusin", ev => {
    viewport's offset so the bar stays pinned; offsetTop is 0 when the keyboard is down. */
 if (window.visualViewport){
   const vv = window.visualViewport;
-  const pinBar = () => { const s = $("#topbar"); if (s) s.style.transform = "translateY(" + Math.round(vv.offsetTop) + "px)"; };
+  const pinBar = () => {
+    const y = Math.round(vv.offsetTop);
+    const s = $("#topbar"); if (s) s.style.transform = "translateY(" + y + "px)";
+    /* the session bar is fixed chrome too (v9.53) — its base transform centers it,
+       so the pin rides on top of translateX(-50%) */
+    const sb = $("#sessbar"); if (sb) sb.style.transform = "translateX(-50%) translateY(" + y + "px)";
+  };
   vv.addEventListener("scroll", pinBar);
   vv.addEventListener("resize", pinBar);
 }
