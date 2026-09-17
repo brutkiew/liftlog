@@ -155,7 +155,7 @@
        the rim gradient, and the drop shadow. */
     backdrop-filter:blur(2.5px) saturate(1.5);-webkit-backdrop-filter:blur(2.5px) saturate(1.5);
     border:1px solid transparent;border-radius:30px;display:flex;
-    padding:7px;transition:width .5s var(--ease);
+    padding:7px;transition:width .7s var(--ease);
     box-shadow:inset 0 1px 1px rgba(255,255,255,.14), inset 0 -1px 1px rgba(140,160,255,.05),
       0 18px 44px rgba(0,0,0,.5)}
   body.tabmin #tabs{width:272px}
@@ -211,15 +211,15 @@
   #tabs button{flex:1 1 0;min-width:0;overflow:hidden;white-space:nowrap;
     background:none;border:none;color:var(--text-3);font-size:10.5px;
     font-weight:600;padding:8px 0 5px;letter-spacing:.03em;border-radius:23px;
-    transition:transform .5s cubic-bezier(.22,1.6,.36,1),background .3s,padding .45s var(--ease)}
-  #tabs button:active{transform:scale(.94);transition-duration:.07s,.3s,.45s}
+    transition:transform .5s cubic-bezier(.22,1.6,.36,1),background .3s,padding .65s var(--ease)}
+  #tabs button:active{transform:scale(.94);transition-duration:.07s,.3s,.65s}
   #tabs button .tl{display:block;height:15px;line-height:15px;
-    transition:height .45s var(--ease),opacity .3s}
+    transition:height .65s var(--ease),opacity .45s}
   body.tabmin #tabs button{padding:7px 0}
   body.tabmin #tabs button .tl{height:0;opacity:0}
   body.tabmin #tabs button .ic{margin-bottom:0}
   #tabs button .ic{display:block;margin:0 auto 3px;
-    transition:transform .35s var(--ease),margin-bottom .45s var(--ease)}
+    transition:transform .35s var(--ease),margin-bottom .65s var(--ease)}
   #tabs button.on{color:var(--text-1);background:var(--accent-dim)}
   #tabs button.on .ic{color:var(--accent);transform:scale(1.12) translateY(-1px)}
   /* each tab owns a hue */
@@ -462,14 +462,14 @@
      its place in the content flow. */
   .segwrap{position:fixed;top:calc(56px + env(safe-area-inset-top));left:50%;
     transform:translateX(-50%);width:min(440px, 100% - 40px);z-index:4;
-    transition:width .5s var(--ease)}
+    transition:width .7s var(--ease)}
   .segwrap .seg{margin-bottom:0;
     backdrop-filter:blur(2.5px) saturate(1.5);-webkit-backdrop-filter:blur(2.5px) saturate(1.5)}
   /* v9.36: the Trends pill condenses in step with the tab capsule (same body.tabmin
      trigger) — narrower, shorter, smaller type, one fluid glass shrink */
   body.tabmin .segwrap{width:304px}
   .segwrap .seg button{transition:transform .5s cubic-bezier(.22,1.6,.36,1),background .3s,
-    padding .45s var(--ease),font-size .45s var(--ease)}
+    padding .65s var(--ease),font-size .65s var(--ease)}
   body.tabmin .segwrap .seg button{padding:6px 2px;font-size:12px}
   .segspace{height:58px}
   .seg button{flex:1;background:none;border:none;border-radius:999px;color:var(--text-3);padding:9px;font-size:13.5px;font-weight:600}
@@ -1041,7 +1041,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.45"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.46"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -6621,9 +6621,11 @@ if (window.visualViewport){
      out of the way (Bryce 2026-09-17). Movement is ACCUMULATED across the touch
      (v9.42): a crawl at <1px per event still condenses once ~3px of total travel adds
      up — per-event thresholds missed it. No expand, no idle timer, until release —
-     EXCEPT a resting finger (v9.45): planting a finger that develops no drag within
-     90ms means the page was caught/held — expand almost instantly, don't make the
-     thumb wait out the stop fuse. A real drag's travel wins the verdict, no flicker.
+     EXCEPT a resting finger (v9.45): planting a finger that shows no drag intent
+     within 40ms means the page was caught/held — expand practically instantly, don't
+     make the thumb wait out the stop fuse. Drag intent is read from touchmove (>6px
+     of finger travel, v9.46) — it fires frames before scroll events do, so real
+     drags and flicks cancel the verdict long before it lands; no flicker.
    - MOMENTUM (no touch): velocity with hysteresis — >~380 px/s condenses, and once
      the glide decays below ~80 px/s for two consecutive events they spring back, no
      waiting for a dead stop (160 expanded while still visibly moving, v9.44).
@@ -6635,11 +6637,23 @@ if (window.visualViewport){
 {
   const sc = $("#scroll"), sb = $("#sbar"), th = $("#sbthumb");
   let hideTO = null, lastY = 0, lastT = 0, minTO = null, slowN = 0, touchOn = false, touchAcc = 0;
+  let dragIntent = false, tStartY = 0;
   const stillCheck = () => {
+    if (dragIntent) return;
     clearTimeout(minTO);
-    minTO = setTimeout(() => { if (touchAcc < 3) document.body.classList.remove("tabmin"); }, 90);
+    minTO = setTimeout(() => { if (touchAcc < 3) document.body.classList.remove("tabmin"); }, 40);
   };
-  sc.addEventListener("touchstart", () => { touchOn = true; touchAcc = 0; stillCheck(); }, {passive:true});
+  sc.addEventListener("touchstart", e => {
+    touchOn = true; touchAcc = 0; dragIntent = false;
+    tStartY = e.touches[0] ? e.touches[0].clientY : 0;
+    stillCheck();
+  }, {passive:true});
+  sc.addEventListener("touchmove", e => {
+    if (!dragIntent && e.touches[0] && Math.abs(e.touches[0].clientY - tStartY) > 6){
+      dragIntent = true;         // a real drag/flick — the resting-finger verdict is off
+      clearTimeout(minTO);
+    }
+  }, {passive:true});
   const touchEnd = () => {
     touchOn = false;
     // no momentum after release (still finger-drag stop) → expand shortly;
