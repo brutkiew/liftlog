@@ -1111,7 +1111,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.57"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.58"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -6933,8 +6933,14 @@ document.addEventListener("focusout", ev => {
   // let focus land first — moving between pad inputs must not flicker the pad away
   setTimeout(() => { if (!isPadInput(document.activeElement)) padHide(); }, 50);
 });
+/* v9.58: iOS synthesizes a click ~300ms after touchend at the touch point, and
+   preventDefault on POINTERDOWN does not stop it — so a press that hid the pad
+   (✓ sits right over the tab capsule) ghost-clicked whatever was behind it.
+   Cancelling TOUCHSTART suppresses the synthesized mouse events entirely;
+   pointerdown has already fired by then and done the work. */
+$("#numpad").addEventListener("touchstart", ev => ev.preventDefault(), {passive:false});
 $("#numpad").addEventListener("pointerdown", ev => {
-  ev.preventDefault(); // never steal focus from the input
+  ev.preventDefault(); // never steal focus from the input (desktop path)
   const b = ev.target.closest("button");
   if (!b) return;
   if (!padT || !padT.isConnected){ padHide(); return; }
