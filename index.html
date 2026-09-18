@@ -15,7 +15,7 @@
   :root{
     /* surfaces — deep indigo-charcoal, not plain black */
     --bg-0:#0A0C13; --bg-1:#141826; --bg-2:#1D2333; --bg-3:#262E42;
-    --stroke:rgba(150,165,255,.13); --stroke-soft:rgba(150,165,255,.05);
+    --stroke:rgba(var(--t1),.13); --stroke-soft:rgba(var(--t1),.05);
     /* liquid glass — one material system (v9.0): translucent fill over the aurora,
        backdrop blur + saturation, a specular top edge and a soft inner shade at the
        bottom, so every surface reads as a pane of glass with light hitting its rim */
@@ -23,7 +23,7 @@
        tint only warms it, so the aurora reads THROUGH the glass (Bryce: "a lot more
        transparent", 2026-09-17) */
     --glass:rgba(26,32,53,.20); --glass-2:rgba(31,38,62,.24);
-    --glass-stroke:rgba(165,180,255,.17);
+    --glass-stroke:rgba(var(--t2),.17);
     --glass-blur:blur(22px) saturate(1.7);
     --spec:inset 0 1px 0 rgba(255,255,255,.10), inset 0 -1px 0 rgba(8,10,18,.30);
     /* v9.34 Liquid Glass rim: real glass catches light on its edge — bright where light
@@ -33,13 +33,13 @@
        (set by the iOS shell via nTilt; 0 on PC) and slide the highlights like live light. */
     --rim:linear-gradient(calc(168deg + var(--tx,0)*22deg),
       rgba(255,255,255,.32), rgba(180,192,255,.14) 24%,
-      rgba(165,180,255,.07) 46%, rgba(150,165,255,.05) 72%,
+      rgba(var(--t2),.07) 46%, rgba(var(--t1),.05) 72%,
       rgba(190,200,255,.20));
     /* cards are many — their rim stays static (tilt-repainting every card is a
        compositor bill; only the handful of chrome panes track the light) */
     --rim-soft:linear-gradient(168deg,
       rgba(255,255,255,.22), rgba(175,188,255,.12) 26%,
-      rgba(165,180,255,.065) 50%, rgba(185,196,255,.13));
+      rgba(var(--t2),.065) 50%, rgba(185,196,255,.13));
     /* text */
     --text-1:#F4F5F7; --text-2:rgba(255,255,255,.62); --text-3:rgba(255,255,255,.38);
     /* accent + semantic */
@@ -54,6 +54,13 @@
     --acc2-rgb:139,124,246; --acc2-hi:#A99BFF;
     --gl1:23,185,160; --gl2:139,124,246; --gl3:255,123,172;
     --gl1a:.26; --gl2a:.42; --gl3a:.28;
+    /* v9.59: every indigo surface + lavender glint is a channel var too, so panels
+       (picker, timer, toast, tooltip, modal, hero, topbar scrim, pill fills) follow
+       the palette — non-aurora values are hue-mapped from these in applyPalette */
+    --s1:8,11,24; --s2:14,17,30; --s3:21,26,45; --s4:35,42,68;
+    --s5:33,41,66; --s6:23,28,49; --s7:17,21,38; --s8:24,29,50;
+    --t1:150,165,255; --t2:165,180,255; --t3:120,140,255;
+    --t4:140,160,255; --t5:180,205,255; --p1:169,155,255;
     --good:#30D158; --warn:#FFD60A; --bad:#FF453A; --info:#64D2FF;
     /* geometry & motion — bigger, concentric radii, the iOS-glass silhouette */
     --r-card:20px; --r-el:14px;
@@ -98,9 +105,9 @@
      in one paint — no second strip, no seams, and the bar's own text stays crisp. */
   #topbar{position:fixed;top:0;left:0;right:0;z-index:5;
     background:linear-gradient(180deg,
-      rgba(8,11,24,.62) 0,
-      rgba(8,11,24,.42) env(safe-area-inset-top, 0px),
-      rgba(14,17,30,.20) calc(env(safe-area-inset-top, 0px) + 16px));
+      rgba(var(--s1),.62) 0,
+      rgba(var(--s1),.42) env(safe-area-inset-top, 0px),
+      rgba(var(--s2),.20) calc(env(safe-area-inset-top, 0px) + 16px));
     backdrop-filter:blur(26px) saturate(1.8);-webkit-backdrop-filter:blur(26px) saturate(1.8);
     padding:calc(12px + env(safe-area-inset-top)) 20px 12px;display:flex;align-items:center;gap:9px}
   /* v9.34: live topbar sheen — a broad soft light pooled above the bar's top edge that
@@ -114,7 +121,7 @@
      of hitting a hard border/blur cutoff. No text lives here, so nothing can get fuzzy. */
   #topbar::after{content:"";position:absolute;left:0;right:0;top:100%;height:34px;
     pointer-events:none;
-    background:linear-gradient(180deg,rgba(14,17,30,.20),rgba(14,17,30,0));
+    background:linear-gradient(180deg,rgba(var(--s2),.20),rgba(var(--s2),0));
     backdrop-filter:blur(26px) saturate(1.8);-webkit-backdrop-filter:blur(26px) saturate(1.8);
     -webkit-mask-image:linear-gradient(180deg,#000,transparent);
     mask-image:linear-gradient(180deg,#000,transparent)}
@@ -161,7 +168,7 @@
      v9.47 had during slow scrub. */
   #tabs{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(10px + env(safe-area-inset-bottom));z-index:6;
     width:calc((1 - var(--tmp,0)) * min(456px, 100% - 24px) + var(--tmp,0) * 272px);
-    background:linear-gradient(180deg,rgba(27,33,56,.04),rgba(22,27,47,.03)) padding-box,
+    background:linear-gradient(180deg,rgba(var(--s8),.04),rgba(var(--s8),.03)) padding-box,
       var(--rim) border-box;
     /* v9.39: Music-app clear — blur 2.5px, fill ~.03, no inner glow (each pass Bryce
        still read as frost: 28→12→5→here). The pane is now just a breath of smear,
@@ -169,7 +176,7 @@
     backdrop-filter:blur(2.5px) saturate(1.5);-webkit-backdrop-filter:blur(2.5px) saturate(1.5);
     border:1px solid transparent;border-radius:30px;display:flex;
     padding:7px;
-    box-shadow:inset 0 1px 1px rgba(255,255,255,.14), inset 0 -1px 1px rgba(140,160,255,.05),
+    box-shadow:inset 0 1px 1px rgba(255,255,255,.14), inset 0 -1px 1px rgba(var(--t4),.05),
       0 18px 44px rgba(0,0,0,.5)}
   /* fake edge lensing: a thin inner band just inside the rim where the "glass" bends
      light — brighter above, denser below — masked to a ring so the middle stays clean.
@@ -179,7 +186,7 @@
     -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
     -webkit-mask-composite:xor;mask-composite:exclude;
     background:linear-gradient(178deg,rgba(255,255,255,.07),rgba(255,255,255,.015) 30%,
-      rgba(10,13,26,.10) 70%,rgba(120,140,255,.05))}
+      rgba(var(--s2),.10) 70%,rgba(var(--t3),.05))}
   /* live specular: a soft glint that slides along the rim as the phone tilts (--tx/--ty
      from CoreMotion via the shell). Static center-lit on PC. */
   #tabs::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
@@ -188,7 +195,7 @@
     -webkit-mask-composite:xor;mask-composite:exclude;
     background:linear-gradient(100deg,transparent calc(22% + var(--tx,0)*26%),
       rgba(255,255,255,.38) calc(42% + var(--tx,0)*26%),
-      rgba(180,205,255,.16) calc(50% + var(--tx,0)*26%),
+      rgba(var(--t5),.16) calc(50% + var(--tx,0)*26%),
       transparent calc(68% + var(--tx,0)*26%));
     opacity:calc(.75 - var(--ty,0)*.45)}
   /* liquid-glass edge refraction (v9.10): iOS Safari can't refract an arbitrary backdrop
@@ -259,7 +266,7 @@
   /* gel press: fast squish down, springy overshoot back — glass with give */
   .card.tap:active{transform:scale(.97);transition-duration:.08s}
   .hero{border:1px solid transparent;
-    background:linear-gradient(180deg,rgba(33,41,66,.38),rgba(21,26,45,.32)) padding-box,
+    background:linear-gradient(180deg,rgba(var(--s5),.38),rgba(var(--s3),.32)) padding-box,
       linear-gradient(135deg,rgba(var(--acc-rgb),.55),rgba(var(--acc2-rgb),.5)) border-box;
     backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
     box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 10px 36px rgba(var(--acc-lo-rgb),.10)}
@@ -305,9 +312,9 @@
   @supports (appearance: base-select){
     select, select::picker(select){appearance:base-select}
     select::picker(select){
-      background:rgba(21,26,45,.88);
+      background:rgba(var(--s3),.88);
       -webkit-backdrop-filter:blur(30px) saturate(1.7);backdrop-filter:blur(30px) saturate(1.7);
-      border:1px solid rgba(165,180,255,.22);border-radius:16px;padding:6px;
+      border:1px solid rgba(var(--t2),.22);border-radius:16px;padding:6px;
       box-shadow:0 18px 44px rgba(0,0,0,.55);color:var(--text-1);
       /* v9.56: long lists (lift-by-lift exercise picker) must scroll INSIDE the
          picker — without a cap Safari 27 lets the popover run off screen */
@@ -316,9 +323,9 @@
       font-size:14.5px;color:var(--text-1);background:transparent}
     /* v9.56: fill only under a mouse hover or keyboard focus — iOS focuses the checked
        option on open, and :focus painted it like a stuck hover */
-    @media (hover:hover){ select option:hover{background:rgba(150,165,255,.10)} }
+    @media (hover:hover){ select option:hover{background:rgba(var(--t1),.10)} }
     select option:focus{outline:none}
-    select option:focus-visible{background:rgba(150,165,255,.10)}
+    select option:focus-visible{background:rgba(var(--t1),.10)}
     /* current selection: checkmark only, no filled/accented row */
     select option::checkmark{color:var(--accent)}
     /* the group label is rendered from the optgroup itself, so style the optgroup and
@@ -382,7 +389,7 @@
     display:flex;align-items:center;gap:10px;
     padding:calc(10px - 3px*var(--tmp,0)) 9px;
     border:1px solid transparent;border-radius:999px;
-    background:linear-gradient(rgba(24,29,50,.03),rgba(24,29,50,.03)) padding-box, var(--rim) border-box;
+    background:linear-gradient(rgba(var(--s8),.03),rgba(var(--s8),.03)) padding-box, var(--rim) border-box;
     backdrop-filter:blur(2.5px) saturate(1.5);-webkit-backdrop-filter:blur(2.5px) saturate(1.5);
     box-shadow:inset 0 1px 1px rgba(255,255,255,.12), 0 10px 30px rgba(0,0,0,.30)}
   #sessbar .t{font-size:calc(13px - 1px*var(--tmp,0));color:var(--text-3)}
@@ -419,10 +426,10 @@
   .setbtns .addset{margin-top:0;width:auto;flex:1.2;white-space:nowrap;padding:9px 4px}
   .setbtns .addset:first-child{flex:1.6}
   /* supersets — linked cards share a violet spine + letter chip */
-  .xcard.ssg{border-left:3px solid rgba(169,155,255,.7)}
+  .xcard.ssg{border-left:3px solid rgba(var(--p1),.7)}
   /* pick-a-partner mode: candidate cards glow dashed violet, the source card holds solid */
-  .xcard.sspick{outline:2px dashed rgba(169,155,255,.55);outline-offset:-2px;cursor:pointer}
-  .xcard.sssrc{outline:2px solid rgba(169,155,255,.75);outline-offset:-2px}
+  .xcard.sspick{outline:2px dashed rgba(var(--p1),.55);outline-offset:-2px;cursor:pointer}
+  .xcard.sssrc{outline:2px solid rgba(var(--p1),.75);outline-offset:-2px}
   .sschip{flex:none;font-size:10.5px;font-weight:700;color:var(--acc2-hi);background:rgba(var(--acc2-rgb),.16);
     border:1px solid rgba(var(--acc2-rgb),.28);border-radius:6px;padding:2px 6px;margin-right:2px}
   /* collapsed exercise card */
@@ -459,7 +466,7 @@
   @keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
   #timer{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom));
     z-index:7;display:none;align-items:center;gap:6px;
-    background:rgba(21,26,45,.48);backdrop-filter:blur(26px) saturate(1.8);-webkit-backdrop-filter:blur(26px) saturate(1.8);
+    background:rgba(var(--s3),.48);backdrop-filter:blur(26px) saturate(1.8);-webkit-backdrop-filter:blur(26px) saturate(1.8);
     border:1px solid rgba(var(--acc-rgb),.5);border-radius:999px;padding:7px 9px 7px 17px;
     box-shadow:inset 0 1px 0 rgba(255,255,255,.12), 0 16px 48px rgba(0,0,0,.55)}
   #timer.show{display:flex}
@@ -470,7 +477,7 @@
   #timer button{padding:6px 11px;font-size:13px;border-radius:999px}
   #toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(66px + env(safe-area-inset-top));
     z-index:9;border:1px solid transparent;
-    background:linear-gradient(rgba(35,42,68,.58),rgba(35,42,68,.58)) padding-box, var(--rim-soft) border-box;
+    background:linear-gradient(rgba(var(--s4),.58),rgba(var(--s4),.58)) padding-box, var(--rim-soft) border-box;
     backdrop-filter:blur(24px) saturate(1.7);-webkit-backdrop-filter:blur(24px) saturate(1.7);
     color:var(--text-1);
     border-radius:16px;padding:12px 18px;font-size:14px;display:none;
@@ -483,7 +490,7 @@
      system keyboard never rises; this ~210px glass pad takes over. */
   #numpad{position:fixed;left:0;right:0;bottom:0;z-index:8;display:none;
     padding:8px 10px calc(10px + env(safe-area-inset-bottom));
-    background:rgba(17,21,38,.72);
+    background:rgba(var(--s7),.72);
     -webkit-backdrop-filter:blur(26px) saturate(1.7);backdrop-filter:blur(26px) saturate(1.7);
     border-top:1px solid var(--glass-stroke);border-radius:22px 22px 0 0;
     box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 -14px 40px rgba(0,0,0,.35)}
@@ -514,7 +521,7 @@
   .banner{border-color:rgba(255,214,10,.3)}
   /* ===== trends ===== */
   .seg{display:flex;border:1px solid transparent;border-radius:999px;padding:3px;margin-bottom:14px;
-    background:linear-gradient(rgba(24,29,50,.03),rgba(24,29,50,.03)) padding-box, var(--rim) border-box;
+    background:linear-gradient(rgba(var(--s8),.03),rgba(var(--s8),.03)) padding-box, var(--rim) border-box;
     backdrop-filter:blur(2.5px) saturate(1.5);-webkit-backdrop-filter:blur(2.5px) saturate(1.5);
     box-shadow:inset 0 1px 1px rgba(255,255,255,.12), 0 10px 30px rgba(0,0,0,.30)}
   /* Trends keeps its segment pill floating under the topbar — just the glass pill, no strip */
@@ -540,7 +547,7 @@
   .ranges button.on{border-color:rgba(var(--acc-rgb),.4);color:var(--accent);background:var(--accent-dim)}
   .chartwrap{position:relative}
   .chartwrap svg{width:100%;height:auto;display:block}
-  #ctip{position:absolute;pointer-events:none;background:rgba(35,42,68,.85);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  #ctip{position:absolute;pointer-events:none;background:rgba(var(--s4),.85);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
     border:1px solid var(--glass-stroke);
     border-radius:10px;padding:6px 10px;font-size:12.5px;display:none;white-space:nowrap;z-index:3}
   table{width:100%;border-collapse:collapse;font-size:13.5px}
@@ -639,7 +646,7 @@
   #ovl.show{display:flex}
   /* sheets are the heaviest glass in the app — thick blur, bright rim, content showing through */
   #modal{border:1px solid transparent;
-    background:linear-gradient(rgba(23,28,49,.34),rgba(23,28,49,.34)) padding-box, var(--rim) border-box;
+    background:linear-gradient(rgba(var(--s6),.34),rgba(var(--s6),.34)) padding-box, var(--rim) border-box;
     backdrop-filter:blur(34px) saturate(1.8);-webkit-backdrop-filter:blur(34px) saturate(1.8);
     border-radius:26px 26px 0 0;width:100%;max-width:480px;
     max-height:84vh;overflow-y:auto;overflow-x:hidden;padding:20px 18px calc(20px + env(safe-area-inset-bottom));
@@ -1111,7 +1118,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.58"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.59"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -3050,20 +3057,41 @@ const PAL = {
   tide:{ acc:"#34CBE8", hi:"#85E7F7", lo:"#1795C4", acc2:"#4082F4", acc2hi:"#8FB5FF",
     accR:"52,203,232", hiR:"133,231,247", loR:"23,149,196", acc2R:"64,130,244",
     tint:"150,205,240", glass:"18,34,44", glass2:"22,40,52",
-    gl:["34,197,130","64,130,244","120,226,208"], gla:[".24",".38",".22"] },
+    gl:["34,197,130","64,130,244","120,226,208"], gla:[".24",".38",".22"],
+    hue:203, srfSat:1.05, tintSat:1, p1:"143,181,255" },
   ember:{ acc:"#FFAB4E", hi:"#FFD08A", lo:"#E8763A", acc2:"#D852A8", acc2hi:"#F09AD4",
     accR:"255,171,78", hiR:"255,208,138", loR:"232,118,58", acc2R:"216,82,168",
     tint:"255,196,160", glass:"48,34,28", glass2:"56,40,33",
-    gl:["226,88,100","244,120,60","216,82,168"], gla:[".22",".34",".24"] },
+    gl:["226,88,100","244,120,60","216,82,168"], gla:[".22",".34",".24"],
+    hue:20, srfSat:1.15, tintSat:.95, p1:"240,154,212" },
   slate:{ acc:"#A9BEE4", hi:"#D0DCF2", lo:"#7E93BE", acc2:"#93A5CB", acc2hi:"#B9C6E2",
     accR:"169,190,228", hiR:"208,220,242", loR:"126,147,190", acc2R:"147,165,203",
     tint:"178,188,208", glass:"30,33,40", glass2:"35,38,46",
-    gl:["120,135,160","160,170,200","130,140,165"], gla:[".12",".20",".12"] }
+    gl:["120,135,160","160,170,200","130,140,165"], gla:[".12",".20",".12"],
+    hue:222, srfSat:.35, tintSat:.45, p1:"185,198,226" }
 };
 const PAL_VARS = ["--accent","--accent-hi","--accent-lo","--accent2","--accent-dim",
   "--grad","--grad2","--acc-rgb","--acc-hi-rgb","--acc-lo-rgb","--acc2-rgb","--acc2-hi",
   "--stroke","--stroke-soft","--glass-stroke","--glass","--glass-2","--rim","--rim-soft",
-  "--gl1","--gl2","--gl3","--gl1a","--gl2a","--gl3a"];
+  "--gl1","--gl2","--gl3","--gl1a","--gl2a","--gl3a",
+  "--s1","--s2","--s3","--s4","--s5","--s6","--s7","--s8",
+  "--t1","--t2","--t3","--t4","--t5","--p1"];
+/* v9.59: the aurora surface family (indigo panels --s1..8, lavender glints --t1..5)
+   re-hued for a palette while keeping each element's exact lightness and alpha —
+   hand-tuning 13 more values per palette would drift; the mapping can't. */
+const SRF = {"--s1":"8,11,24","--s2":"14,17,30","--s3":"21,26,45","--s4":"35,42,68",
+  "--s5":"33,41,66","--s6":"23,28,49","--s7":"17,21,38","--s8":"24,29,50",
+  "--t1":"150,165,255","--t2":"165,180,255","--t3":"120,140,255",
+  "--t4":"140,160,255","--t5":"180,205,255"};
+function hueTo(rgb, h, sMul){
+  let [r,g,b] = rgb.split(",").map(v => +v/255);
+  const mx = Math.max(r,g,b), mn = Math.min(r,g,b), l = (mx+mn)/2;
+  let s = mx === mn ? 0 : (mx-mn)/(1-Math.abs(2*l-1));
+  s = Math.min(1, s*sMul);
+  const c = (1-Math.abs(2*l-1))*s, x = c*(1-Math.abs((h/60)%2-1)), m = l-c/2;
+  const t = [[c,x,0],[x,c,0],[0,c,x],[0,x,c],[x,0,c],[c,0,x]][Math.floor(h/60)%6];
+  return t.map(v => Math.round((v+m)*255)).join(",");
+}
 function applyPalette(id){
   const p = PAL[id], st = document.body.style;
   if (!p){ // aurora: back to the untouched :root values
@@ -3086,6 +3114,8 @@ function applyPalette(id){
   set("--rim","linear-gradient(calc(168deg + var(--tx,0)*22deg),rgba(255,255,255,.32),rgba("+p.tint+",.14) 24%,rgba("+p.tint+",.07) 46%,rgba("+p.tint+",.05) 72%,rgba("+p.tint+",.20))");
   set("--rim-soft","linear-gradient(168deg,rgba(255,255,255,.22),rgba("+p.tint+",.12) 26%,rgba("+p.tint+",.065) 50%,rgba("+p.tint+",.13))");
   p.gl.forEach((g,i) => { set("--gl"+(i+1),g); set("--gl"+(i+1)+"a",p.gla[i]); });
+  for (const k in SRF) set(k, hueTo(SRF[k], p.hue, k[2] === "t" ? p.tintSat : p.srfSat));
+  set("--p1", p.p1);
 }
 applyPalette(_nBg);
 
@@ -3846,7 +3876,7 @@ function bodySVG(){
     + '<rect x="102" y="26" width="16" height="10" rx="4" class="sil"/>';
   const label = t => '<text x="110" y="323" text-anchor="middle" font-size="11" fill="var(--text-3)" font-weight="600" letter-spacing="1.5">'+t+'</text>';
   let s = '<svg viewBox="0 0 440 332" style="width:100%;max-width:360px;margin:0 auto;display:block;touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none" id="heatmap">';
-  s += '<style>#heatmap .sil{fill:#242C44;stroke:rgba(160,175,255,.14);stroke-width:1}'
+  s += '<style>#heatmap .sil{fill:rgba(var(--s4),1);stroke:rgba(var(--t2),.14);stroke-width:1}' /* v9.59: silhouette follows the palette (s4 is the old #242C44) */
     + '#heatmap [data-region]{stroke:rgba(8,10,20,.8);stroke-width:1.1;stroke-linejoin:round;transition:fill .35s}'
     + '#heatmap .selreg{stroke:rgba(255,255,255,.92);stroke-width:1.8}'
     + '</style>';
