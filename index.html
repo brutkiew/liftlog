@@ -301,11 +301,18 @@
       background:rgba(21,26,45,.88);
       -webkit-backdrop-filter:blur(30px) saturate(1.7);backdrop-filter:blur(30px) saturate(1.7);
       border:1px solid rgba(165,180,255,.22);border-radius:16px;padding:6px;
-      box-shadow:0 18px 44px rgba(0,0,0,.55);color:var(--text-1)}
+      box-shadow:0 18px 44px rgba(0,0,0,.55);color:var(--text-1);
+      /* v9.56: long lists (lift-by-lift exercise picker) must scroll INSIDE the
+         picker — without a cap Safari 27 lets the popover run off screen */
+      max-height:min(46vh,400px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}
     select option{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:10px;
       font-size:14.5px;color:var(--text-1);background:transparent}
-    select option:hover,select option:focus{background:rgba(150,165,255,.10);outline:none}
-    select option:checked{color:var(--accent);font-weight:600}
+    /* v9.56: fill only under a mouse hover or keyboard focus — iOS focuses the checked
+       option on open, and :focus painted it like a stuck hover */
+    @media (hover:hover){ select option:hover{background:rgba(150,165,255,.10)} }
+    select option:focus{outline:none}
+    select option:focus-visible{background:rgba(150,165,255,.10)}
+    /* current selection: checkmark only, no filled/accented row */
     select option::checkmark{color:var(--accent)}
     /* the group label is rendered from the optgroup itself, so style the optgroup and
        reset its options — there's no reliable selector for the label node alone */
@@ -463,6 +470,30 @@
     box-shadow:inset 0 1px 0 rgba(255,255,255,.12), 0 16px 48px rgba(0,0,0,.55);max-width:90vw}
   #toast.show{display:block;animation:tin .3s var(--ease)}
   @keyframes tin{from{opacity:0;transform:translateX(-50%) translateY(-8px)}}
+  /* ===== keypad ===== */
+  /* v9.56: the system decimal pad eats a third of the screen (worse on iOS 27, which
+     pads dead space under the keys). Set + cardio inputs carry inputmode=none so the
+     system keyboard never rises; this ~210px glass pad takes over. */
+  #numpad{position:fixed;left:0;right:0;bottom:0;z-index:8;display:none;
+    padding:8px 10px calc(10px + env(safe-area-inset-bottom));
+    background:rgba(17,21,38,.72);
+    -webkit-backdrop-filter:blur(26px) saturate(1.7);backdrop-filter:blur(26px) saturate(1.7);
+    border-top:1px solid var(--glass-stroke);border-radius:22px 22px 0 0;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 -14px 40px rgba(0,0,0,.35)}
+  #numpad.show{display:block;animation:kpin .24s var(--ease)}
+  @keyframes kpin{from{transform:translateY(40%);opacity:0}}
+  #numpad .kgrid{display:grid;max-width:420px;margin:0 auto;gap:6px;
+    grid-template-columns:repeat(3,1fr) 78px;grid-auto-rows:44px}
+  #numpad button{font-size:21px;font-weight:650;padding:0;border-radius:12px;
+    font-variant-numeric:tabular-nums;background:rgba(255,255,255,.065);box-shadow:none}
+  #numpad .kdim{font-size:18px;color:var(--text-2);background:rgba(255,255,255,.04)}
+  #numpad .knext{grid-column:4;grid-row:1/3;font-size:13.5px;font-weight:600;
+    color:var(--text-1);background:rgba(255,255,255,.04)}
+  #numpad .kdone{grid-column:4;grid-row:3/5;background:var(--grad);color:#0A0B0D}
+  #numpad .kdone svg{display:block;margin:0 auto}
+  /* rest timer floats above the pad while it's up; keep the last rows reachable */
+  body.kp-open #timer{bottom:calc(224px + env(safe-area-inset-bottom))}
+  body.kp-open #view{padding-bottom:250px}
   /* ===== history ===== */
   .h-head{display:flex;align-items:center;gap:8px;cursor:pointer}
   .badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px}
@@ -676,6 +707,15 @@
   <button data-act="t-adj" data-d="-15">−15</button><button data-act="t-adj" data-d="15">+15</button>
   <button data-act="t-skip">Skip</button></div>
 <div id="toast"></div>
+<div id="numpad" role="group" aria-label="Number pad"><div class="kgrid">
+  <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+  <button data-k="next" class="knext">next</button>
+  <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+  <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+  <button data-k="done" class="kdone" aria-label="Done"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 7"/></svg></button>
+  <button data-k="." class="kdim">.</button><button data-k="0">0</button>
+  <button data-k="bs" class="kdim" aria-label="Delete">⌫</button>
+</div></div>
 <div id="lens" aria-hidden="true"><div class="lensin"><div class="lensbg">
   <i class="rb r1"></i><i class="rb r2"></i><i class="rb r3"></i>
 </div></div></div>
@@ -1064,7 +1104,7 @@ const MYTHS = [
 ];
 
 /* ================= state ================= */
-const APP_VER = "9.55"; // shown in Settings so a phone can confirm it picked up an update
+const APP_VER = "9.56"; // shown in Settings so a phone can confirm it picked up an update
 const KEY = "liftlog.v1";
 const DEF_SET = {kcalTarget:2510, goalWeight:"", restDefault:90, sound:true, vibrate:true,
   restO:{}, sex:"male", height:'5\'11.5"', apiKey:"", showClock:false, checkOff:false,
@@ -2174,6 +2214,9 @@ function render(){
   // each view keeps its own scroll position; a view you haven't visited starts at the top
   if (viewKey !== prevView) $("#scroll").scrollTop = scrollMem[viewKey] || 0;
   syncTimerUI();
+  // a full re-render can replace a focused set input without a focusout ever firing —
+  // don't leave the keypad up pointing at a detached node (padT is a var: no TDZ here)
+  if (padT && !padT.isConnected) padHide();
   nAwakeSync(!!(d && d.active)); // screen stays on for the whole active session, any tab
   nWidgetSync();
   nRemindSync();
@@ -2779,12 +2822,12 @@ function renderWorkout(d){
   html += '<div class="card"><div class="rowline">'
     + '<label class="grow rowline" style="gap:8px"><input type="checkbox" id="cardio-on" style="width:20px;height:20px"'+(d.cardio.on?" checked":"")+'>'
     + '<span style="font-size:14px">Incline treadmill</span></label>'
-    + '<input id="cardio-min" class="num" type="number" inputmode="numeric" value="'+d.cardio.min+'" style="width:64px;text-align:center">'
+    + '<input id="cardio-min" class="num" type="text" inputmode="none" value="'+d.cardio.min+'" style="width:64px;text-align:center">'
     + '<span class="cap">min</span></div>'
     + (d.cardio.on
         ? '<div class="rowline" style="margin-top:8px;gap:6px"><span class="cap grow">speed × incline sets the burn</span>'
-          + '<input id="cardio-mph" class="num" type="number" inputmode="decimal" step="0.1" value="'+(d.cardio.mph != null ? d.cardio.mph : S.settings.tmSpeed)+'" style="width:58px;text-align:center;padding:10px 4px"><span class="cap">mph</span>'
-          + '<input id="cardio-inc" class="num" type="number" inputmode="decimal" step="0.5" value="'+(d.cardio.inc != null ? d.cardio.inc : S.settings.tmInc)+'" style="width:58px;text-align:center;padding:10px 4px"><span class="cap">%</span></div>'
+          + '<input id="cardio-mph" class="num" type="text" inputmode="none" value="'+(d.cardio.mph != null ? d.cardio.mph : S.settings.tmSpeed)+'" style="width:58px;text-align:center;padding:10px 4px"><span class="cap">mph</span>'
+          + '<input id="cardio-inc" class="num" type="text" inputmode="none" value="'+(d.cardio.inc != null ? d.cardio.inc : S.settings.tmInc)+'" style="width:58px;text-align:center;padding:10px 4px"><span class="cap">%</span></div>'
         : '')
     + '</div>';
   html += '<div class="card"><textarea id="wnote" rows="2" placeholder="Workout notes…">'+esc(d.note||"")+'</textarea></div>';
@@ -2812,8 +2855,10 @@ function setRow(e, a, ei, si, chk, rm){
   return '<div class="srow'+(chk && s.done?" done":"")+(s.warm?" warm":"")+(s.del?" pdel":"")+'" data-ei="'+ei+'" data-si="'+si+'">'
     + '<button class="snum" data-act="warm" data-ei="'+ei+'" data-si="'+si+'">'+(s.del?"⊘":s.warm?"W":si+1)+'</button>'
     + '<div class="prev num">'+prev+'</div>'
-    + '<input class="w num" type="number" inputmode="decimal" step="0.5" min="0" value="'+esc(s.w)+'" placeholder="'+(a.ex.bw && !+a.gW(si) ? "BW" : esc(scaleW(a.gW(si), rm)))+'" data-ei="'+ei+'" data-si="'+si+'">'
-    + '<input class="r num" type="number" inputmode="numeric" min="0" value="'+esc(s.r)+'" placeholder="'+esc(a.gR(si))+'" data-ei="'+ei+'" data-si="'+si+'">'
+    /* v9.56: type=text + inputmode=none — the in-page keypad does the typing (text,
+       not number, so an in-progress "185." survives; number inputs blank invalid values) */
+    + '<input class="w num" type="text" inputmode="none" value="'+esc(s.w)+'" placeholder="'+(a.ex.bw && !+a.gW(si) ? "BW" : esc(scaleW(a.gW(si), rm)))+'" data-ei="'+ei+'" data-si="'+si+'">'
+    + '<input class="r num" type="text" inputmode="none" value="'+esc(s.r)+'" placeholder="'+esc(a.gR(si))+'" data-ei="'+ei+'" data-si="'+si+'">'
     + (chk ? '<button class="chk" data-act="chk" data-ei="'+ei+'" data-si="'+si+'">'+icon("check",20,2.4)+'</button>' : '')
     + '</div>';
 }
@@ -6801,9 +6846,61 @@ document.addEventListener("input", ev => {
 document.addEventListener("focusin", ev => {
   const t = ev.target;
   if (t.tagName === "INPUT" && (t.classList.contains("w") || t.classList.contains("r"))){
-    t.select();
+    // v9.56: no select() — the keypad's first press replaces the value (padFresh),
+    // and select() made iOS float selection handles over a keyboard-less input
     setTimeout(() => { try { t.scrollIntoView({block:"center", behavior:"smooth"}); } catch(e){} }, 250);
   }
+});
+/* v9.56: compact glass keypad. The system decimal pad swallows ~a third of the screen
+   (iOS 27 pads dead space under the keys on top), so set + cardio inputs suppress it
+   with inputmode=none and this pad does the typing: it writes the value and re-fires
+   the same bubbling input/change events the keyboard did, so the delegated draft-save
+   handlers run untouched. pointerdown + preventDefault keeps the input focused. */
+var padT = null, padFresh = false;
+const isPadInput = t => t && t.tagName === "INPUT"
+  && (t.classList.contains("w") || t.classList.contains("r") || /^cardio-(min|mph|inc)$/.test(t.id));
+function padHide(){
+  $("#numpad").classList.remove("show");
+  document.body.classList.remove("kp-open");
+  padT = null;
+}
+document.addEventListener("focusin", ev => {
+  if (!isPadInput(ev.target)) return;
+  padT = ev.target; padFresh = true;
+  $("#numpad").classList.add("show");
+  document.body.classList.add("kp-open");
+});
+document.addEventListener("focusout", ev => {
+  if (!isPadInput(ev.target)) return;
+  // let focus land first — moving between pad inputs must not flicker the pad away
+  setTimeout(() => { if (!isPadInput(document.activeElement)) padHide(); }, 50);
+});
+$("#numpad").addEventListener("pointerdown", ev => {
+  ev.preventDefault(); // never steal focus from the input
+  const b = ev.target.closest("button");
+  if (!b) return;
+  if (!padT || !padT.isConnected){ padHide(); return; }
+  const k = b.dataset.k;
+  if (k === "done"){ padT.blur(); return; }
+  if (k === "next"){
+    const list = [...document.querySelectorAll("#view input")].filter(isPadInput);
+    const n = list[list.indexOf(padT) + 1];
+    if (n){ n.focus(); } else padT.blur();
+    return;
+  }
+  let v = padT.value;
+  if (k === "bs") v = padFresh ? "" : v.slice(0, -1);
+  else if (k === "."){
+    if (padT.classList.contains("r") || padT.id === "cardio-min" || v.includes(".")) return;
+    v = (padFresh || !v) ? "0." : v + ".";
+  }
+  else v = padFresh ? k : v + k;
+  padFresh = false;
+  padT.value = v;
+  padT.dispatchEvent(new Event("input", {bubbles:true}));
+  padT.dispatchEvent(new Event("change", {bubbles:true})); // cardio fields commit on change
+  // no per-key haptic: the bridge's default kind is a medium thud — too heavy per press;
+  // a light "tick" kind would need a shell rebuild (candidate for the next one)
 });
 /* iOS keyboard: while a set input is focused the visual viewport shrinks and scrolls
    INSIDE the layout viewport, but sticky/fixed stay attached to the layout viewport —
